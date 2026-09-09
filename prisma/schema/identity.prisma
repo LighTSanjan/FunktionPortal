@@ -1,0 +1,86 @@
+// FUNKtion Portal — identity schema
+// User, OrganisationMembership, Invitation.
+//
+// A User is someone who can sign in. A Member (see finance.prisma) is
+// someone on the club roster. Most members never sign in, and some users
+// (a graduated treasurer retaining read access) are not on the roster, so
+// the two are linked optionally rather than merged.
+
+model User {
+  id                        String   @id @default(uuid())
+  email                     String   @unique
+  name                      String
+  isActive                  Boolean  @default(true) @map("is_active")
+  emailNotificationsEnabled Boolean  @default(true) @map("email_notifications_enabled")
+  telegramChatId            String?  @map("telegram_chat_id")
+
+  /// Object key of the user's stored signature image, used to stamp the
+  /// documents they sign off rather than making them wet-sign every month.
+  ///
+  /// A signature specimen is forgeable material. The bucket is private, the
+  /// key is never rendered into a page, and the image is read server-side
+  /// only while composing a document the user has just authorised. Replacing
+  /// it is an audited act — see AuditLog.
+  signatureImagePath  String?   @map("signature_image_path")
+  signatureUpdatedAt  DateTime? @map("signature_updated_at")
+
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  memberships      OrganisationMembership[]
+  notifications    Notification[]
+  auditLogs        AuditLog[]
+  setupProgresses  OrgSetupProgress[]
+  dashboardLayouts DashboardLayout[]
+
+  member                Member?
+  declaredPayments      FeePayment[]      @relation("PaymentDeclaredBy")
+  confirmedPayments     FeePayment[]      @relation("PaymentConfirmedBy")
+  recordedAttendance    SessionAttendance[]
+  verifiedSheets        AttendanceSheet[]
+  treasurerApprovals    PurchaseRequest[] @relation("TreasurerApprover")
+  presidentApprovals    PurchaseRequest[] @relation("PresidentApprover")
+  registerSyncsRequested RegisterSync[]
+  attendanceImports     AttendanceImport[]
+
+  @@map("users")
+}
+
+model OrganisationMembership {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  orgId     String   @map("org_id")
+  role      OrgRole  @default(MEMBER)
+  /// Only meaningful when role is EXCO. Null means "exco, no named post".
+  /// Two people can hold the same office (an outgoing and incoming
+  /// treasurer during handover), so this is deliberately not unique.
+  office    ExcoOffice?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+  @@index([orgId])
+  @@index([userId])
+  @@index([orgId, office])
+  @@map("organisation_memberships")
+}
+
+model Invitation {
+  id        String           @id @default(cuid())
+  orgId     String           @map("org_id")
+  email     String
+  role      OrgRole          @default(MEMBER)
+  token     String           @unique
+  status    InvitationStatus @default(PENDING)
+  expiresAt DateTime         @map("expires_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([token])
+  @@map("invitations")
+}

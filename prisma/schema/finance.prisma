@@ -1,0 +1,711 @@
+// FUNKtion Portal — finance schema
+//
+// Models the SUTD Student Organisations Finance Guidelines (Sept 2025) as
+// data. Section references below point at that document.
+
+// ─────────────────────────────────────────────
+// Reference numbering  (Guidelines §4.4)
+// ─────────────────────────────────────────────
+
+/// One counter per (series, financial year). The running number resets to
+/// 0001 at the start of each FY, and the four series are numbered
+/// independently of one another.
+///
+/// FY is stored as the two-digit form used in the reference number: 26
+/// means FY2026, i.e. April 2026 to March 2027.
+model ReferenceCounter {
+  id            String    @id @default(cuid())
+  orgId         String    @map("org_id")
+  series        DocSeries
+  financialYear Int       @map("financial_year")
+  /// Next sequence to hand out. Allocation is a single atomic UPDATE ...
+  /// RETURNING inside the same transaction that writes the document, so two
+  /// concurrent generations can never receive the same number.
+  ///
+  /// Seeded from what has already been issued OUTSIDE the portal, not from 1.
+  /// FY2026 opens at 10 for IV: 0001-0002 went to the previous exco and
+  /// 0003-0009 covered the June and July coach payments (August ran no
+  /// classes). The atomic allocation below cannot protect against a
+  /// collision that predates the portal, so the opening value is the one
+  /// number here worth checking twice.
+  nextSequence  Int       @default(1) @map("next_sequence")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, series, financialYear])
+  @@map("reference_counters")
+}
+
+/// Every number ever issued, retained even if the document is voided — a
+/// gap in the series is answerable ("0009 was voided on 3 Oct"), a reused
+/// number is not.
+model ReferenceNumber {
+  id            String    @id @default(cuid())
+  orgId         String    @map("org_id")
+  series        DocSeries
+  financialYear Int       @map("financial_year")
+  sequence      Int
+  /// Rendered form, hyphens included as the protocol requires: IV26-097-0008
+  formatted     String
+  issuedAt      DateTime  @default(now()) @map("issued_at")
+  voidedAt      DateTime? @map("voided_at")
+  voidReason    String?   @map("void_reason")
+
+  organisation  Organisation   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  invoice       Invoice?
+  incomeDeposit IncomeDeposit?
+
+  @@unique([orgId, series, financialYear, sequence])
+  @@unique([orgId, formatted])
+  @@index([orgId, series, financialYear])
+  @@map("reference_numbers")
+}
+
+// ─────────────────────────────────────────────
+// Funds  (Guidelines §2, §4.5)
+// ─────────────────────────────────────────────
+
+/// The club's balance in one fund for one financial year, plus the WBS
+/// element that must be quoted on documents drawing on it.
+///
+/// Seed Fund does NOT roll over: any unspent balance is lost at FY end and
+/// the last day to submit invoices against it is typically end of February
+/// (§2.3). Income and Donation do roll over (§2.5).
+model FundAccount {
+  id            String     @id @default(cuid())
+  orgId         String     @map("org_id")
+  financialYear Int        @map("financial_year")
+  source        FundSource
+  /// e.g. PC-00097-A3006-A3006-000 (seed), PN-...-000 (income expense),
+  /// PN-...-R00 (income revenue), NC-...-000 (donation).
+  wbsElement    String     @map("wbs_element")
+  /// Revenue-side WBS, used on Income Deposit Forms only.
+  wbsElementRevenue String? @map("wbs_element_revenue")
+  openingBalanceCents Int   @default(0) @map("opening_balance_cents")
+  rollsOver     Boolean    @default(true) @map("rolls_over")
+  /// Cut-off after which no further invoices may be drawn on this fund.
+  submissionDeadline DateTime? @map("submission_deadline")
+
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, financialYear, source])
+  @@map("fund_accounts")
+}
+
+// ─────────────────────────────────────────────
+// Roster and classes
+// ─────────────────────────────────────────────
+
+/// Someone on the club roster. Linked to a User only once they have signed
+/// in with Google; most members appear on the attendance sheet long before
+/// (or without ever) creating an account.
+model Member {
+  id        String    @id @default(cuid())
+  orgId     String    @map("org_id")
+  fullName  String    @map("full_name")
+  studentId String?   @map("student_id")
+  email     String?
+  userId    String?   @unique @map("user_id")
+  isActive  Boolean   @default(true) @map("is_active")
+  joinedAt  DateTime  @default(now()) @map("joined_at")
+  leftAt    DateTime? @map("left_at")
+
+  phone     String?
+
+  /// Birthday, split rather than stored as a date, because the roster's
+  /// birthday column is only reliable in its day and month. Real values in
+  /// the current sheet include "19/6/2022" and "23/9/2022" (year typos for
+  /// 2002) and "03/02/XXXX" (no year at all). Day and month are correct in
+  /// every one of those; a DATE column would have to reject the lot.
+  ///
+  /// The club sends birthday messages, which needs day and month only, so
+  /// the year is optional and never inferred.
+  birthDay   Int? @map("birth_day")
+  birthMonth Int? @map("birth_month")
+  birthYear  Int? @map("birth_year")
+
+  /// SUTD term number as carried in the roster sheet (5, 6, 8, ...).
+  academicTerm Int? @map("academic_term")
+
+  /// Names of fields a human has corrected here and does not want an import
+  /// to put back — a fixed birth year, a corrected spelling. Without this,
+  /// the same diff is offered and rejected every month until someone stops
+  /// reading diffs, which is the failure that matters.
+  overriddenFields String[] @map("overridden_fields")
+  /// Which import last wrote to this row.
+  lastImportId     String?  @map("last_import_id")
+  /// The status text in column A of the trimester attendance sheet, kept
+  /// verbatim: "Confirmed", "1/2 term", "Confirmed; Exchange", "Graduated",
+  /// "Left after OH 2025 term". It is the club's own free-text vocabulary,
+  /// so it is stored as written and mapped to a FeeTier on import rather
+  /// than being normalised away, which would lose the reason.
+  rosterLabel  String? @map("roster_label")
+
+  organisation Organisation        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  lastImport   AttendanceImport?   @relation(fields: [lastImportId], references: [id], onDelete: SetNull)
+  attendance   SessionAttendance[]
+  feePayments  FeePayment[]
+  purchaseRequests PurchaseRequest[]
+
+  /// Student ID is the only stable key the attendance sheets carry — names
+  /// are typed by hand and vary between trimesters ("Reese Ng" vs "Chia Yu
+  /// Xin, Reese"), so imports match on this and fall back to review.
+  @@unique([orgId, studentId])
+  @@index([orgId])
+  @@index([orgId, isActive])
+  @@map("members")
+}
+
+/// Someone who teaches a class the club pays for.
+///
+/// Usually a coach appointed by SUTD under a 'Contract For Service' issued by
+/// OSL (§3.3), whose rate is set by that contract rather than by the club.
+/// Guests are the other case: booked for a workshop, no contract, often never
+/// booked again. Both raise invoices, so both live here — the engagement
+/// tells them apart.
+///
+/// The bank and address details live here rather than inside a document
+/// template because they appear on every invoice the instructor issues, and
+/// because for a guest there is no contract on file to recover them from.
+model Instructor {
+  id            String    @id @default(cuid())
+  orgId         String    @map("org_id")
+  fullName      String    @map("full_name")
+  /// Short code used in the invoice filename, e.g. KS, JIN.
+  shortCode     String    @map("short_code")
+  danceStyle    String    @map("dance_style")
+  email         String?
+  phone         String?
+  addressLine1  String?   @map("address_line1")
+  addressLine2  String?   @map("address_line2")
+  postalCode    String?   @map("postal_code")
+  bankName      String?   @map("bank_name")
+  bankAccountNo String?   @map("bank_account_no")
+  hourlyRateCents Int     @map("hourly_rate_cents")
+  engagement    InstructorEngagement @default(CONTRACTED)
+  contractRef   String?   @map("contract_ref")
+  contractStart DateTime? @map("contract_start")
+  contractEnd   DateTime? @map("contract_end")
+  isActive      Boolean   @default(true) @map("is_active")
+
+  /// The instructor's own signature, stored on the same terms as a user's
+  /// (private bucket, server-side read only). The invoice is the
+  /// instructor's document, so this specimen must come from them — the club
+  /// stamping a coach's signature onto a claim it prepared would be forging
+  /// the very attestation OSL is relying on.
+  signatureImagePath String?   @map("signature_image_path")
+  signatureUpdatedAt DateTime? @map("signature_updated_at")
+
+  organisation Organisation      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  sessions     ClassSession[]
+  invoices     Invoice[]
+  sheets       AttendanceSheet[]
+
+  @@index([orgId])
+  @@map("instructors")
+}
+
+/// One class. Everything downstream — invoice lines, attendance columns,
+/// the coach claim total — is derived from these rows, so a session is the
+/// single place a date or duration is ever entered.
+model ClassSession {
+  id              String   @id @default(cuid())
+  orgId           String   @map("org_id")
+  instructorId    String   @map("instructor_id")
+  heldOn          DateTime @db.Date @map("held_on")
+  durationMinutes Int      @map("duration_minutes")
+  notes           String?
+
+  /// Set when the session was created by an attendance-sheet import rather
+  /// than entered by hand, so a bad import can be traced and undone.
+  importId String? @map("import_id")
+
+  organisation Organisation        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  instructor   Instructor          @relation(fields: [instructorId], references: [id])
+  import       AttendanceImport?   @relation(fields: [importId], references: [id], onDelete: SetNull)
+  attendance   SessionAttendance[]
+  invoiceLines InvoiceLine[]
+
+  @@unique([orgId, instructorId, heldOn])
+  @@index([orgId, heldOn])
+  @@map("class_sessions")
+}
+
+model SessionAttendance {
+  id           String   @id @default(cuid())
+  orgId        String   @map("org_id")
+  sessionId    String   @map("session_id")
+  memberId     String   @map("member_id")
+  present      Boolean  @default(false)
+  recordedById String?  @map("recorded_by_id")
+  recordedAt   DateTime @default(now()) @map("recorded_at")
+
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  session      ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  recordedBy   User?        @relation(fields: [recordedById], references: [id])
+
+  @@unique([sessionId, memberId])
+  @@index([orgId])
+  @@map("session_attendance")
+}
+
+// ─────────────────────────────────────────────
+// Coach payment  (Guidelines §3.3)
+// ─────────────────────────────────────────────
+
+/// The Coaches Monthly Attendance Sheet. Generated at the end of every
+/// month, verified by the TREASURER, then submitted to OSL alongside the
+/// instructor's invoice by the 15th of the following month.
+///
+/// A member-by-date matrix with the instructor as its first row: a date
+/// where that row reads NO is a self-practice session, which the club
+/// records and nobody bills for. The invoice is derived from that row, so
+/// the two documents cannot disagree about how many sessions were taught.
+///
+/// One signature is enough, and it is the treasurer's — they sign the live
+/// submissions and they are the officer holding the fund balance the sheet
+/// quotes. The control that matters is on the payment side, where money
+/// actually moves.
+model AttendanceSheet {
+  id           String    @id @default(cuid())
+  orgId        String    @map("org_id")
+  instructorId String    @map("instructor_id")
+  periodYear   Int       @map("period_year")
+  periodMonth  Int       @map("period_month")
+
+  totalPresentByDate  Json  @map("total_present_by_date")
+  coachClaimCents     Int   @map("coach_claim_cents")
+  clubFundBalanceCents Int? @map("club_fund_balance_cents")
+
+  verifiedByUserId String?     @map("verified_by_user_id")
+  /// Which post the signatory held — printed under the signature, and the
+  /// reason the office is recorded at all.
+  verifiedAsOffice ExcoOffice? @map("verified_as_office")
+  verifiedAt       DateTime?   @map("verified_at")
+  generatedDocUrl  String?     @map("generated_doc_url")
+  /// Drive file id once filed. Refiling overwrites this file rather than
+  /// creating a second one, so a regenerated month leaves one document
+  /// behind, not a numbered series of near-identical ones.
+  driveFileId      String?     @map("drive_file_id")
+  generatedAt      DateTime?   @map("generated_at")
+
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  instructor   Instructor   @relation(fields: [instructorId], references: [id])
+  verifiedBy   User?        @relation(fields: [verifiedByUserId], references: [id])
+  invoice      Invoice?
+
+  @@unique([orgId, instructorId, periodYear, periodMonth])
+  @@map("attendance_sheets")
+}
+
+/// An invoice ISSUED BY the instructor and billed to Singapore University
+/// of Technology and Design (§3.1.2, §3.3). The club is not the issuer: it
+/// countersigns, records the reference number in the top right corner, and
+/// forwards to OSL. See docs/implementation-plan for why this constrains
+/// how the document may be branded.
+model Invoice {
+  id                String        @id @default(cuid())
+  orgId             String        @map("org_id")
+  instructorId      String        @map("instructor_id")
+  referenceNumberId String?       @unique @map("reference_number_id")
+  attendanceSheetId String?       @unique @map("attendance_sheet_id")
+
+  /// Issuer's own document number, e.g. KS15042026.
+  documentNo  String   @map("document_no")
+  /// Calendar month whose classes are being billed.
+  periodYear  Int      @map("period_year")
+  periodMonth Int      @map("period_month")
+  /// Date on the invoice — the 15th of the month AFTER the classes.
+  invoiceDate DateTime @db.Date @map("invoice_date")
+
+  /// Which fund the club intends to draw on. Sets the WBS element printed
+  /// on the invoice and the register section the row is appended to.
+  fundSource FundSource @map("fund_source")
+
+  subtotalCents Int @map("subtotal_cents")
+  gstCents      Int @default(0) @map("gst_cents")
+  totalCents    Int @map("total_cents")
+
+  status           InvoiceStatus @default(DRAFT)
+  generatedDocUrl  String?       @map("generated_doc_url")
+  driveFileId      String?       @map("drive_file_id")
+  generatedAt      DateTime?     @map("generated_at")
+  signedAt         DateTime?     @map("signed_at")
+  submittedToOslAt DateTime?     @map("submitted_to_osl_at")
+  /// invoiceDate + 3 working days (§3.1.2).
+  submissionDueAt  DateTime?     @map("submission_due_at")
+  paidAt           DateTime?     @map("paid_at")
+
+  organisation    Organisation     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  instructor      Instructor       @relation(fields: [instructorId], references: [id])
+  referenceNumber ReferenceNumber? @relation(fields: [referenceNumberId], references: [id])
+  attendanceSheet AttendanceSheet? @relation(fields: [attendanceSheetId], references: [id])
+  lines           InvoiceLine[]
+
+  @@unique([orgId, instructorId, periodYear, periodMonth])
+  @@index([orgId, status])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id          String  @id @default(cuid())
+  invoiceId   String  @map("invoice_id")
+  sessionId   String? @map("session_id")
+  description String
+  minutes     Int
+  rateCents   Int     @map("rate_cents")
+  amountCents Int     @map("amount_cents")
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  invoice Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  session ClassSession? @relation(fields: [sessionId], references: [id])
+
+  @@index([invoiceId])
+  @@map("invoice_lines")
+}
+
+// ─────────────────────────────────────────────
+// Subscription fees  (Guidelines §2.2)
+// ─────────────────────────────────────────────
+
+model Term {
+  id        String   @id @default(cuid())
+  orgId     String   @map("org_id")
+  name      String
+  startDate DateTime @db.Date @map("start_date")
+  endDate   DateTime @db.Date @map("end_date")
+
+  fullFeeCents Int @map("full_fee_cents")
+  halfFeeCents Int @map("half_fee_cents")
+
+  /// OSL must be told at least 2 weeks before this date so they can create
+  /// the DBS Max Wallet user account (§2.2).
+  collectionOpensAt DateTime? @map("collection_opens_at")
+  /// The Income Deposit Form is due 1 working day after this.
+  finalCollectionAt DateTime? @map("final_collection_at")
+
+  /// End-of-collection summary filed back to Drive: who paid, at which
+  /// tier, how much, and when it was confirmed. The club's own record and
+  /// the thing a successor treasurer actually reads.
+  ///
+  /// It carries the figures, never the evidence. Payment screenshots stay
+  /// in the portal's private storage — Drive permissions are per folder,
+  /// and there is no folder setting that means "the exco may see these and
+  /// nobody else, ever".
+  summaryDocUrl     String?   @map("summary_doc_url")
+  summaryDriveFileId String?  @map("summary_drive_file_id")
+  summaryGeneratedAt DateTime? @map("summary_generated_at")
+
+  organisation  Organisation       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  feePayments   FeePayment[]
+  incomeDeposit IncomeDeposit?
+  attendanceImports AttendanceImport[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+  @@map("terms")
+}
+
+/// One member's fee for one term.
+///
+/// A member declaring payment writes DECLARED. Only an exco member may move
+/// it to CONFIRMED, and the two acts are recorded against different users —
+/// this separation is the primary control in the whole system.
+model FeePayment {
+  id       String @id @default(cuid())
+  orgId    String @map("org_id")
+  termId   String @map("term_id")
+  memberId String @map("member_id")
+
+  tier        FeeTier
+  amountCents Int      @map("amount_cents")
+  route       FeeRoute @default(OFFICIAL)
+  /// Required when route is UNOFFICIAL — the reason bulk collection was not
+  /// possible, e.g. "late payment, received after final collection".
+  routeReason String?  @map("route_reason")
+
+  status PaymentStatus @default(DECLARED)
+
+  declaredAt       DateTime? @map("declared_at")
+  declaredByUserId String?   @map("declared_by_user_id")
+  /// Free-text reference the member reads off their PayNow confirmation.
+  paymentReference String?   @map("payment_reference")
+  /// Object key of the PayNow confirmation screenshot. Nullable only
+  /// because a row exists on the roster before anyone declares against it —
+  /// the declare action refuses to run without one, since the screenshot is
+  /// the whole evidence base for the later confirmation.
+  ///
+  /// Private bucket. A screenshot of a bank confirmation carries the payer's
+  /// name and often a partial account number, so it is readable by exco only
+  /// and through short-lived signed URLs, never a public path.
+  paymentProofPath String?   @map("payment_proof_path")
+  /// Set once the portal has posted the "someone just declared" note to the
+  /// club Telegram group, so a retry or a redeploy cannot double-post.
+  announcedAt      DateTime? @map("announced_at")
+
+  confirmedAt       DateTime? @map("confirmed_at")
+  confirmedByUserId String?   @map("confirmed_by_user_id")
+  rejectedReason    String?   @map("rejected_reason")
+
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  term         Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  declaredBy   User?        @relation("PaymentDeclaredBy", fields: [declaredByUserId], references: [id])
+  confirmedBy  User?        @relation("PaymentConfirmedBy", fields: [confirmedByUserId], references: [id])
+
+  @@unique([termId, memberId])
+  @@index([orgId, status])
+  @@map("fee_payments")
+}
+
+/// DBS Max Income Deposit Form. Due to Student Life within 1 working day of
+/// the final collection (§2.2). GST is 9% and is derived from the gross
+/// amount collected: net = gross/109*100, gst = gross/109*9.
+model IncomeDeposit {
+  id                String  @id @default(cuid())
+  orgId             String  @map("org_id")
+  termId            String  @unique @map("term_id")
+  referenceNumberId String? @unique @map("reference_number_id")
+
+  eventName   String  @map("event_name")
+  description String
+  /// Revenue-side WBS, e.g. PN-00097-A3006-A3006-R00.
+  wbsElement  String  @map("wbs_element")
+
+  grossCents Int @map("gross_cents")
+  netCents   Int @map("net_cents")
+  gstCents   Int @map("gst_cents")
+
+  finalCollectionAt DateTime? @map("final_collection_at")
+  submissionDueAt   DateTime? @map("submission_due_at")
+  submittedToOslAt  DateTime? @map("submitted_to_osl_at")
+  generatedDocUrl   String?   @map("generated_doc_url")
+  driveFileId       String?   @map("drive_file_id")
+  generatedAt       DateTime? @map("generated_at")
+
+  organisation    Organisation     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  term            Term             @relation(fields: [termId], references: [id], onDelete: Cascade)
+  referenceNumber ReferenceNumber? @relation(fields: [referenceNumberId], references: [id])
+
+  @@map("income_deposits")
+}
+
+// ─────────────────────────────────────────────
+// Procurement  (Guidelines §3.1.1, Table 1)
+// ─────────────────────────────────────────────
+
+/// A Purchase Request Form or Purchase Award Form.
+///
+/// formType is derived from amountCents, never chosen by the user:
+///   < $300.00            PRF, treasurer only, 1 quotation
+///   $300.00 - $999.99    PAF, treasurer + president, 3 quotations
+///   >= $1000.00          PAF, treasurer + president + OSL, 3 quotations
+///
+/// Approval must be recorded BEFORE the purchase is made.
+model PurchaseRequest {
+  id       String           @id @default(cuid())
+  orgId    String           @map("org_id")
+  formType PurchaseFormType @map("form_type")
+
+  title       String
+  description String
+  vendorName  String     @map("vendor_name")
+  amountCents Int        @map("amount_cents")
+  fundSource  FundSource @map("fund_source")
+
+  requestedByMemberId String @map("requested_by_member_id")
+
+  status PurchaseStatus @default(DRAFT)
+
+  treasurerApprovedById String?   @map("treasurer_approved_by_id")
+  treasurerApprovedAt   DateTime? @map("treasurer_approved_at")
+  presidentApprovedById String?   @map("president_approved_by_id")
+  presidentApprovedAt   DateTime? @map("president_approved_at")
+  oslApprovedAt         DateTime? @map("osl_approved_at")
+
+  /// Set when fewer than 3 quotations are attached under one of the
+  /// exemptions in §3.1.1 (term contracts, exclusive vendors, competitions,
+  /// supermarket groceries, journals, irreplaceable goods).
+  quotationExemptionReason String? @map("quotation_exemption_reason")
+  /// §3 requires approving authorities to declare conflicts of interest.
+  conflictDeclaredNote     String? @map("conflict_declared_note")
+
+  purchasedAt     DateTime? @map("purchased_at")
+  generatedDocUrl String?   @map("generated_doc_url")
+  driveFileId     String?   @map("drive_file_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  requestedBy  Member       @relation(fields: [requestedByMemberId], references: [id])
+  treasurerApprover User?   @relation("TreasurerApprover", fields: [treasurerApprovedById], references: [id])
+  presidentApprover User?   @relation("PresidentApprover", fields: [presidentApprovedById], references: [id])
+  quotations   Quotation[]
+
+  @@index([orgId, status])
+  @@map("purchase_requests")
+}
+
+model Quotation {
+  id                String   @id @default(cuid())
+  purchaseRequestId String   @map("purchase_request_id")
+  vendorName        String   @map("vendor_name")
+  amountCents       Int      @map("amount_cents")
+  fileUrl           String?  @map("file_url")
+  isSelected        Boolean  @default(false) @map("is_selected")
+  receivedAt        DateTime @default(now()) @map("received_at")
+
+  purchaseRequest PurchaseRequest @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseRequestId])
+  @@map("quotations")
+}
+
+// ─────────────────────────────────────────────
+// Transaction Register sync  (Guidelines §4.2)
+// ─────────────────────────────────────────────
+
+/// A row the portal intends to hold in the OSL Transaction Register.
+///
+/// Keyed on (sourceType, sourceId) so regenerating a document updates the
+/// same row rather than appending a duplicate — re-running a month must be
+/// a no-op.
+model RegisterEntry {
+  id            String          @id @default(cuid())
+  orgId         String          @map("org_id")
+  financialYear Int             @map("financial_year")
+  section       RegisterSection
+
+  sourceType String @map("source_type")
+  sourceId   String @map("source_id")
+
+  referenceNumber String?   @map("reference_number")
+  description     String
+  documentDate    DateTime? @db.Date @map("document_date")
+  payeeName       String?   @map("payee_name")
+  studentId       String?   @map("student_id")
+
+  /// Both GST columns are always written together. The register's balance
+  /// formula subtracts the without-GST column, so populating only one
+  /// silently overstates the fund.
+  expenseWithoutGstCents Int? @map("expense_without_gst_cents")
+  expenseWithGstCents    Int? @map("expense_with_gst_cents")
+  incomeCents            Int? @map("income_cents")
+
+  submittedToOslAt DateTime? @db.Date @map("submitted_to_osl_at")
+  bankedInAt       DateTime? @db.Date @map("banked_in_at")
+
+  sheetRowNumber Int?      @map("sheet_row_number")
+  syncedAt       DateTime? @map("synced_at")
+  syncId         String?   @map("sync_id")
+
+  organisation Organisation  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  sync         RegisterSync? @relation(fields: [syncId], references: [id])
+
+  @@unique([orgId, sourceType, sourceId])
+  @@index([orgId, financialYear, section])
+  @@map("register_entries")
+}
+
+/// One diff-and-approve run against the Google Sheet. The computed diff is
+/// shown before anything is written, and the pre-write snapshot is retained
+/// so a bad apply can be reversed.
+model RegisterSync {
+  id            String             @id @default(cuid())
+  orgId         String             @map("org_id")
+  financialYear Int                @map("financial_year")
+  status        RegisterSyncStatus @default(PENDING)
+
+  diff             Json
+  snapshotBefore   Json?    @map("snapshot_before")
+  rowsAdded        Int      @default(0) @map("rows_added")
+  rowsUpdated      Int      @default(0) @map("rows_updated")
+  error            String?
+
+  requestedById String    @map("requested_by_id")
+  requestedAt   DateTime  @default(now()) @map("requested_at")
+  appliedAt     DateTime? @map("applied_at")
+
+  organisation Organisation    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  requestedBy  User            @relation(fields: [requestedById], references: [id])
+  entries      RegisterEntry[]
+
+  @@index([orgId, status])
+  @@map("register_syncs")
+}
+
+// ─────────────────────────────────────────────
+// Attendance import
+// ─────────────────────────────────────────────
+
+/// One import run from a trimester attendance Google Sheet.
+///
+/// The club already keeps attendance in Drive, one sheet per trimester, and
+/// the layout is machine-readable: columns A-K are the roster (status,
+/// name, term, student ID, email, ...) and every column from L rightward is
+/// one class date, headed "18 May" / "4 Jun", carrying a 1 where the member
+/// showed up. The portal reads that grid rather than asking anyone to type
+/// it again.
+///
+/// Two things in the sheet are NOT resolvable by reading it, which is why
+/// an import is a two-step act with a human in the middle:
+///
+///   1. The date headers carry no year. Resolved from the linked Term's
+///      date range, and an unresolvable header fails the import rather than
+///      guessing.
+///   2. The sheet never records WHICH COACH taught a given date. Invoices
+///      are per instructor per month, so every date column has to be
+///      assigned to an instructor before sessions can be written. The
+///      previous run's assignment is offered as the default.
+model AttendanceImport {
+  id     String @id @default(cuid())
+  orgId  String @map("org_id")
+  termId String? @map("term_id")
+
+  /// Google Sheets file id and tab, e.g. the "Tri 2 Attendance" sheet.
+  spreadsheetId String  @map("spreadsheet_id")
+  sheetTabName  String? @map("sheet_tab_name")
+  /// Title at the time of reading, so a later rename does not orphan the
+  /// record.
+  sourceTitle   String? @map("source_title")
+
+  status AttendanceImportStatus @default(PARSED)
+
+  /// The parse: date headers, roster rows, and the marks between them.
+  /// Retained so a disputed sheet can be compared against what the portal
+  /// actually read, and so re-running does not require re-fetching.
+  ///
+  /// Only the columns finance needs are kept — name, student ID, status
+  /// label, and the attendance marks. Phone numbers, birthdays and the
+  /// medical/dietary column are in the source sheet and are deliberately
+  /// not copied here: nothing downstream uses them, and holding them would
+  /// make this table sensitive for no return.
+  parsed Json
+
+  /// Roster rows that matched no Member, awaiting a decision to create or
+  /// link. An import cannot be APPLIED while this is non-empty.
+  unmatchedRows Json? @map("unmatched_rows")
+  /// date (ISO) -> instructorId, filled in by the treasurer at review.
+  dateInstructorMap Json? @map("date_instructor_map")
+
+  membersCreated   Int @default(0) @map("members_created")
+  sessionsCreated  Int @default(0) @map("sessions_created")
+  marksImported    Int @default(0) @map("marks_imported")
+
+  error String?
+
+  importedByUserId String   @map("imported_by_user_id")
+  importedAt       DateTime @default(now()) @map("imported_at")
+  appliedAt        DateTime? @map("applied_at")
+
+  organisation Organisation   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  term         Term?          @relation(fields: [termId], references: [id], onDelete: SetNull)
+  importedBy   User           @relation(fields: [importedByUserId], references: [id])
+  sessions     ClassSession[]
+  members      Member[]
+
+  @@index([orgId, status])
+  @@map("attendance_imports")
+}

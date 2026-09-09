@@ -1,0 +1,907 @@
+<title>FUNKtion Treasury</title>
+<style>
+  /* Palette lifted from the FUNKtion "kueh lapis" logo: vermilion #F05820,
+     marigold #F8A838, sky #58C0E8, indigo #304890. Indigo carries structure,
+     vermilion is the single hot accent, marigold and sky take the semantic
+     roles so no colour is doing two jobs. */
+  :root {
+    --brand-vermilion: #F05820;
+    --brand-marigold: #F8A838;
+    --brand-sky: #58C0E8;
+    --brand-indigo: #304890;
+
+    --ground: #FAF8F4;
+    --surface: #FFFFFF;
+    --sunk: #F1EFEA;
+    --ink: #17192B;
+    --ink-soft: #565C77;
+    --ink-faint: #8B90A6;
+    --rule: #E3E1DC;
+    --rule-strong: #C7C6CE;
+    --accent: #D8410E;
+    --accent-soft: #FDEDE5;
+    --structure: #304890;
+    --warn: #92600A;
+    --warn-soft: #FDF2DF;
+    --good: #1D6A93;
+    --good-soft: #E5F3FB;
+    --shadow: 0 1px 2px rgba(23,25,43,.05), 0 10px 30px -18px rgba(23,25,43,.35);
+
+    --sans: "Avenir Next", Avenir, "Segoe UI", ui-sans-serif, "Helvetica Neue", sans-serif;
+    --serif: Charter, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #12141F;
+      --surface: #1B1E2C;
+      --sunk: #232636;
+      --ink: #EDEEF3;
+      --ink-soft: #A8AEC4;
+      --ink-faint: #757B92;
+      --rule: #2C3042;
+      --rule-strong: #3F4459;
+      --accent: #FF8354;
+      --accent-soft: #331A11;
+      --structure: #8FA4E0;
+      --warn: #F0B458;
+      --warn-soft: #2E2411;
+      --good: #7CCBEE;
+      --good-soft: #122A38;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px -18px rgba(0,0,0,.85);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #12141F;
+    --surface: #1B1E2C;
+    --sunk: #232636;
+    --ink: #EDEEF3;
+    --ink-soft: #A8AEC4;
+    --ink-faint: #757B92;
+    --rule: #2C3042;
+    --rule-strong: #3F4459;
+    --accent: #FF8354;
+    --accent-soft: #331A11;
+    --structure: #8FA4E0;
+    --warn: #F0B458;
+    --warn-soft: #2E2411;
+    --good: #7CCBEE;
+    --good-soft: #122A38;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px -18px rgba(0,0,0,.85);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.62;
+    margin: 0;
+    padding: 0 24px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 940px; margin: 0 auto; }
+
+  /* Masthead closes with the logo's stacked layers. */
+  header.masthead { padding: 72px 0 0; margin-bottom: 48px; }
+  header.masthead::after {
+    content: "";
+    display: block;
+    height: 12px;
+    margin-top: 40px;
+    background: linear-gradient(to bottom,
+      var(--brand-vermilion) 0 25%,
+      var(--brand-marigold) 25% 50%,
+      var(--brand-sky) 50% 75%,
+      var(--brand-indigo) 75% 100%);
+  }
+  .eyebrow {
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 20px;
+  }
+  h1 {
+    font-family: var(--sans);
+    font-size: clamp(38px, 6vw, 60px);
+    font-weight: 600;
+    letter-spacing: -.028em;
+    line-height: 1.02;
+    text-wrap: balance;
+    margin: 0 0 22px;
+  }
+  .standfirst {
+    font-size: 20px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    max-width: 60ch;
+    margin: 0;
+  }
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-top: 40px;
+  }
+  .fact { background: var(--surface); padding: 14px 16px; }
+  .fact dt {
+    font-family: var(--sans);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 5px;
+  }
+  .fact dd {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  section { margin: 0 0 68px; }
+  h2 {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--structure);
+    margin: 0 0 10px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--structure);
+  }
+  h3 {
+    font-family: var(--sans);
+    font-size: 23px;
+    font-weight: 600;
+    letter-spacing: -.014em;
+    text-wrap: balance;
+    margin: 34px 0 12px;
+  }
+  h4 { font-family: var(--sans); font-size: 16px; font-weight: 600; margin: 26px 0 8px; }
+  p { margin: 0 0 16px; max-width: 68ch; }
+  ul, ol { max-width: 68ch; padding-left: 22px; margin: 0 0 16px; }
+  li { margin-bottom: 7px; }
+  strong { font-weight: 600; }
+  a { color: var(--accent); }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  code {
+    font-family: var(--mono);
+    font-size: .87em;
+    background: var(--sunk);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 1px 5px;
+    white-space: nowrap;
+  }
+
+  .scroll { overflow-x: auto; margin: 22px 0; border: 1px solid var(--rule); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th {
+    font-family: var(--sans);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    background: var(--sunk);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num, td.ref { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .note {
+    border-left: 3px solid var(--rule-strong);
+    background: var(--surface);
+    padding: 18px 22px;
+    margin: 24px 0;
+    box-shadow: var(--shadow);
+  }
+  .note.flag { border-left-color: var(--brand-marigold); background: var(--warn-soft); }
+  .note.rule { border-left-color: var(--brand-vermilion); background: var(--accent-soft); }
+  .note > :last-child { margin-bottom: 0; }
+  .note-label {
+    display: block;
+    font-family: var(--sans);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    color: var(--ink-soft);
+  }
+  .note.flag .note-label { color: var(--warn); }
+  .note.rule .note-label { color: var(--accent); }
+
+  .diagram {
+    overflow-x: auto;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-top: 3px solid var(--brand-sky);
+    padding: 26px 20px;
+    margin: 24px 0;
+  }
+  .diagram pre.mermaid { margin: 0; background: none; border: none; text-align: center; }
+  figcaption {
+    font-family: var(--sans);
+    font-size: 12.5px;
+    color: var(--ink-faint);
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .phases { list-style: none; padding: 0; margin: 24px 0; max-width: none; }
+  .phase { display: grid; grid-template-columns: 62px 1fr; gap: 22px; padding: 22px 0; border-top: 1px solid var(--rule); }
+  .phase:last-child { border-bottom: 1px solid var(--rule); }
+  .phase-n {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-variant-numeric: tabular-nums;
+    color: var(--brand-marigold);
+    line-height: 1;
+  }
+  .phase h4 { margin: 0 0 4px; }
+  .phase .when {
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--structure);
+    margin-bottom: 8px;
+  }
+  .phase p { margin: 0; font-size: 15.5px; color: var(--ink-soft); }
+
+  .pill {
+    display: inline-block;
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    padding: 2px 9px;
+    border-radius: 100px;
+    vertical-align: 1px;
+  }
+  .pill.a { background: var(--accent-soft); color: var(--accent); }
+  .pill.b { background: var(--good-soft); color: var(--good); }
+
+  footer {
+    margin-top: 72px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--ink-faint);
+  }
+
+  @media (max-width: 640px) {
+    body { font-size: 16px; padding: 0 18px 64px; }
+    header.masthead { padding-top: 48px; }
+    .phase { grid-template-columns: 40px 1fr; gap: 14px; }
+    .phase-n { font-size: 20px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">FUNKtion Club &middot; Implementation Plan</p>
+  <h1>Treasury portal for FY2026</h1>
+  <p class="standfirst">A build plan for automating the monthly treasurer workflow, written against the SUTD Student Organisations Finance Guidelines of September 2025.</p>
+
+  <dl class="facts">
+    <div class="fact"><dt>Financial year</dt><dd>Apr 2026 &ndash; Mar 2027</dd></div>
+    <div class="fact"><dt>Project code</dt><dd>097</dd></div>
+    <div class="fact"><dt>Cluster</dt><dd>Arts &middot; A3006</dd></div>
+    <div class="fact"><dt>Members</dt><dd>46 on roster</dd></div>
+    <div class="fact"><dt>Handover</dt><dd>March 2027</dd></div>
+  </dl>
+</header>
+
+<section>
+  <h2>What the portal is for</h2>
+  <p>The treasurer's month is mostly transcription. The same four facts &mdash; which classes ran, who attended, what the instructor is owed, which fund it comes from &mdash; get typed into an invoice, an attendance sheet, and a register, by hand, on the 15th of every month. Fee collection is worse: the club has never kept a record of who actually paid, only a lump sum banked in once a term.</p>
+  <p>The portal's job is to make each of those facts get entered exactly once. Everything else is a rendering of them.</p>
+
+  <h3>Two classes of artefact</h3>
+  <p>The distinction drives nearly every technical decision:</p>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr><th>Class</th><th>Documents</th><th>Format</th><th>How the portal treats it</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="pill a">A</span></td>
+          <td>Transaction Register, Unofficial Funds Register</td>
+          <td>Native Google Sheets</td>
+          <td>Edited in place via the Sheets API, behind a diff-and-approve gate with a pre-write snapshot</td>
+        </tr>
+        <tr>
+          <td><span class="pill b">B</span></td>
+          <td>Invoices, attendance sheets, income deposit forms, PRF, PAF</td>
+          <td><code>.docx</code> / <code>.xlsx</code></td>
+          <td>Template filled server-side, handed to the browser as a download. Never written back to Drive</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Class B needs no Google credentials at all, and the output stays byte-identical in layout to what OSL has accepted for years. Only the register requires API access, which keeps the trusted surface small.</p>
+</section>
+
+<section>
+  <h2>Rules the portal enforces</h2>
+  <p>These are not reminders. Each is a validation the system applies before it will generate or submit a document.</p>
+
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr><th>Rule</th><th>Source</th><th>Enforcement</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Income carries 9% GST; donations are exempt</td><td class="ref">&sect;2</td><td>GST derived, never entered: <code>net = gross / 109 &times; 100</code></td></tr>
+        <tr><td>Income Deposit Form due within <strong>1 working day</strong> of final collection</td><td class="ref">&sect;2.2</td><td>Countdown on dashboard; Telegram reminder</td></tr>
+        <tr><td>OSL told <strong>2 weeks</strong> before collection to open the DBS Max wallet</td><td class="ref">&sect;2.2</td><td>Blocks opening a term whose lead time has lapsed</td></tr>
+        <tr><td>Seed Fund does not roll over; cut-off around end of February</td><td class="ref">&sect;2.3</td><td>Hard deadline on fund account; warns as it nears</td></tr>
+        <tr><td>Seed Fund may not buy meeting refreshments, prizes, personal equipment, transport, or pay other StuOrgs</td><td class="ref">&sect;2.3</td><td>Checklist on any purchase drawing on <code>SEED</code></td></tr>
+        <tr><td>Purchases below $300: PRF, treasurer only</td><td class="ref">&sect;3.1.1</td><td>Form type derived from amount, never chosen</td></tr>
+        <tr><td>$300&ndash;$999.99: PAF, 3 quotations, treasurer + president</td><td class="ref">Table 1</td><td>Cannot submit with fewer than 3 quotes unless an exemption is recorded</td></tr>
+        <tr><td>$1000 and above: PAF, 3 quotations, + OSL approval</td><td class="ref">Table 1</td><td>Adds a third approval stage</td></tr>
+        <tr><td>Approval must precede the purchase</td><td class="ref">&sect;3.1.1</td><td>Purchase date cannot be earlier than final approval</td></tr>
+        <tr><td>Invoice to OSL within <strong>3 working days</strong> of its date, as one PDF</td><td class="ref">&sect;3.1.2</td><td>Due date computed on generation</td></tr>
+        <tr><td>Attendance sheet verified by the <strong>Treasurer</strong></td><td class="ref">&sect;3.3</td><td>One signature, recorded with the office it was given in</td></tr>
+        <tr><td>Coach documents submitted by the 15th of the following month</td><td class="ref">&sect;3.3</td><td>Drives the monthly run</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>Reference numbering</h2>
+  <p>The labelling protocol defines <strong>four independent series</strong>, each resetting to <code>0001</code> at the start of the financial year. They are numbered separately from one another, and the hyphens are mandatory.</p>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Series</th><th>Document</th><th>FY2026 form</th></tr></thead>
+      <tbody>
+        <tr><td class="ref">IV</td><td>Invoice</td><td class="ref">IV26-097-0008</td></tr>
+        <tr><td class="ref">SCF</td><td>Student Expense Claim</td><td class="ref">SCF26-097-0001</td></tr>
+        <tr><td class="ref">PO</td><td>Purchase Order</td><td class="ref">PO26-097-0001</td></tr>
+        <tr><td class="ref">INC</td><td>Income Deposit Form</td><td class="ref">INC26-097-0001</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Numbers are allocated by a single atomic <code>UPDATE &hellip; RETURNING</code> inside the same transaction that writes the document, against a unique constraint on <code>(series, financialYear, sequence)</code>. Application-level <code>max + 1</code> is the classic way to issue the same invoice number twice under concurrency, and it is exactly the kind of error that is invisible until OSL rejects a submission.</p>
+  <p>Issued numbers are never deleted. Voiding a document marks the number void with a reason, so a gap in the series has an answer.</p>
+
+  <div class="note rule">
+    <span class="note-label">Where FY2026 actually stands</span>
+    <p>The <code>IV</code> series is spent up to <strong>0009</strong>. <code>0001</code> and <code>0002</code> went to the previous exco; the rest covered the June and July coach payments. August ran no classes, so nothing was raised against it.</p>
+    <p>The counter therefore seeds at <strong>0010</strong>, not <code>0003</code>. Seeding it lower would hand out numbers already on documents sitting with the Office of Finance &mdash; the one failure mode the atomic allocation below cannot save you from, because the collision happened before the portal existed.</p>
+    <p>The other three series have no FY2026 documents against them yet and start at <code>0001</code>.</p>
+  </div>
+
+  <div class="note flag">
+    <span class="note-label">Discrepancy in the current register</span>
+    <p>The FY2026 register records the summer collection as <code>INC-26-097-0001</code>, with a hyphen after the prefix. The protocol gives <code>INC24-020-0001</code> as the pattern, so the correct form is <code>INC26-097-0001</code>. Worth correcting before it is copied forward.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Fund accounts and WBS elements</h2>
+  <p>FUNKtion sits in the Arts cluster, so every WBS element carries <code>A3006</code>. The prefix differs by fund, and income has two &mdash; the expense element goes on invoices and CONCUR claims, the revenue element goes on Income Deposit Forms.</p>
+  <p>In practice the club only ever touches <strong>PC</strong> and <strong>PN</strong>. The donation element is listed for completeness because the register carries a donation section, but that section has stood at $0 and there is no live donation process to support.</p>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Fund</th><th>WBS element</th><th>Used on</th><th>Rolls over</th></tr></thead>
+      <tbody>
+        <tr><td>OSL Seed Fund</td><td class="ref">PC-00097-A3006-A3006-000</td><td>Invoices drawing on seed</td><td>No</td></tr>
+        <tr><td>Income &mdash; expense</td><td class="ref">PN-00097-A3006-A3006-000</td><td>Invoices, CONCUR claims</td><td>Yes</td></tr>
+        <tr><td>Income &mdash; revenue</td><td class="ref">PN-00097-A3006-A3006-R00</td><td>Income Deposit Forms</td><td>Yes</td></tr>
+        <tr><td>Donation <em>(not in use)</em></td><td class="ref">NC-00097-A3006-A3006-000</td><td>Donation entries</td><td>Yes</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note flag">
+    <span class="note-label">Worth checking</span>
+    <p>In the current FY2026 register, the Income section header quotes <code>PC-00097-A3006-A3006-000</code> &mdash; the Seed Fund element &mdash; where the guidelines give <code>PN-00097-A3006-A3006-000</code>. The Donation header carries the same element, though with no donations recorded that one is cosmetic. It looks like the header was copied down from section 1 when the sheet was set up, so it likely arrived that way in the OSL template.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Who issues the invoice</h2>
+  <div class="note rule">
+    <span class="note-label">Design constraint</span>
+    <p>The instructor issues the invoice, not the club. Section 3.3 describes a coach appointed by SUTD under a Contract For Service and lists the submission as &ldquo;Invoice issued by Coach/Instructor&rdquo;; section 3.1.2 requires it to be billed to Singapore University of Technology and Design and calls the issuer the vendor. The club's part is to countersign &mdash; adding StuOrg name, treasurer name, position and signature, with the reference number in the top right corner &mdash; and forward it to OSL.</p>
+    <p>So a FUNKtion letterhead on the invoice would misstate who is billing the university, on a document that goes to the Office of Finance for payment. That is worth avoiding regardless of how much better it would look.</p>
+  </div>
+
+  <p>The layout itself is fair game, though, and the current one is doing the instructors no favours. The redesign keeps the instructor as issuer and improves everything else: a proper masthead carrying the instructor's own name and address, the reference number set clearly in the top right where OSL expects it, tabular figures in the line-item table, a real total row, and an unambiguous countersignature block.</p>
+
+  <p>Where FUNKtion branding genuinely belongs is on the documents the club actually authors &mdash; and there it should be used properly:</p>
+  <ul>
+    <li><strong>Coaches Monthly Attendance Sheet</strong> &mdash; the club's document, verified by the Treasurer</li>
+    <li><strong>Purchase Request and Award Forms</strong> &mdash; raised by the club</li>
+    <li>Internal fee statements, term summaries, and the handover pack</li>
+  </ul>
+
+  <div class="note flag">
+    <span class="note-label">Template correction</span>
+    <p>The sheet is verified by the <strong>Treasurer</strong> &mdash; the officer who signs the live submissions, and the only one holding the club fund balance the sheet quotes directly above the signature. The rebuilt version keeps that block and prints the signatory's name, office and student ID beneath the rule, rather than the template's bare &ldquo;Name of Treasurer&rdquo; label.</p>
+
+  <h3>Guests</h3>
+  <p>Two contracted coaches teach the standing weekdays. The club also books <strong>guest instructors</strong> for the occasional workshop, and they raise invoices like anyone else &mdash; at their own rate, for their own style, with no contract on file.</p>
+  <p>They are marked as guests rather than added to the roster, so they neither appear in the standing coach list nor get treated as though a contract exists to check their rate against. The portal also refuses to generate their invoice until it has a payee name and a bank account, because those details are typed on the day the invoice is due rather than checked months earlier when a contract was filed &mdash; and an invoice missing them looks complete and pays nobody. The attendance sheet is still produced either way: whether the paperwork is finished is a different question from whether the class happened.</p>
+
+  <p>The sheet itself is a member-by-date matrix of YES and NO, with the instructor as its first row. A date where that row reads NO is a <strong>self-practice</strong> session: the club met, the attendance counts, and nobody bills for it. The invoice is derived from that row rather than kept beside it, which is what stops the two documents disagreeing about how many sessions the coach actually taught.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Data model</h2>
+  <p>Sixteen models across <code>prisma/schema/finance.prisma</code>. Money is stored as integer cents throughout &mdash; register amounts are quoted to two decimals and GST is derived by division, so floating point would drift against the very sheet the portal has to reconcile with.</p>
+
+  <figure class="diagram">
+    <pre class="mermaid">
+erDiagram
+  INSTRUCTOR ||--o{ CLASS_SESSION : teaches
+  CLASS_SESSION ||--o{ SESSION_ATTENDANCE : records
+  MEMBER ||--o{ SESSION_ATTENDANCE : "attends"
+  CLASS_SESSION ||--o{ INVOICE_LINE : "billed as"
+  INVOICE ||--o{ INVOICE_LINE : contains
+  INSTRUCTOR ||--o{ INVOICE : issues
+  INVOICE ||--|| ATTENDANCE_SHEET : "submitted with"
+  REFERENCE_NUMBER ||--o| INVOICE : numbers
+  REFERENCE_NUMBER ||--o| INCOME_DEPOSIT : numbers
+  REFERENCE_COUNTER ||--o{ REFERENCE_NUMBER : allocates
+  TERM ||--o{ FEE_PAYMENT : "collects"
+  MEMBER ||--o{ FEE_PAYMENT : owes
+  TERM ||--|| INCOME_DEPOSIT : "banked via"
+  PURCHASE_REQUEST ||--o{ QUOTATION : "supported by"
+  MEMBER ||--o{ PURCHASE_REQUEST : raises
+  FUND_ACCOUNT ||--o{ REGISTER_ENTRY : "posted to"
+  REGISTER_SYNC ||--o{ REGISTER_ENTRY : applies
+    </pre>
+    <figcaption>Class sessions are the origin of every downstream figure. Reference numbers are allocated from counters and attached to documents, never generated inline.</figcaption>
+  </figure>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Model</th><th>Holds</th></tr></thead>
+      <tbody>
+        <tr><td class="ref">Instructor</td><td>Coach details, contract reference, hourly rate, bank account. Lifted out of the document templates where they were hardcoded.</td></tr>
+        <tr><td class="ref">ClassSession</td><td>One class: date, instructor, duration. The single point of entry.</td></tr>
+        <tr><td class="ref">Member</td><td>Roster entry. Linked to a signed-in User only once they log in.</td></tr>
+        <tr><td class="ref">SessionAttendance</td><td>Present or absent, per member per session.</td></tr>
+        <tr><td class="ref">AttendanceSheet</td><td>The monthly sheet, its claim total, and the verification &mdash; who signed and in which office.</td></tr>
+        <tr><td class="ref">Invoice / InvoiceLine</td><td>Instructor invoice, its fund source, GST split and submission deadline.</td></tr>
+        <tr><td class="ref">Term / FeePayment</td><td>Term fee rates and one row per member per term.</td></tr>
+        <tr><td class="ref">IncomeDeposit</td><td>DBS Max form with derived GST and its one-working-day due date.</td></tr>
+        <tr><td class="ref">PurchaseRequest / Quotation</td><td>PRF or PAF with its approval chain and supporting quotes.</td></tr>
+        <tr><td class="ref">ReferenceCounter / ReferenceNumber</td><td>The four series, and every number ever issued.</td></tr>
+        <tr><td class="ref">FundAccount</td><td>Per-year balance and WBS element for each fund, plus its cut-off.</td></tr>
+        <tr><td class="ref">RegisterEntry / RegisterSync</td><td>Intended register rows and the diff-and-approve runs that write them.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>Where attendance comes from</h2>
+  <p>The club already keeps attendance in Drive &mdash; one spreadsheet per trimester in the attendance folder, plus a subfolder for additional hours. Nobody needs to type it twice. The layout is regular enough to read by API.</p>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Columns</th><th>What they hold</th><th>Used by the portal</th></tr></thead>
+      <tbody>
+        <tr><td><code>A</code></td><td>Status label &mdash; <em>Confirmed</em>, <em>1/2 term</em>, <em>Confirmed; Exchange</em>, <em>Graduated</em>, <em>Left after&hellip;</em></td><td>Yes &mdash; maps to fee tier and active status</td></tr>
+        <tr><td><code>B&ndash;D</code></td><td>Name, SUTD term, student ID</td><td>Yes &mdash; student ID is the match key</td></tr>
+        <tr><td><code>E</code></td><td>Email</td><td>Yes &mdash; links the roster row to a Google sign-in</td></tr>
+        <tr><td><code>F&ndash;G</code></td><td>Phone, birthday</td><td>Yes &mdash; the club sends birthday messages</td></tr>
+        <tr><td><code>H</code></td><td>Birthday-month flag</td><td>No &mdash; derivable from the birthday</td></tr>
+        <tr><td><code>I</code></td><td>Medical and dietary notes</td><td>No &mdash; health data, and nothing here uses it</td></tr>
+        <tr><td><code>J&ndash;K</code></td><td>Fees, Active</td><td>Read, but both are empty today &mdash; the portal becomes the record</td></tr>
+        <tr><td><code>L</code> onward</td><td>One column per class date, headed <code>18 May</code>, <code>4 Jun</code>&hellip;, carrying <code>1</code> where present</td><td>Yes &mdash; this is the attendance grid</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Rows are grouped into cohort blocks &mdash; alumni, Term 8, Term 6 and exchange, Term 5 &mdash; each closed by a <code>Total Term N:</code> row that sums the column. The portal recomputes those totals rather than reading them, because a subtotal that has drifted from the rows above it is exactly the kind of error the sheet cannot show you.</p>
+
+  <p>Two things the sheet cannot tell you, and so an import stops for a human in the middle:</p>
+
+  <div class="note flag">
+    <span class="note-label">The date headers carry no year</span>
+    <p><code>13 Aug</code> is unambiguous inside a trimester and ambiguous outside one. Resolved from the linked term's date range; a header that will not resolve fails the import rather than guessing a year. The weekday pattern doubles as a check on the result &mdash; a year that turns the whole term into Wednesdays is the wrong year.</p>
+  </div>
+
+  <div class="note flag">
+    <span class="note-label">The sheet never records which coach taught</span>
+    <p>Columns are dates, not classes. Invoices are per instructor per month, so every date column has to be assigned to an instructor before sessions can be written. In practice the pattern is fixed &mdash; Mondays are Jin, Thursdays are KS &mdash; so the portal seeds the assignment from the weekday and asks the treasurer to confirm.</p>
+    <p>The confirm step is not ceremony. Of the sixteen dates in the Tri 2 sheet, fifteen are a Monday or a Thursday and one, 26 May, is a Tuesday. A rule that is right fifteen times out of sixteen is exactly the kind that gets trusted on the sixteenth, and the cost of being wrong is an invoice billed against the wrong coach's contract.</p>
+  </div>
+
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  A["Attendance sheet<br/>in Drive"] --> B["Read via Sheets API"]
+  B --> C["Parse roster block<br/>+ date grid"]
+  C --> D{"Every row matched<br/>to a member?"}
+  D -->|no| E["Review: create<br/>or link"]
+  E --> F
+  D -->|yes| F{"Every date assigned<br/>to an instructor?"}
+  F -->|no| G["Confirm from<br/>weekday pattern"]
+  G --> H
+  F -->|yes| H["Write sessions<br/>and marks"]
+  H --> I["Monthly run"]
+    </pre>
+    <figcaption>Names are typed by hand and vary between trimesters, so matching is on student ID with a review step rather than on name. The parse is retained, so a disputed sheet can be compared against what the portal actually read.</figcaption>
+  </figure>
+
+  <div class="note">
+    <span class="note-label">Birthdays are stored in three pieces, not as a date</span>
+    <p>The birthday column is reliable in its day and month and not much else. The current sheet carries <code>19/6/2022</code> and <code>23/9/2022</code> &mdash; year typos for 2002 &mdash; and one <code>03/02/XXXX</code> with no year at all. Day and month are correct in every one of those, so they are stored separately and the year is optional. A single date column would have to reject all three rows, and birthday messages only ever needed the day and the month.</p>
+  </div>
+
+  <div class="note">
+    <span class="note-label">The one column left behind</span>
+    <p>Medical and dietary notes stay in the sheet. Nothing in the portal reads them, and health data held for no purpose is a liability with no matching benefit. Everything else on the roster comes across.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Where each fact lives</h2>
+  <p>Two systems will hold overlapping information about the same people, and the question of which one is right has to be answered per fact, not per system. Answering it per system is what produces the familiar outcome where both are wrong in different ways and nobody trusts either.</p>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Fact</th><th>Owned by</th><th>How the other one sees it</th></tr></thead>
+      <tbody>
+        <tr><td>Who is on the roster, contact details, birthday, status label</td><td>Drive</td><td>Portal mirrors it, read-only</td></tr>
+        <tr><td>Who attended which class</td><td>Drive</td><td>Portal mirrors it, read-only</td></tr>
+        <tr><td>Fees: declarations, confirmations, tier, route</td><td>Portal</td><td>A per-term summary is filed to Drive when collection closes</td></tr>
+        <tr><td>Payment screenshots</td><td>Portal</td><td>Never leaves the portal &mdash; see below</td></tr>
+        <tr><td>Reference numbers, invoices, attendance sheets, purchase forms</td><td>Portal</td><td>Generated as files and filed back to Drive</td></tr>
+        <tr><td>Transaction Register</td><td>Portal computes, Drive publishes</td><td>The only Drive artefact the portal writes to, and only through an approved diff</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>So Drive stays authoritative, and the instinct behind that is right: the secretary already records attendance there, at the moment it happens, and a portal that demanded they stop would simply be worked around. Data entered where the work happens is data that gets entered.</p>
+
+  <p>But it can only be authoritative about facts it actually holds. Columns <code>J</code> and <code>K</code> &mdash; Fees and Active &mdash; are empty in every row of every trimester sheet. There is no fee record in Drive to defer to. The portal is not overriding an authority there; it is filling a gap that has always been a gap.</p>
+
+  <div class="note flag">
+    <span class="note-label">Drive is authoritative per trimester, never continuously</span>
+    <p>Each trimester gets a fresh spreadsheet, and the roster is carried across by hand. There is no single roster in Drive &mdash; there are three snapshots that have already drifted. Student <code>1007794</code> appears in the Tri&nbsp;2 active roster as one name and in the exit tab of the same file as a different name, with identical ID, email, phone and birthday. Whether that is a rename or a paste that missed a cell, matching on <em>name</em> would have created two people out of one.</p>
+    <p>This is the argument for the portal owning identity even while Drive owns the roster: continuity across trimesters is a fact no single sheet holds.</p>
+  </div>
+
+  <h3>How they stay in step</h3>
+  <ul>
+    <li><strong>Student ID is the join key</strong>, everywhere. Names are typed by hand and change; IDs do not.</li>
+    <li><strong>Import is a diff you approve</strong>, not a sync that runs. New rows, changed fields and departures are shown before anything is written.</li>
+    <li><strong>Import never deletes.</strong> A member who leaves is marked inactive. Their fee payments still reference them, and a treasurer looking at last term needs the row to still be there.</li>
+    <li><strong>Portal-owned fields are not importable.</strong> The importer works from a whitelist of columns, so a stray edit to the sheet cannot reach a payment record.</li>
+    <li><strong>A correction made here survives the next import.</strong> Fix a birth year in the portal and the field is marked as overridden; the next import stops offering to put the typo back. Otherwise the same diff is rejected every month until someone stops reading diffs, and that is the failure that actually costs you.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>The monthly run</h2>
+  <p>One input, five outputs. This is the flow that has to work first.</p>
+
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart TD
+  A["Import the trimester<br/>attendance sheet"] --> B[ClassSession + SessionAttendance]
+  B --> C["Allocate IV number<br/>from FY counter"]
+  B --> D["Compute claim<br/>hours x rate"]
+  C --> E["Invoice .docx<br/>issued by instructor"]
+  D --> E
+  B --> F["Attendance sheet .docx<br/>FUNKtion letterhead"]
+  D --> F
+  F --> G["Treasurer verifies,<br/>signature stamped"]
+  E --> H["Download, combine<br/>to one PDF"]
+  G --> H
+  H --> I["Email studentlife@sutd.edu.sg<br/>within 3 working days"]
+  E --> J[RegisterEntry queued]
+  J --> K{"Treasurer reviews diff"}
+  K -->|approve| L["Sheets API writes<br/>both GST columns"]
+  K -->|reject| M["Nothing written"]
+    </pre>
+    <figcaption>The queued register diff pings the treasurer alone, not the whole exco &mdash; a notification everyone receives is a notification nobody owns. Both GST columns are always written together: the register's balance formula subtracts the without-GST column, so populating only one silently overstates the fund.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>Fee collection</h2>
+  <p>The control that matters most in the whole system is the gap between a member saying they paid and the exco confirming it. They are separate columns, written by different users, under different permissions. A member can never mark their own payment confirmed.</p>
+  <p>A declaration is not accepted without a screenshot of the PayNow confirmation. That screenshot is the entire evidence base for the confirmation that follows, so the portal treats a declaration without one as incomplete rather than pending.</p>
+
+  <figure class="diagram">
+    <pre class="mermaid">
+sequenceDiagram
+  participant M as Member
+  participant P as Portal
+  participant T as Telegram
+  participant E as Exco
+  participant O as OSL
+
+  E->>O: Request DBS Max wallet, 2 weeks ahead
+  E->>P: Open term, set full $70 / half $35
+  M->>P: Sign in with Google
+  P-->>M: Show PayNow QR and amount due
+  M->>M: Pay via PayNow
+  M->>P: Declare payment: reference + screenshot
+  Note over P: status = DECLARED
+  P->>T: Post to the club Telegram group
+  E->>P: Reconcile against bank statement
+  P-->>E: Confirm or reject
+  Note over P: status = CONFIRMED
+  E->>P: Close collection
+  P-->>E: Income Deposit Form, GST derived
+  E->>O: Submit within 1 working day
+    </pre>
+    <figcaption>The group post is a nudge, not a receipt &mdash; it says a declaration arrived, never that money did. It is sent once and recorded as sent, so a retry or a redeploy cannot double-post. Late or otherwise uncollectable payments are routed to the unofficial register with a required reason; everything else defaults to the official bulk collection.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>Filing documents back to Drive</h2>
+  <p>Everything the portal generates can also be filed into Drive, and should be: a document that only exists as a download in someone's browser is a document the next treasurer will not find. That includes a per-term fee summary &mdash; who paid, at which tier, how much, confirmed when &mdash; which is the one artefact the current process has no equivalent of.</p>
+
+  <h3>Storage is not the constraint</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Artefact</th><th>Per year</th><th>Each</th><th>Total</th></tr></thead>
+      <tbody>
+        <tr><td>Invoices</td><td class="num">24</td><td class="num">~40 KB</td><td class="num">1 MB</td></tr>
+        <tr><td>Attendance sheets</td><td class="num">24</td><td class="num">~60 KB</td><td class="num">1.5 MB</td></tr>
+        <tr><td>Combined submission PDFs</td><td class="num">24</td><td class="num">~500 KB</td><td class="num">12 MB</td></tr>
+        <tr><td>PRF and PAF</td><td class="num">~20</td><td class="num">~150 KB</td><td class="num">3 MB</td></tr>
+        <tr><td>Deposit forms and fee summaries</td><td class="num">6</td><td class="num">~50 KB</td><td class="num">&lt;1 MB</td></tr>
+        <tr><td><strong>Everything above</strong></td><td class="num">&mdash;</td><td class="num">&mdash;</td><td class="num"><strong>~18 MB</strong></td></tr>
+        <tr><td>Payment screenshots <em>(not filed to Drive)</em></td><td class="num">~90</td><td class="num">~1 MB</td><td class="num">~90 MB</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>A free Google account has 15&nbsp;GB shared across Gmail, Drive and Photos. The generated documents come to roughly <strong>18&nbsp;MB a year</strong> &mdash; about a tenth of one percent. Ten years of club history would not fill a gigabyte. The existing trimester spreadsheets are 23&ndash;26&nbsp;KB each, which is the scale everything here operates at.</p>
+
+  <p>The one category that is genuinely large is payment screenshots, and they are also the one category that should not go to Drive. They carry the payer's name and often a partial account number, and Drive permissions are granted per folder &mdash; there is no folder setting that means &ldquo;the exco, and nobody else, ever&rdquo;. They stay in the portal's private storage, where access is decided per row. Drive gets the summary; the portal keeps the evidence.</p>
+
+  <div class="note rule">
+    <span class="note-label">The real constraint is who owns the file, not how big it is</span>
+    <p>A Google service account has a storage quota of <strong>zero</strong> and cannot own files. It can happily read and modify a document that has been shared with it &mdash; which is exactly what the Transaction Register sync does &mdash; but the moment it tries to <em>create</em> one, Drive returns <code>storageQuotaExceeded</code> against an empty account. The usual escapes, shared drives and domain-wide delegation, both need Google Workspace, which a free club Gmail account is not.</p>
+  </div>
+
+  <h3>So the portal uses two different keys</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Operation</th><th>Authenticates as</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>Read the trimester attendance sheets</td><td>Service account</td><td>Reading a shared file needs no quota. Unattended, no token to expire.</td></tr>
+        <tr><td>Update the Transaction Register</td><td>Service account</td><td>Modifying an existing file, not creating one.</td></tr>
+        <tr><td>File a generated document into Drive</td><td>The signed-in treasurer</td><td>Only a real account can own a new file.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Filing is a button someone presses, not a scheduled job, so it runs inside a live session and never needs an offline refresh token. That sidesteps a trap worth knowing about: an OAuth app left in <strong>Testing</strong> publishing status has its refresh tokens expire after <strong>seven days</strong>, which would break any unattended Drive write about a week after it started working, in a way that looks like the code broke rather than the consent screen.</p>
+
+  <p>The scope to ask for is <code>drive.file</code> &mdash; per-file access to documents the app created or the user picked. It is non-sensitive, so it needs no Google verification review, and it cannot read anything in Drive the treasurer has not handed over. The broad <code>drive</code> and <code>drive.readonly</code> scopes are restricted, require a security assessment to publish, and would grant the portal the club's entire Drive to do a job that needs two folders.</p>
+</section>
+
+<section>
+  <h2>Procurement</h2>
+  <p>The form type and approval chain are derived from the amount. Neither is a choice the requester makes.</p>
+
+  <figure class="diagram">
+    <pre class="mermaid">
+flowchart TD
+  A["Member raises a purchase"] --> B{Amount}
+  B -->|"below $300"| C["PRF<br/>1 quotation"]
+  B -->|"$300 to $999.99"| D["PAF<br/>3 quotations"]
+  B -->|"$1000 and above"| E["PAF<br/>3 quotations"]
+  C --> F[Treasurer approves]
+  D --> G[Treasurer, then President]
+  E --> H[Treasurer, President, then OSL]
+  F --> I["Approved &mdash; purchase may proceed"]
+  G --> I
+  H --> I
+  I --> J["Receipt or invoice"]
+  J --> K["Register entry queued"]
+    </pre>
+    <figcaption>Where fewer than three quotations are attached, an exemption reason from section 3.1.1 must be recorded. Absence of an approver falls through to the alternate defined in the deviation protocol.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>Access and controls</h2>
+  <p>Two roles. Exco sees and does everything; members see their own record and nothing else.</p>
+
+  <h3>Offices are for routing, not for access</h3>
+  <p>Alongside the role, an exco member holds an <em>office</em> &mdash; president, vice-president, treasurer, assistant treasurer, secretary. It confers nothing. Every exco member can already reach every part of the portal, and the office changes only who gets told about what, and whose title prints under a signature.</p>
+  <p>Most of the routing below lands on the treasurer, which is the honest picture: they raise the claim, they verify the sheet, they hold the fund balance, and they own the register diff. The other offices matter for the approvals above $300, where a second authority is the point.</p>
+  <p>This is worth keeping apart. The moment an office grants access, adding one becomes a security decision and removing one becomes a lockout; kept as a label, a mid-year reshuffle is a dropdown. It also fixes the notification problem directly: a queued register diff that pings the whole exco is a diff nobody reviews.</p>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Event</th><th>Who gets pinged</th></tr></thead>
+      <tbody>
+        <tr><td>Register entries queued, diff awaiting review</td><td>Treasurer</td></tr>
+        <tr><td>Attendance sheet ready for verification</td><td>Treasurer</td></tr>
+        <tr><td>Purchase awaiting first approval</td><td>Treasurer, then assistant treasurer, then president</td></tr>
+        <tr><td>Purchase above $300 awaiting second approval</td><td>President, then vice-president</td></tr>
+        <tr><td>Fee declared with screenshot</td><td>Club Telegram group</td></tr>
+        <tr><td>Deadline approaching &mdash; invoice, deposit form, seed fund cut-off</td><td>Treasurer</td></tr>
+        <tr><td>A member's birthday</td><td>Club Telegram group</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>The escalation order for purchases is the absence protocol in <span class="ref">&sect;3.1.1</span>, expressed as routing: treasurer &rarr; assistant treasurer &rarr; president, and president &rarr; vice-president &rarr; OSL.</p>
+
+  <h3>What each role can do</h3>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Capability</th><th>Member</th><th>Exco</th></tr></thead>
+      <tbody>
+        <tr><td>View own fee status and attendance</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>Declare a payment</td><td>Yes</td><td>Yes</td></tr>
+        <tr><td>View the roster and all payments</td><td>&mdash;</td><td>Yes</td></tr>
+        <tr><td>Confirm or reject a payment</td><td>&mdash;</td><td>Yes</td></tr>
+        <tr><td>Enter sessions, generate documents</td><td>&mdash;</td><td>Yes</td></tr>
+        <tr><td>Approve a purchase</td><td>&mdash;</td><td>Yes</td></tr>
+        <tr><td>Write to the Transaction Register</td><td>&mdash;</td><td>Yes</td></tr>
+        <tr><td>Read the audit log</td><td>&mdash;</td><td>Yes</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Stored signatures</h3>
+  <p>Signing the same three documents by hand every month is the kind of friction that ends with a stack of pre-signed blanks. Instead each signatory uploads their signature once and the portal stamps it while composing the document.</p>
+  <ul>
+    <li><strong>The stamp follows the authorisation, never replaces it.</strong> A signature is applied at the moment its owner presses the button that authorises the document, in the same request. It is never applied on anyone else's behalf, and never on a schedule.</li>
+    <li><strong>The instructor's signature has to come from the instructor.</strong> The invoice is their document billed to the university. The club stamping a coach's signature onto a claim the club prepared would forge the one attestation OSL is relying on, so the specimen is supplied by the instructor and used only on their own invoices.</li>
+    <li><strong>Specimens are forgeable material and are stored as such.</strong> Private bucket, no public path, read server-side only, short-lived signed URLs where a preview is genuinely needed. Uploading or replacing one is an audited event.</li>
+  </ul>
+
+  <h3>Controls</h3>
+  <ul>
+    <li><strong>Authorisation is server-side on every mutation.</strong> A role claimed by the client is never an input to a decision.</li>
+    <li><strong>Amounts are computed, not accepted.</strong> Claim totals come from session count multiplied by the contracted rate; fee amounts come from the term's configured tier. The browser never posts a dollar figure.</li>
+    <li><strong>Row-level security</strong> on Supabase as defence in depth, so a leaked anon key does not expose the member roster.</li>
+    <li><strong>Every financial write is audited</strong> &mdash; actor, before, after &mdash; using the audit log inherited from the kernel.</li>
+    <li><strong>The register write is snapshotted</strong> before it runs and shown as a diff before it is authorised.</li>
+    <li><strong>Secrets stay server-side.</strong> The Google service account key and Telegram bot token are never in the client bundle.</li>
+  </ul>
+
+  <div class="note">
+    <span class="note-label">On the word hardened</span>
+    <p>What is achievable in three weeks is good defaults applied consistently: server-side authorisation, RLS, audited writes, validated input, no client-trusted money. That is not the same as a security review. Budget a dedicated pass well before handover, while there is still time to act on what it finds.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Build sequence</h2>
+  <ol class="phases">
+    <li class="phase">
+      <div class="phase-n">01</div>
+      <div>
+        <div class="when">Days 1&ndash;3</div>
+        <h4>Invoice and attendance generation</h4>
+        <p>Google sign-in, roles and offices, instructors, sessions, attendance. Templates filled with <code>docxtemplater</code> and <code>exceljs</code>, downloaded from the browser. Reference numbers allocated transactionally. No Drive access needed, so nothing here can damage anything.</p>
+      </div>
+    </li>
+    <li class="phase">
+      <div class="phase-n">02</div>
+      <div>
+        <div class="when">Week 2</div>
+        <h4>Fee collection</h4>
+        <p>Member sign-in, PayNow QR, declaration with screenshot, exco reconciliation, Income Deposit Form with derived GST. Built early on purpose: only one or two collections fall before handover, and the flow needs at least one real run.</p>
+      </div>
+    </li>
+    <li class="phase">
+      <div class="phase-n">02b</div>
+      <div>
+        <div class="when">Week 2</div>
+        <h4>Attendance import and signatures</h4>
+        <p>Read-only Sheets access to the attendance folder: parse the trimester grid, match on student ID, confirm the date-to-instructor mapping, write sessions. Signature upload and stamping lands alongside it, since both remove the same kind of retyping. Read-only for now &mdash; the portal writes nothing to Drive until phase 05.</p>
+      </div>
+    </li>
+    <li class="phase">
+      <div class="phase-n">03</div>
+      <div>
+        <div class="when">Week 2&ndash;3</div>
+        <h4>Reminders</h4>
+        <p>Telegram adapter alongside the existing in-app and email adapters. Group messages for fee deadlines, direct messages to the treasurer for submission cut-offs. Driven by a daily cron.</p>
+      </div>
+    </li>
+    <li class="phase">
+      <div class="phase-n">04</div>
+      <div>
+        <div class="when">Week 3</div>
+        <h4>Procurement</h4>
+        <p>PRF and PAF with the threshold rules, quotation requirements and approval chain from Table 1.</p>
+      </div>
+    </li>
+    <li class="phase">
+      <div class="phase-n">05</div>
+      <div>
+        <div class="when">October</div>
+        <h4>Register sync</h4>
+        <p>Held back deliberately. It is the only irreversible write to a shared artefact, and diff-and-approve is where a week disappears quietly. Copying four rows by hand for one month is a cheap way to keep it off the critical path until the generators have proven their numbers.</p>
+      </div>
+    </li>
+    <li class="phase">
+      <div class="phase-n">06</div>
+      <div>
+        <div class="when">February&ndash;March 2027</div>
+        <h4>Handover</h4>
+        <p>Financial year rolls to FY2027 and all four counters reset to 0001. Transfer to the club-owned accounts, and write the handover pack.</p>
+      </div>
+    </li>
+  </ol>
+
+  <div class="note">
+    <span class="note-label">On account ownership</span>
+    <p>Supabase moves projects between organisations with the database intact, so no dump and restore is needed. The risk is not the hosting, it is the data: once real members have signed in and real payments are recorded, a migration that goes wrong is a genuine problem. Demonstrating to the exco with seeded data, and holding off real records until the club accounts exist, reduces the migration to code and schema alone.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Design language</h2>
+  <p>The logo is built from one idea &mdash; the same shape stacked four times in vermilion, marigold, sky and indigo, each offset down and right, like the layers of a kueh lapis. That is a system, not just a mark, and the interface runs on it.</p>
+
+  <h3>The stack</h3>
+  <ul>
+    <li><strong>Buttons</strong> sit on a hard offset shadow in the next layer colour &mdash; no blur, no gradient. Pressing collapses the offset to zero and translates the button into its own shadow, so the control physically compresses.</li>
+    <li><strong>Cards and panels</strong> carry a thin stacked edge on one side, two or three layers deep. Depth encodes importance: a flat card is routine, a three-layer card is the thing needing attention.</li>
+    <li><strong>Focus</strong> is a full offset outline in vermilion rather than a browser default ring, so keyboard navigation looks like part of the system.</li>
+    <li><strong>Layer order is fixed</strong> &mdash; vermilion, marigold, sky, indigo, front to back. Keeping the order constant is what makes the device read as the logo rather than as decoration.</li>
+  </ul>
+
+  <h3>Where it stops</h3>
+  <p>Registers, figures and tables stay quiet. A finance screen has to be read quickly and trusted, and stacking every row would fight that. The layered treatment belongs to controls, navigation and status &mdash; the things you act on &mdash; while the numbers themselves sit on plain ground in tabular figures.</p>
+  <p>Two constraints keep it usable: offset alone never carries meaning that colour or text does not also carry, since depth is invisible to a screen reader; and the press animation is dropped entirely under <code>prefers-reduced-motion</code>.</p>
+</section>
+
+<section>
+  <h2>Still open</h2>
+  <ul>
+    <li>Trimester start and end dates through March 2027. Needed to resolve the yearless date headers on the attendance sheets, so this one blocks the import. The collection date inside a term does not need to be fixed in advance &mdash; the exco sets it when they set it, and the portal counts the deadlines from there.</li>
+    <li>Whether the Student Claim Form path is in use &mdash; it is referenced by both PRF and PAF, but only outdated templates are in the Drive.</li>
+    <li>Opening balances to carry into the portal: seed fund, income, and the unofficial register's contested $550.19.</li>
+  </ul>
+</section>
+
+<footer>
+  <p>Drafted against the SUTD Student Organisations Finance Guidelines, September 2025, and the FY2026 Transaction Register as at September 2026.</p>
+</footer>
+
+</div>

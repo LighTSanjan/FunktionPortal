@@ -1,0 +1,157 @@
+// FUNKtion Portal — base schema
+// Generator, datasource, and shared enums.
+//
+// Money is stored as integer cents throughout. SGD amounts in the OSL
+// registers are quoted to two decimals and GST is derived by division
+// (gross/109*9), so a float representation would drift against the
+// register the portal has to reconcile with.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────
+// Access
+// ─────────────────────────────────────────────
+
+enum OrgRole {
+  EXCO
+  MEMBER
+}
+
+/// Which post an exco member holds.
+///
+/// This is a ROUTING label, not a permission level. Every EXCO member can
+/// reach every part of the portal; the office decides only who gets pinged
+/// — a queued register diff goes to the treasurer alone, an attendance
+/// sheet awaiting endorsement to the secretary and president, and so on.
+/// Keeping it separate from OrgRole means adding a post never widens or
+/// narrows anyone's access by accident.
+enum ExcoOffice {
+  PRESIDENT
+  VICE_PRESIDENT
+  TREASURER
+  ASSISTANT_TREASURER
+  SECRETARY
+  OTHER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+// ─────────────────────────────────────────────
+// OSL finance domain
+// ─────────────────────────────────────────────
+
+/// Which of the club's three OSL funds a transaction belongs to. Determines
+/// both the WBS element quoted on the document and which section of the
+/// Transaction Register the row lands in.
+enum FundSource {
+  SEED
+  INCOME
+  DONATION
+}
+
+/// The four independent running-number series defined by the OSL labelling
+/// protocol (Finance Guidelines §4.4). Each resets to 0001 at the start of
+/// every financial year and is numbered separately from the others.
+enum DocSeries {
+  SCF // Student Expense Claim   SCF26-097-0001
+  IV  // Invoice                 IV26-097-0001
+  PO  // Purchase Order          PO26-097-0001
+  INC // Income Deposit Form     INC26-097-0001
+}
+
+/// How an instructor is engaged.
+///
+/// CONTRACTED coaches hold a 'Contract For Service' issued by OSL (§3.3) and
+/// teach a standing weekday. GUEST coaches are booked for a workshop or a
+/// one-off and have no contract, no weekday, and usually no second booking —
+/// they are kept apart so they neither appear in the standing roster nor get
+/// treated as though a contract exists to check the rate against.
+enum InstructorEngagement {
+  CONTRACTED
+  GUEST
+}
+
+enum InvoiceStatus {
+  DRAFT
+  GENERATED
+  SIGNED
+  SUBMITTED
+  PAID
+  VOID
+}
+
+enum FeeTier {
+  FULL
+  HALF
+  EXCHANGE_DISCOUNT
+  WAIVED
+}
+
+/// Official = collected in the bulk term collection and banked in via an
+/// Income Deposit Form. Unofficial = the exception path for late or
+/// otherwise uncollectable payments, tracked in the club's own register.
+enum FeeRoute {
+  OFFICIAL
+  UNOFFICIAL
+}
+
+/// A member's declaration that they have paid is a claim, not money.
+/// Only the exco may move a payment to CONFIRMED.
+enum PaymentStatus {
+  DECLARED
+  CONFIRMED
+  REJECTED
+}
+
+enum PurchaseFormType {
+  PRF // < $300.00        treasurer only, 1 quotation
+  PAF // >= $300.00       3 quotations, + president, + OSL at >= $1000
+}
+
+enum PurchaseStatus {
+  DRAFT
+  PENDING_TREASURER
+  PENDING_PRESIDENT
+  PENDING_OSL
+  APPROVED
+  REJECTED
+  PURCHASED
+  CLOSED
+}
+
+enum RegisterSection {
+  SEED_FUND
+  INCOME
+  DONATION
+}
+
+enum RegisterSyncStatus {
+  PENDING
+  PREVIEWED
+  APPLIED
+  FAILED
+}
+
+/// An import run from a trimester attendance Google Sheet.
+///
+/// PARSED is a real waiting state, not a transient one: the sheet records
+/// which dates a member attended but never which coach taught them, so a
+/// human has to assign each date column to an instructor before the rows
+/// can become class sessions.
+enum AttendanceImportStatus {
+  PARSED
+  NEEDS_MAPPING
+  APPLIED
+  FAILED
+}

@@ -1,0 +1,124 @@
+// FUNKtion Portal — organisation schema
+//
+// The portal serves a single club, but the tenancy model is kept: it costs
+// one row, and stripping orgId would touch every query in the inherited
+// kernel for no functional gain.
+
+model Organisation {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  settings    OrganisationSettings?
+  memberships OrganisationMembership[]
+  invitations Invitation[]
+  modules     OrganisationModule[]
+
+  members            Member[]
+  instructors        Instructor[]
+  classSessions      ClassSession[]
+  sessionAttendance  SessionAttendance[]
+  attendanceSheets   AttendanceSheet[]
+  invoices           Invoice[]
+  terms              Term[]
+  feePayments        FeePayment[]
+  incomeDeposits     IncomeDeposit[]
+  purchaseRequests   PurchaseRequest[]
+  fundAccounts       FundAccount[]
+  referenceCounters  ReferenceCounter[]
+  referenceNumbers   ReferenceNumber[]
+  registerEntries    RegisterEntry[]
+  registerSyncs      RegisterSync[]
+  attendanceImports  AttendanceImport[]
+
+  notifications    Notification[]
+  auditLogs        AuditLog[]
+  dashboardLayouts DashboardLayout[]
+
+  @@map("organisations")
+}
+
+model OrganisationSettings {
+  id                String  @id @default(cuid())
+  orgId             String  @unique @map("org_id")
+  timezone          String  @default("Asia/Singapore")
+  currency          String  @default("SGD")
+  dateFormat        String  @default("DD-MMM-YY") @map("date_format")
+  brandPrimaryColor String? @map("brand_primary_color")
+  brandLogoUrl      String? @map("brand_logo_url")
+  /// Standfirst printed under the title on club-authored documents.
+  tagline           String? @map("tagline")
+  /// Banded rule under the masthead, one RRGGBB per band, no hash. Empty
+  /// draws no rule — the document renderer holds no palette of its own, so
+  /// a rebrand is these rows and nothing else.
+  brandBandColors   String[] @map("brand_band_colors")
+
+  /// Who the coach's invoice is billed to. Belongs to the university and can
+  /// change without asking us, so it is data rather than a constant in the
+  /// document code.
+  billToName         String?  @map("bill_to_name")
+  billToAddressLines String[] @map("bill_to_address_lines")
+  countryCode       String  @default("SG") @map("country_code")
+
+  /// Last 3 digits of the StuOrg project code — the XXX in IV26-XXX-0001.
+  projectCode String @default("097") @map("project_code")
+  /// OSL cluster. Determines the A-code inside every WBS element:
+  /// Arts/Community/Culture/Makers use A3006, Sports uses A3005.
+  cluster     String @default("ARTS")
+
+  /// GST rate applied to income, as basis points. 9% = 900.
+  /// Donations are exempt (Finance Guidelines §2.2).
+  gstBasisPoints Int @default(900) @map("gst_basis_points")
+
+  /// Google Drive / Sheets wiring.
+  driveFolderId      String? @map("drive_folder_id")
+  registerSheetId    String? @map("register_sheet_id")
+  /// Folder holding one attendance spreadsheet per trimester.
+  attendanceFolderId String? @map("attendance_folder_id")
+  /// Remembered weekday -> instructorId mapping, e.g. {"1": "...", "4": "..."}
+  /// for a Monday and Thursday class. Seeds the date-to-instructor
+  /// assignment on an attendance import so the usual month is one click and
+  /// only the exceptions need attention. A guess, never an authority: the
+  /// treasurer confirms every date before sessions are written.
+  sessionInstructorDefaults Json? @map("session_instructor_defaults")
+  /// Uploaded PayNow QR shown on the member fee page.
+  paynowQrUrl        String? @map("paynow_qr_url")
+  /// Telegram group the portal posts reminders into.
+  telegramChatId     String? @map("telegram_chat_id")
+
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("organisation_settings")
+}
+
+model OrganisationModule {
+  id        String   @id @default(cuid())
+  orgId     String   @map("org_id")
+  moduleId  String   @map("module_id")
+  enabled   Boolean  @default(true)
+  settings  Json     @default("{}")
+  enabledAt DateTime @default(now()) @map("enabled_at")
+
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, moduleId])
+  @@index([orgId])
+  @@map("organisation_modules")
+}
+
+model OrgSetupProgress {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  step      Int
+  data      Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId])
+  @@map("org_setup_progress")
+}
