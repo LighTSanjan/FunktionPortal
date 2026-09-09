@@ -6,12 +6,12 @@ services:
   # init.sql's CREATE ROLE statement too, not just this file.
   postgres:
     image: postgres:16-alpine
-    container_name: hrdaddy-db
+    container_name: funktion-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: hrdaddy
+      POSTGRES_DB: funktion
     ports:
       - '5432:5432'
     volumes:
@@ -37,7 +37,7 @@ services:
       API_EXTERNAL_URL: ${SUPABASE_URL:-http://localhost:8000}
       GOTRUE_SITE_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: postgres://postgres:postgres@postgres:5432/hrdaddy
+      GOTRUE_DB_DATABASE_URL: postgres://postgres:postgres@postgres:5432/funktion
       GOTRUE_DB_NAMESPACE: auth
       GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-local-dev-jwt-secret-change-me-before-production-please}
       GOTRUE_JWT_EXP: ${GOTRUE_JWT_EXP:-3600}
@@ -52,7 +52,7 @@ services:
       GOTRUE_SMTP_PORT: ${GOTRUE_SMTP_PORT:-2500}
       GOTRUE_SMTP_USER: ${GOTRUE_SMTP_USER:-}
       GOTRUE_SMTP_PASS: ${GOTRUE_SMTP_PASS:-}
-      GOTRUE_SMTP_SENDER_NAME: ${GOTRUE_SMTP_SENDER_NAME:-HRDaddy}
+      GOTRUE_SMTP_SENDER_NAME: ${GOTRUE_SMTP_SENDER_NAME:-FUNKtion Treasury}
       GOTRUE_MAILER_URLPATHS_INVITE: /auth/v1/verify
       GOTRUE_MAILER_URLPATHS_CONFIRMATION: /auth/v1/verify
       GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/verify
@@ -66,7 +66,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      PGRST_DB_URI: postgres://authenticator:postgres@postgres:5432/hrdaddy
+      PGRST_DB_URI: postgres://authenticator:postgres@postgres:5432/funktion
       PGRST_DB_SCHEMAS: public,storage
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET:-local-dev-jwt-secret-change-me-before-production-please}
@@ -81,7 +81,7 @@ services:
       postgrest:
         condition: service_started
     environment:
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/hrdaddy
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/funktion
       ANON_KEY: ${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzEwMDAwMDAwLCJleHAiOjE4OTM0NTYwMDB9.c9RlKxgPm8jgrRipCJGJ8dv1dBHSN52c0lccBLM5Qzo}
       SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJzZXJ2aWNlX3JvbGUiLCJpYXQiOjE3MTAwMDAwMDAsImV4cCI6MTg5MzQ1NjAwMH0.beONMRAmVG_S4PPCzANHnbBeNl6iu9gJKyMF6MMcN9U}
       PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET:-local-dev-jwt-secret-change-me-before-production-please}
@@ -89,9 +89,9 @@ services:
       STORAGE_BACKEND: file
       FILE_STORAGE_BACKEND_PATH: /var/lib/storage
       FILE_SIZE_LIMIT: ${FILE_SIZE_LIMIT:-52428800}
-      TENANT_ID: hrdaddy
+      TENANT_ID: funktion
       REGION: local
-      GLOBAL_S3_BUCKET: hrdaddy
+      GLOBAL_S3_BUCKET: funktion
     volumes:
       - storage_data:/var/lib/storage
 

@@ -1,6 +1,6 @@
 /**
- * Manual, one-time operational bootstrap. Creates the `employee-documents`
- * storage bucket, which nothing else creates automatically — Supabase's
+ * Manual, one-time operational bootstrap. Creates the private
+ * documents bucket, which nothing else creates automatically — Supabase's
  * hosted project setup doesn't include it, and the self-hosted stack starts
  * with an empty storage.buckets table. Idempotent, safe to re-run. Requires
  * SUPABASE_SECRET_KEY (service role) and NEXT_PUBLIC_SUPABASE_URL.

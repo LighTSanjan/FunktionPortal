@@ -75,15 +75,32 @@ async function main() {
   }
 
   // Rate is set by the OSL 'Contract For Service', not by the club (§3.3).
+  // It lives in its own table because it changes at term and year boundaries,
+  // and a past invoice must keep the rate it was raised at.
   const instructors = [
-    { shortCode: 'JIN', fullName: 'Neo Renyi (Jin Neo)', danceStyle: 'Locking', hourlyRateCents: 9000 },
-    { shortCode: 'KS', fullName: 'Lim Kah Sing', danceStyle: 'Popping', hourlyRateCents: 9000 },
+    { shortCode: 'JIN', fullName: 'Neo Renyi (Jin Neo)', danceStyle: 'Locking' },
+    { shortCode: 'KS', fullName: 'Lim Kah Sing', danceStyle: 'Popping' },
   ]
   for (const instructor of instructors) {
     const existing = await db.instructor.findFirst({ where: { orgId: org.id, shortCode: instructor.shortCode } })
-    if (!existing) {
-      await db.instructor.create({ data: { orgId: org.id, engagement: 'CONTRACTED', ...instructor } })
-    }
+    const row = existing ?? await db.instructor.create({
+      data: { orgId: org.id, engagement: 'CONTRACTED', ...instructor },
+    })
+
+    // Effective from the start of FY2026. Raise the rate by adding a row with
+    // a later effectiveFrom — never by editing this one, which would reprice
+    // every invoice already submitted.
+    await db.instructorRate.upsert({
+      where: { instructorId_effectiveFrom: { instructorId: row.id, effectiveFrom: new Date(Date.UTC(2026, 3, 1)) } },
+      update: {},
+      create: {
+        orgId: org.id,
+        instructorId: row.id,
+        hourlyRateCents: 9000,
+        effectiveFrom: new Date(Date.UTC(2026, 3, 1)),
+        note: 'OSL Contract For Service, FY2026',
+      },
+    })
   }
 
   console.log(`Seeded ${org.name} (${org.slug}) for FY${FINANCIAL_YEAR}`)

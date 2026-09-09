@@ -46,6 +46,16 @@ export function longDate(d: Date): string {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`
 }
 
+/**
+ * "2026-05-21" in the LOCAL calendar, not UTC.
+ *
+ * toISOString() would render a Singapore class on the 21st as the 20th,
+ * which in an error message sends a treasurer looking for the wrong day.
+ */
+export function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 /** "4 Jun" — the form the attendance sheets already use for column heads. */
 export function shortDate(d: Date): string {
   return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`

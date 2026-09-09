@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="FUNKtion">
+  <!-- Kueh lapis: one shape stacked four times, each offset down and right.
+       Layer order is fixed front to back — vermilion, marigold, sky, indigo. -->
+  <rect x="10" y="19" width="36" height="36" rx="9" fill="#304890"/>
+  <rect x="13" y="16" width="36" height="36" rx="9" fill="#58C0E8"/>
+  <rect x="16" y="13" width="36" height="36" rx="9" fill="#F8A838"/>
+  <rect x="19" y="10" width="36" height="36" rx="9" fill="#F05820"/>
+</svg>

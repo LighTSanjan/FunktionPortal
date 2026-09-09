@@ -18,6 +18,7 @@ model Organisation {
 
   members            Member[]
   instructors        Instructor[]
+  instructorRates    InstructorRate[]
   classSessions      ClassSession[]
   sessionAttendance  SessionAttendance[]
   attendanceSheets   AttendanceSheet[]

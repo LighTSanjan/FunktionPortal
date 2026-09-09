@@ -168,7 +168,7 @@ describe('EmptyState', () => {
 describe('Logo', () => {
   it('renders the wordmark text', () => {
     render(<Logo showText />)
-    expect(screen.getByText('HRDaddy')).toBeInTheDocument()
+    expect(screen.getByText('FUNKtion')).toBeInTheDocument()
   })
 
   it('renders version when provided', () => {
@@ -178,7 +178,7 @@ describe('Logo', () => {
 
   it('hides text when showText is false', () => {
     render(<Logo showText={false} />)
-    expect(screen.queryByText('HRDaddy')).not.toBeInTheDocument()
+    expect(screen.queryByText('FUNKtion')).not.toBeInTheDocument()
   })
 })
 

@@ -12,7 +12,7 @@ const csp = [
   // is a larger follow-up, not attempted in this pass.
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
-  // Org logos and employee documents render as signed Supabase Storage
+  // Org logos and stored documents render as signed Supabase Storage
   // URLs directly in <img>/<Image> tags — without the storage origin here,
   // the browser silently blocks the request as a CSP violation and the
   // image falls back to a broken-image icon, with nothing in server logs

@@ -9,16 +9,15 @@ interface SettingsNavProps {
   enabledModules: string[]
 }
 
+/**
+ * Kernel-owned settings only. A tab gated on `requiresModule` disappears when
+ * that module is disabled, so the HR modules this kernel forked from left
+ * eight tabs here that could never resolve — silent, because the filter below
+ * hid them rather than failing. Finance module tabs get added as those
+ * modules land, alongside the module that owns them.
+ */
 const TABS: Array<{ slug: string; label: string; requiresModule?: string }> = [
   { slug: 'profile', label: 'Profile' },
-  { slug: 'organisation', label: 'Organisation', requiresModule: 'employees' },
-  { slug: 'shifts', label: 'Shifts', requiresModule: 'employees' },
-  { slug: 'payroll', label: 'Payroll', requiresModule: 'payroll' },
-  { slug: 'performance', label: 'Performance', requiresModule: 'performance' },
-  { slug: 'documents', label: 'Documents', requiresModule: 'documents' },
-  { slug: 'expenses', label: 'Expenses', requiresModule: 'expenses' },
-  { slug: 'assets', label: 'Assets', requiresModule: 'assets' },
-  { slug: 'onboarding', label: 'Onboarding', requiresModule: 'onboarding' },
   { slug: 'audit-log', label: 'Audit Log' },
 ]
 

@@ -70,9 +70,9 @@ describe('AppSidebar', () => {
     expect(links.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('renders the HRDaddy wordmark', () => {
+  it('renders the FUNKtion wordmark', () => {
     render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navEntries={mockNav} />)
-    expect(screen.getByText('HRDaddy')).toBeInTheDocument()
+    expect(screen.getByText('FUNKtion')).toBeInTheDocument()
   })
 
   it('renders version number', () => {

@@ -4,7 +4,7 @@
  * the club's registers — including the one that is written wrongly.
  */
 import { describe, it, expect } from 'vitest'
-import { financialYearOf, shortFinancialYear, formatReference, parseReference } from '..'
+import { financialYearOf, formatReference, parseReference } from '..'
 
 describe('financial year', () => {
   it('runs April to March', () => {

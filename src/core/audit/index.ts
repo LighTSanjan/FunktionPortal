@@ -21,10 +21,15 @@ export interface AuditEntry {
  * Passing the active transaction keeps the audit row atomic with its mutation.
  *
  * With a `tx` (the RLS-scoped `dbAs()` path), direct INSERT on audit_logs is
- * revoked from the app's DB role — the only way in is write_audit_log(),
- * which reads the actor from auth.uid() itself so it can't be forged. Without
- * a `tx` (the dbAdmin/service-role fallback), RLS doesn't apply, so the plain
- * insert is used directly.
+ * meant to be revoked from the app's DB role — the only way in being
+ * write_audit_log(), which reads the actor from auth.uid() itself so it can't
+ * be forged. Without a `tx` (the dbAdmin/service-role fallback), RLS doesn't
+ * apply, so the plain insert is used directly.
+ *
+ * write_audit_log() is not in prisma/migrations/ yet; it lands with the same
+ * hardening migration that creates app_user and the policies. Until then the
+ * `tx` branch fails on the missing function rather than writing an
+ * unattributable row, which is the right way round.
  */
 export async function writeAudit(
   entry: AuditEntry,

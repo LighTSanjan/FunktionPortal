@@ -4,7 +4,7 @@
 // guarantees the registry is populated before ANY child route renders,
 // regardless of which route a fresh Lambda instance happens to serve first.
 // Previously only dashboard/page.tsx imported this, so a cold instance whose
-// first request was /employees or /employees/org-chart saw an empty
+// first request was to a module route saw an empty
 // manifests/permissions registry — moduleGuard() and hasPermission() both
 // read from it, and both fail closed (notFound()) on empty, which is why
 // those routes intermittently 404'd while dashboard never did.

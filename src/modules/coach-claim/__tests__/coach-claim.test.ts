@@ -63,7 +63,7 @@ function input(overrides: Partial<ClaimInput> = {}): ClaimInput {
   return {
     instructor: COACH,
     shortCode: 'KS',
-    hourlyRateCents: 9000,
+    rates: [{ hourlyRateCents: 9000, effectiveFrom: new Date(2020, 0, 1) }],
     periodYear: 2026,
     periodMonth: 5,
     sessions: MAY_SESSIONS,
@@ -290,7 +290,8 @@ describe('the attendance sheet', () => {
       ],
     })
     const text = await documentText(await renderAttendanceSheet(toAttendanceSheetData(i, buildClaim(i))))
-    expect(text).toContain('$90.00/hr x 1.5 hr + 3 hr')
+    expect(text).toContain('1.5 hr @ $90.00/hr')
+    expect(text).toContain('3 hr @ $90.00/hr')
     expect(text).not.toContain('hr/session')
   })
 
@@ -345,5 +346,40 @@ describe('nothing club-specific is baked into the module', () => {
     expect(text).toContain('Another University')
     expect(text).toContain('2 Other Road')
     expect(text).not.toContain('Somapah')
+  })
+})
+
+describe('when the rate changes', () => {
+  const RISE = [
+    { hourlyRateCents: 9000, effectiveFrom: new Date(2025, 3, 1), note: 'Contract 2025' },
+    { hourlyRateCents: 10000, effectiveFrom: new Date(2026, 4, 25), note: 'Term rise' },
+  ]
+
+  it('bills each session at the rate in force on its own date', () => {
+    // May 2026 straddles a rise on the 25th: the 21st is old, the 28th new.
+    const claim = buildClaim(input({ rates: RISE }))
+    expect(claim.lines.map((l) => l.hourlyRateCents)).toEqual([9000, 10000])
+    expect(formatSgd(claim.totalCents)).toBe('$285.00')
+  })
+
+  it('does not reprice a past month when a later rise is added', () => {
+    // Regenerating an already-submitted month must not silently change it.
+    const before = buildClaim(input())
+    const after = buildClaim(input({ rates: [...RISE, { hourlyRateCents: 12000, effectiveFrom: new Date(2027, 0, 1) }] }))
+    expect(before.totalCents).toBe(27000)
+    expect(after.lines[0].hourlyRateCents).toBe(9000)
+  })
+
+  it('refuses a session predating every rate rather than guessing one', () => {
+    expect(() => buildClaim(input({ rates: [{ hourlyRateCents: 9000, effectiveFrom: new Date(2027, 0, 1) }] })))
+      .toThrow(/No rate on file for Test Coach on 2026-05-21/)
+  })
+
+  it('treats a rate as live on its own effective date', () => {
+    const claim = buildClaim(input({
+      sessions: [{ heldOn: new Date(2026, 4, 21), durationMinutes: 60, instructorPresent: true, presentMemberIds: [] }],
+      rates: [{ hourlyRateCents: 11000, effectiveFrom: new Date(2026, 4, 21) }],
+    }))
+    expect(claim.lines[0].hourlyRateCents).toBe(11000)
   })
 })

@@ -9,10 +9,10 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'HR Daddy',
-    template: '%s | HR Daddy',
+    default: 'FUNKtion Treasury',
+    template: '%s | FUNKtion Treasury',
   },
-  description: 'Modern HR management platform for growing teams',
+  description: "Treasury portal for FUNKtion, SUTD's popping and locking dance club",
   icons: {
     icon: '/favicon.svg',
   },

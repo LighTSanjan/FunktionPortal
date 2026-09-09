@@ -114,11 +114,17 @@ async function runScoped<T>(
   // session role. The actual session role is 'app_user', a role distinct
   // from 'authenticated' (which Supabase Auth maps every signed-in user's
   // direct PostgREST/REST call to). RLS policies are all declared
-  // `TO authenticated`, which app_user matches via role membership
-  // (`GRANT authenticated TO app_user` in 00024) — but app_user also holds
-  // its own direct column grants that authenticated has had revoked on
-  // sensitive employees columns, so a raw REST call and this trusted
-  // connection are no longer equivalent. See 00024_authz_hardening_round3.
+  // `TO authenticated`, which app_user is intended to match via role
+  // membership (`GRANT authenticated TO app_user`) — while app_user also
+  // holds its own direct grants on tables that `authenticated` has had
+  // revoked, so a raw REST call and this trusted connection are not
+  // equivalent.
+  //
+  // None of that is in prisma/migrations/ yet: the role, the policies and the
+  // grants did not survive the schema rewrite from the HR kernel this app
+  // forked from. The current_user check below is what keeps that honest —
+  // without app_user this raises rather than silently running as the table
+  // owner. See scripts/ci/verify-grants.sql and the README.
   const claims = JSON.stringify({ sub: userId, role: 'authenticated' })
 
   const appUserClient = getAppUserClient()

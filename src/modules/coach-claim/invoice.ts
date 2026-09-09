@@ -19,7 +19,7 @@
  */
 import {
   Document, Paragraph, TextRun, Table, TableRow, TableCell, WidthType,
-  AlignmentType, BorderStyle, VerticalAlign, TabStopType, Packer,
+  AlignmentType, BorderStyle, VerticalAlign, Packer,
 } from 'docx'
 import type { InvoiceDocData } from './types'
 import { formatSgd, formatHours } from './money'

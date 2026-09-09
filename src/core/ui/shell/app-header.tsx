@@ -18,7 +18,7 @@ interface AppHeaderProps {
 }
 
 type Theme = 'system' | 'light' | 'dark'
-const THEME_KEY = 'hrdaddy-theme'
+const THEME_KEY = 'funktion-theme'
 
 function getThemeSnapshot(): Theme {
   if (typeof window === 'undefined') return 'system'

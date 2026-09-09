@@ -1,5 +1,4 @@
 import { verifySession, getOrgContext, requirePermission } from '@/core/auth'
-import { moduleGuard } from '@/core/modules'
 import { Card, CardContent, CardHeader, CardTitle, PageHeader, EmptyState } from '@/core/ui'
 import { getAuditLog, listAuditActors } from '@/core/audit/queries'
 import { SettingsNav } from '../_components/settings-nav'
@@ -22,8 +21,11 @@ export default async function AuditLogPage({
   const rawSearch = await searchParams
 
   const session = await verifySession()
+  // No moduleGuard: the audit log is kernel-owned, and `audit.view` is a
+  // kernel permission. It was guarded on the `employees` module inherited
+  // from the HR fork, which is never registered here — so the page 404'd for
+  // everyone, including an exco with the permission.
   const { org, enabledModules } = await getOrgContext(orgSlug)
-  moduleGuard('employees', enabledModules)
   await requirePermission(org.id, 'audit.view')
 
   const page = Math.max(1, Number(rawSearch.page) || 1)

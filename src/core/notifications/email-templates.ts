@@ -51,7 +51,7 @@ export function buildHtmlBody(data: EmailTemplateData): string {
           <tr>
             <td style="padding: 24px 24px 0 24px;">
               <p style="margin: 0; font-size: 12px; font-weight: 600; color: #71717a; text-transform: uppercase; letter-spacing: 0.05em;">
-                HRDaddy
+                FUNKtion Treasury
               </p>
             </td>
           </tr>

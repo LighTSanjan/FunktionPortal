@@ -26,7 +26,7 @@ function claimInput(instructor: InstructorDetails, shortCode = 'AL'): ClaimInput
   return {
     instructor,
     shortCode,
-    hourlyRateCents: 12000,
+    rates: [{ hourlyRateCents: 12000, effectiveFrom: new Date(2026, 4, 1) }],
     periodYear: 2026,
     periodMonth: 5,
     sessions: [{ heldOn: new Date(2026, 4, 23), durationMinutes: 180, instructorPresent: true, presentMemberIds: ['m1'] }],
