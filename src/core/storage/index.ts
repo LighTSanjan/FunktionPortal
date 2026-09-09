@@ -1,8 +1,9 @@
 /**
  * Storage adapter interface and Supabase implementation.
  *
- * Object keys follow org/{orgId}/employee/{employeeId}/{uuid}. The bucket is
- * private; access is always via short-lived signed URLs.
+ * Object keys are prefixed org/{orgId}/… — that prefix is what the storage
+ * RLS policy matches on. The bucket is private; access is always via
+ * short-lived signed URLs.
  *
  * Deliberately built on the *caller's* session rather than a service-role key.
  * Storage RLS policies scope objects by the org prefix, so a compromised
@@ -21,7 +22,7 @@ export interface StorageAdapter {
   exists(key: string): Promise<boolean>
 }
 
-export const BUCKET = 'employee-documents'
+export const BUCKET = 'private-documents'
 const DEFAULT_SIGNED_URL_EXPIRY = 60 // seconds
 
 export class SupabaseStorageAdapter implements StorageAdapter {
@@ -102,16 +103,4 @@ export function getStorageUnscoped(): StorageAdapter {
   return new SupabaseStorageAdapter(
     createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, secret)
   )
-}
-
-/**
- * Build a storage key following the org/{orgId}/employee/{employeeId}/{uuid}
- * convention. The org prefix is what the storage RLS policy matches on.
- */
-export function buildStorageKey(
-  orgId: string,
-  employeeId: string,
-  fileId: string
-): string {
-  return `org/${orgId}/employee/${employeeId}/${fileId}`
 }

@@ -27,7 +27,7 @@ export interface WidgetDef {
   title: string
   description?: string
   permission?: string
-  roles: ('owner' | 'manager' | 'employee')[]
+  roles: OrgRole[]
   size: 'sm' | 'md' | 'lg'
   priority: number
   component: unknown // React component, typed loosely to avoid circular deps
@@ -49,8 +49,8 @@ export interface ModuleManifest {
   required?: boolean
   /**
    * Permission-key prefixes this module owns. Defaults to [id].
-   * A module may legitimately own more than one domain — `employees` owns both
-   * `employee.*` and `department.*` — so ownership is declared rather than
+   * A module may legitimately own more than one domain — a roster module would
+   * own both `member.*` and `instructor.*` — so ownership is declared rather than
    * inferred from the id. Declaring it lets the registry reject keys a module
    * has no business defining, and catch two modules claiming the same key.
    */

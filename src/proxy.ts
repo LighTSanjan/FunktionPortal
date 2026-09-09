@@ -22,11 +22,14 @@ const AUTH_FLOW_PATHS = [
   '/auth/callback',
   '/auth/confirm',
   '/api/auth/sign-out',
-  // Vercel Cron invocations carry no Supabase session — these routes gate
-  // themselves with their own CRON_SECRET bearer-token check instead.
+  // Vercel Cron invocations carry no Supabase session, so cron routes have to
+  // gate themselves. Nothing is registered under this prefix yet, and the
+  // CRON_SECRET check that is supposed to guard it is not written — the first
+  // route added here has to bring its own bearer-token check with it.
   '/api/cron',
-  // Calendar apps (Google/Outlook/Apple) poll this URL with no cookies —
-  // the unguessable token in the path is the credential instead.
+  // Reserved for token-authenticated feeds polled with no cookies, where the
+  // unguessable token in the path is the credential. Nothing serves this
+  // prefix today; it carried the HR product's ICS calendar feed.
   '/api/calendar',
 ]
 

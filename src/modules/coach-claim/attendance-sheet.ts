@@ -25,7 +25,7 @@ import {
   AlignmentType, BorderStyle, VerticalAlign, ImageRun, PageOrientation, Packer,
   type ITableCellOptions,
 } from 'docx'
-import type { AttendanceSheetDocData, SheetSession } from './types'
+import type { AttendanceSheetDocData, ClaimLine } from './types'
 import { DEFAULT_VERIFYING_OFFICE } from './types'
 import { formatSgd, formatHours } from './money'
 import { FONT, SIZE, INK, INK_SOFT, RULE, HEADER_FILL, FALLBACK_BAND_COLORS, MONTHS, shortDate, longDate } from './theme'
@@ -114,16 +114,23 @@ function fact(label: string, value: string, align?: (typeof AlignmentType)[keyof
  * differ — a 3 hour workshop beside the usual 90 minutes — one multiplication
  * would be a lie, so the hours are listed instead.
  */
-function claimWorking(sessions: SheetSession[], hourlyRateCents: number): string | null {
-  const billed = sessions.filter((s) => s.instructorPresent)
-  if (billed.length === 0) return null
-  const durations = new Set(billed.map((s) => s.durationMinutes))
-  const rate = `${formatSgd(hourlyRateCents)}/hr`
-  if (durations.size === 1) {
-    const hours = formatHours(billed[0].durationMinutes)
-    return `${rate} x ${billed.length} ${billed.length === 1 ? 'session' : 'sessions'} x ${hours} hr/session`
+function claimWorking(lines: ClaimLine[]): string | null {
+  if (lines.length === 0) return null
+
+  const durations = new Set(lines.map((l) => l.durationMinutes))
+  const rates = new Set(lines.map((l) => l.hourlyRateCents))
+
+  // One multiplication only holds when every session ran the same length at
+  // the same rate. Where either differs — a three-hour workshop, or a month
+  // straddling a rate rise — stating one would be a lie, so the sessions are
+  // listed instead.
+  if (durations.size === 1 && rates.size === 1) {
+    const hours = formatHours(lines[0].durationMinutes)
+    return `${formatSgd(lines[0].hourlyRateCents)}/hr x ${lines.length} ${lines.length === 1 ? 'session' : 'sessions'} x ${hours} hr/session`
   }
-  return `${rate} x ${billed.map((s) => `${formatHours(s.durationMinutes)} hr`).join(' + ')}`
+  return lines
+    .map((l) => `${formatHours(l.durationMinutes)} hr @ ${formatSgd(l.hourlyRateCents)}/hr`)
+    .join('  +  ')
 }
 
 export function buildAttendanceSheet(data: AttendanceSheetDocData): Document {
@@ -242,7 +249,7 @@ export function buildAttendanceSheet(data: AttendanceSheetDocData): Document {
     rows: [headerRow, instructorRow, ...memberRows, totalRow],
   })
 
-  const working = claimWorking(sessions, data.hourlyRateCents)
+  const working = claimWorking(data.lines)
 
   const claim = new Paragraph({
     spacing: { before: 300, after: 60 },

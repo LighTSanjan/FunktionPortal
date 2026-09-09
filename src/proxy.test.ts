@@ -33,7 +33,7 @@ describe('proxy', () => {
   })
 
   it('passes /api/cron/* through with no redirect, session or not', async () => {
-    const res = await proxy(makeRequest('/api/cron/performance-reminders'))
+    const res = await proxy(makeRequest('/api/cron/reminders'))
     expect(res.headers.get('location')).toBeNull()
   })
 

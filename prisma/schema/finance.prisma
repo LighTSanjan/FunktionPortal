@@ -183,7 +183,6 @@ model Instructor {
   postalCode    String?   @map("postal_code")
   bankName      String?   @map("bank_name")
   bankAccountNo String?   @map("bank_account_no")
-  hourlyRateCents Int     @map("hourly_rate_cents")
   engagement    InstructorEngagement @default(CONTRACTED)
   contractRef   String?   @map("contract_ref")
   contractStart DateTime? @map("contract_start")
@@ -199,12 +198,43 @@ model Instructor {
   signatureUpdatedAt DateTime? @map("signature_updated_at")
 
   organisation Organisation      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  rates        InstructorRate[]
   sessions     ClassSession[]
   invoices     Invoice[]
   sheets       AttendanceSheet[]
 
   @@index([orgId])
   @@map("instructors")
+}
+
+/// What an instructor is paid per hour, from a given date.
+///
+/// A rate is not a property of a person, it is a property of a period. The
+/// club's rate rises at term and year boundaries, and guests are booked at
+/// whatever was agreed for that workshop — so storing one number on the
+/// instructor would mean regenerating last October's invoice after a rise
+/// silently reprices it. Every rate that has ever applied stays here.
+///
+/// The rate for a session is the latest row whose effectiveFrom is on or
+/// before the session date. There is no end date: the next row ends the
+/// previous one, which makes an overlapping pair impossible to write.
+model InstructorRate {
+  id              String   @id @default(cuid())
+  orgId           String   @map("org_id")
+  instructorId    String   @map("instructor_id")
+  hourlyRateCents Int      @map("hourly_rate_cents")
+  effectiveFrom   DateTime @db.Date @map("effective_from")
+  /// Why it changed — "OSL contract renewal", "guest workshop rate agreed by
+  /// exco". The successor treasurer will want the reason, not just the number.
+  note            String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  instructor   Instructor   @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+
+  @@unique([instructorId, effectiveFrom])
+  @@index([orgId])
+  @@map("instructor_rates")
 }
 
 /// One class. Everything downstream — invoice lines, attendance columns,

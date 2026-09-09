@@ -80,7 +80,7 @@ describe('EmailNotificationAdapter', () => {
     vi.clearAllMocks()
     delete process.env.RESEND_API_KEY
     delete process.env.EMAIL_FROM
-    process.env.NEXT_PUBLIC_APP_URL = 'https://app.hrdaddy.com'
+    process.env.NEXT_PUBLIC_APP_URL = 'https://treasury.funktion.club'
   })
 
   it('does not throw when RESEND_API_KEY is missing', async () => {
@@ -147,7 +147,7 @@ describe('EmailNotificationAdapter', () => {
     await adapter.send(basePayload)
 
     const htmlArg = mockSend.mock.calls[0][0].html as string
-    expect(htmlArg).toContain('https://app.hrdaddy.com/dashboard')
+    expect(htmlArg).toContain('https://treasury.funktion.club/dashboard')
   })
 
   it('does not throw when Resend returns an error', async () => {

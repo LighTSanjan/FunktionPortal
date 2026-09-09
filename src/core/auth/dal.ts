@@ -131,7 +131,12 @@ export const getOrgContext = cache(
           where: { orgId: org.id, enabled: true },
           select: { moduleId: true },
         }),
-      (result) => result.length === 0
+      // Never "empty means retry" here. An org with no optional modules
+      // enabled is the normal steady state — it is every org today — and
+      // treating that as a failed read burned all four attempts and 1.55s of
+      // backoff on every single request. A thrown query still retries, which
+      // is the cold-connection case this guard was actually written for.
+      () => false
     )
     const enabledModules = Array.from(
       new Set([...getRequiredModuleIds(), ...orgModules.map((m) => m.moduleId)])
@@ -173,7 +178,9 @@ export async function requirePermission(
         where: { orgId, enabled: true },
         select: { moduleId: true },
       }),
-    (result) => result.length === 0
+    // See getOrgContext: an empty enabled-module list is normal, not a
+    // failed read. Retry on a throw only.
+    () => false
   )
   const enabledModules = Array.from(
     new Set([...getRequiredModuleIds(), ...orgModules.map((m) => m.moduleId)])

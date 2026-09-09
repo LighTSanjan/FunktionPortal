@@ -13,6 +13,8 @@ import type {
 import { sessionAmountCents } from './money'
 import { instructorDocumentNo } from './invoice'
 import { assertInvoiceable } from './instructor'
+import { rateForDate, type RateSchedule } from './rates'
+import { isoDate } from './theme'
 
 export class NoBillableSessionsError extends Error {
   constructor(readonly instructorName: string, readonly periodYear: number, readonly periodMonth: number) {
@@ -28,7 +30,8 @@ export interface ClaimInput {
   instructor: InstructorDetails
   /** Short code for the issuer's document number: JIN, KS. */
   shortCode: string
-  hourlyRateCents: number
+  /** Every rate that has applied. The session date picks which one bills. */
+  rates: RateSchedule[]
   periodYear: number
   periodMonth: number
   sessions: SessionInput[]
@@ -85,7 +88,7 @@ export function buildClaim(input: ClaimInput): Claim {
     // register row and, at the March boundary, the wrong financial year.
     throw new Error(
       `${outOfPeriod.length} session(s) fall outside ${input.periodMonth}/${input.periodYear}: ` +
-        outOfPeriod.map((s) => s.heldOn.toISOString().slice(0, 10)).join(', '),
+        outOfPeriod.map((s) => isoDate(s.heldOn)).join(', '),
     )
   }
 
@@ -96,7 +99,7 @@ export function buildClaim(input: ClaimInput): Claim {
     const unknown = s.presentMemberIds.filter((id) => !rosterIds.has(id))
     if (unknown.length > 0) {
       throw new Error(
-        `Session on ${s.heldOn.toISOString().slice(0, 10)} marks ${unknown.length} attendee(s) ` +
+        `Session on ${isoDate(s.heldOn)} marks ${unknown.length} attendee(s) ` +
           `who are not on the roster: ${unknown.join(', ')}`,
       )
     }
@@ -110,14 +113,19 @@ export function buildClaim(input: ClaimInput): Claim {
     }
   })
 
+  // Resolved per session, not per invoice: a month that straddles a rate
+  // rise bills each side correctly without anyone having to notice.
   const lines: ClaimLine[] = sessions
     .filter((s) => s.instructorPresent)
-    .map((s) => ({
-      heldOn: s.heldOn,
-      durationMinutes: s.durationMinutes,
-      hourlyRateCents: input.hourlyRateCents,
-      amountCents: sessionAmountCents(s.durationMinutes, input.hourlyRateCents),
-    }))
+    .map((s) => {
+      const rate = rateForDate(input.rates, s.heldOn, input.instructor.fullName)
+      return {
+        heldOn: s.heldOn,
+        durationMinutes: s.durationMinutes,
+        hourlyRateCents: rate,
+        amountCents: sessionAmountCents(s.durationMinutes, rate),
+      }
+    })
 
   const subtotalCents = lines.reduce((sum, l) => sum + l.amountCents, 0)
   const gstCents = input.gstCents ?? 0
@@ -174,8 +182,8 @@ export function toAttendanceSheetData(input: ClaimInput, claim: Claim): Attendan
     periodMonth: input.periodMonth,
     roster: input.roster,
     sessions: claim.sessions,
+    lines: claim.lines,
     billedSessionCount: claim.lines.length,
-    hourlyRateCents: input.hourlyRateCents,
     claimTotalCents: claim.totalCents,
     fundSource: input.fundSource,
     referenceNumber: input.referenceNumber,

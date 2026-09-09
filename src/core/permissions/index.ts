@@ -50,7 +50,7 @@ export function resolvePermissions(
 
 /**
  * Check if a role has a specific permission, given the org's enabled modules.
- * A permission belonging to a disabled module is NEVER granted — even for OWNER.
+ * A permission belonging to a disabled module is NEVER granted, for any role.
  */
 export function hasPermission(
   role: OrgRole,

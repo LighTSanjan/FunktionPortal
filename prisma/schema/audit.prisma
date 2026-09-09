@@ -1,4 +1,8 @@
-// HR Daddy - Audit & Notifications schema
+// FUNKtion Portal — audit & notifications schema
+//
+// Both are kernel concerns rather than any module's: an organisation that
+// disables every optional module still has an audit trail and still gets
+// told things.
 
 model Notification {
   id        String   @id @default(cuid())

@@ -12,7 +12,7 @@ const csp = [
   // is a larger follow-up, not attempted in this pass.
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
-  // Org logos and employee documents render as signed Supabase Storage
+  // Org logos and stored documents render as signed Supabase Storage
   // URLs directly in <img>/<Image> tags — without the storage origin here,
   // the browser silently blocks the request as a CSP violation and the
   // image falls back to a broken-image icon, with nothing in server logs
@@ -31,8 +31,10 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@prisma/adapter-pg", "pg"],
   experimental: {
     serverActions: {
-      // The app's own document-upload limit is 25MB (src/modules/documents/schemas.ts);
-      // this just needs headroom above it so that check is what actually enforces the cap.
+      // This is currently the only upload cap. It used to sit above an app-level
+      // 25MB check that was meant to be the real limit; that module is gone, so
+      // anything added here needs its own size validation rather than assuming
+      // one exists upstream.
       bodySizeLimit: '26mb',
     },
   },

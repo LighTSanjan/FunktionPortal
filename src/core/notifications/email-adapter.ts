@@ -50,7 +50,7 @@ export class EmailNotificationAdapter implements NotificationAdapter {
           : `${appUrl.replace(/\/$/, '')}${payload.link}`
         : undefined
 
-      const from = process.env.EMAIL_FROM || 'HRDaddy <notifications@hrdaddy.app>'
+      const from = process.env.EMAIL_FROM || 'FUNKtion Treasury <notifications@funktion.club>'
 
       const { error } = await client.emails.send({
         from,

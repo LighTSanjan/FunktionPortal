@@ -125,9 +125,10 @@ export interface AttendanceSheetDocData {
   periodMonth: number
   roster: RosterMember[]
   sessions: SheetSession[]
+  /** The billed lines, carrying the rate each one actually charged. */
+  lines: ClaimLine[]
   /** Coach-led sessions only. */
   billedSessionCount: number
-  hourlyRateCents: number
   claimTotalCents: number
   fundSource: FundSource
   referenceNumber?: string

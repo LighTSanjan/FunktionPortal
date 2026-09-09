@@ -81,7 +81,7 @@ interface AppSidebarProps {
 // ─────────────────────────────────────────────
 // Sidebar state via useSyncExternalStore
 // ─────────────────────────────────────────────
-const STORAGE_KEY = 'hrdaddy-sidebar-collapsed'
+const STORAGE_KEY = 'funktion-sidebar-collapsed'
 
 function getCollapsedSnapshot(): boolean {
   if (typeof window === 'undefined') return false
@@ -520,7 +520,7 @@ export function AppSidebar({ orgSlug, orgName, orgLogo, navEntries, version = '0
           />
         )}
 
-        {/* HR Daddy brand mark */}
+        {/* FUNKtion brand mark */}
         <div className={cn(
           'flex items-center px-2.5 py-1',
           collapsed && 'justify-center px-0'

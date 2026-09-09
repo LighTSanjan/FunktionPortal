@@ -16,7 +16,7 @@ export function AuthCardShell({ children }: { children: React.ReactNode }) {
         </div>
         {children}
         <p className="mt-6 text-center text-[11px] text-text-subtle">
-          Open-source HR for small teams
+          Treasury portal for FUNKtion
         </p>
       </div>
     </div>

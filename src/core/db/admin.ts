@@ -6,9 +6,10 @@
  *   1. The signup transaction before a membership exists.
  *   2. Background jobs (cron handlers, async event processors).
  *   3. Migrations / seed scripts.
- *   4. Token-authenticated public endpoints (e.g. ICS calendar feed) where
- *      there is no user session — the unguessable URL token IS the credential,
- *      analogous to a signed URL. See src/core/calendar-feed/index.ts.
+ *   4. Token-authenticated public endpoints where there is no user session —
+ *      the unguessable URL token IS the credential, analogous to a signed URL.
+ *      Nothing uses this today; cases 2 and 4 are both reserved rather than
+ *      live, so every current caller is case 1 or 3.
  *
  * Everything else goes through dbAs().
  *

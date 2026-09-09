@@ -20,7 +20,7 @@ export default function SignUpPage() {
         <CardHeader className="space-y-1">
           <CardTitle>Create an account</CardTitle>
           <CardDescription>
-            Enter your details to create your HR Daddy account
+            Enter your details to create your FUNKtion Treasury account
           </CardDescription>
         </CardHeader>
         <form action={formAction}>
