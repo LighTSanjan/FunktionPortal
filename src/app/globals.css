@@ -27,9 +27,10 @@
   --color-accent-950: var(--accent-950);
 
   /* Brand */
-  --color-brand-cyan: var(--brand-cyan);
+  --color-brand-vermilion: var(--brand-vermilion);
+  --color-brand-marigold: var(--brand-marigold);
+  --color-brand-sky: var(--brand-sky);
   --color-brand-indigo: var(--brand-indigo);
-  --color-brand-purple: var(--brand-purple);
 
   /* Status */
   --color-success: var(--success);

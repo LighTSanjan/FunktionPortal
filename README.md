@@ -172,7 +172,7 @@ the very document the portal has to reconcile with. `sessionAmountCents()` round
 
 **Reference numbers are allocated, never computed.** A single atomic `UPDATE … RETURNING` against
 the counter row, inside the same transaction that writes the document, with a unique constraint on
-`(series, financialYear, sequence)`. Application-level `max + 1` is the classic way to issue the
+`(orgId, series, financialYear, sequence)`. Application-level `max + 1` is the classic way to issue the
 same invoice number twice under concurrency, and it stays invisible until OSL rejects a
 submission. A missing counter throws rather than defaulting to `0001` — guessing would reissue
 numbers already in circulation.
@@ -335,9 +335,10 @@ destinations are routed to but have no page yet, so a signed-in visitor 404s on 
 | `/onboarding` | `src/app/page.tsx` for a signed-in user with no organisation |
 | `/{orgSlug}/settings/profile` | `settings/page.tsx` |
 
-`/{orgSlug}/settings/audit-log` is the one dashboard page that resolves today. Together with the
-missing RLS migration noted under Access control, that is the shortest path to a portal a treasurer
-can actually sign into.
+`/{orgSlug}/settings/audit-log` is the only dashboard page with a route file, but it does not
+render either: its queries go through `dbAs()`, which raises without the `app_user` role. So the
+missing hardening migration is the first blocker, not a parallel one — no signed-in page works
+until it lands.
 
 ## Design language
 

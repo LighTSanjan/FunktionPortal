@@ -31,8 +31,10 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@prisma/adapter-pg", "pg"],
   experimental: {
     serverActions: {
-      // The app's own document-upload limit is 25MB (src/modules/documents/schemas.ts);
-      // this just needs headroom above it so that check is what actually enforces the cap.
+      // This is currently the only upload cap. It used to sit above an app-level
+      // 25MB check that was meant to be the real limit; that module is gone, so
+      // anything added here needs its own size validation rather than assuming
+      // one exists upstream.
       bodySizeLimit: '26mb',
     },
   },

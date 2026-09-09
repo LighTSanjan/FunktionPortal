@@ -31,8 +31,12 @@ export default async function OrgDashboardLayout({
   // Resolve nav from module registry — no hardcoded navigation
   const navEntries = resolveNav(membership.role, enabledModules)
 
-  // Compute Settings visibility (same permission all settings sub-pages require)
-  const canManageSettings = hasPermission(membership.role, enabledModules, 'department.manage')
+  // Compute Settings visibility (same permission all settings sub-pages require).
+  // Gated on org.manage_settings, which the kernel registers. It was gated on
+  // 'department.manage' from the HR fork — a key nothing registers, and
+  // hasPermission returns false for an unknown key, so the Settings link never
+  // rendered for anyone and the audit log was unreachable by navigation.
+  const canManageSettings = hasPermission(membership.role, enabledModules, 'org.manage_settings')
 
   // Fetch org logo and notifications in parallel (independent queries)
   const [branding, { notifications, unreadCount }] = await Promise.all([

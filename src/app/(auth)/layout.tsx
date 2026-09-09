@@ -19,9 +19,9 @@ export default function AuthLayout({
         className="pointer-events-none absolute left-1/2 top-1/2 h-[620px] w-[820px] -translate-x-1/2 -translate-y-1/2 opacity-25 blur-[110px] dark:opacity-30"
         style={{
           background:
-            'radial-gradient(60% 60% at 30% 30%, var(--brand-cyan) 0%, transparent 70%),' +
-            'radial-gradient(60% 60% at 70% 45%, var(--brand-indigo) 0%, transparent 70%),' +
-            'radial-gradient(55% 55% at 55% 80%, var(--brand-purple) 0%, transparent 70%)',
+            'radial-gradient(60% 60% at 30% 30%, var(--brand-vermilion) 0%, transparent 70%),' +
+            'radial-gradient(60% 60% at 70% 45%, var(--brand-marigold) 0%, transparent 70%),' +
+            'radial-gradient(55% 55% at 55% 80%, var(--brand-sky) 0%, transparent 70%)',
         }}
       />
       <div className="relative z-10 min-h-screen">{children}</div>

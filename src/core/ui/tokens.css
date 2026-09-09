@@ -5,24 +5,27 @@
  */
 
 :root {
-  /* Brand gradient */
-  --brand-gradient: linear-gradient(135deg, #0EE7FF 0%, #6758FF 50%, #8A1FFF 100%);
-  --brand-cyan: #0EE7FF;
-  --brand-indigo: #6758FF;
-  --brand-purple: #8A1FFF;
+  /* Brand — the kueh lapis stack, front to back. The order is fixed: it is
+     what makes the device read as the logo rather than as decoration. */
+  --brand-vermilion: #F05820;
+  --brand-marigold: #F8A838;
+  --brand-sky: #58C0E8;
+  --brand-indigo: #304890;
+  --brand-gradient: linear-gradient(135deg, #F05820 0%, #F8A838 33%, #58C0E8 66%, #304890 100%);
 
-  /* Accent scale — org-overridable via brandPrimaryColor in OrganisationSettings */
-  --accent-50: #F0EFFF;
-  --accent-100: #E4E1FF;
-  --accent-200: #CDC7FF;
-  --accent-300: #ADA3FF;
-  --accent-400: #8B7BFF;
-  --accent-500: #6758FF;
-  --accent-600: #5340F0;
-  --accent-700: #4632D4;
-  --accent-800: #3A2BAB;
-  --accent-900: #322887;
-  --accent-950: #1E184F;
+  /* Accent scale — vermilion, the single hot accent. brandPrimaryColor is
+     read from OrganisationSettings but not yet applied to these tokens. */
+  --accent-50: #FEF2EC;
+  --accent-100: #FDE2D5;
+  --accent-200: #FBC4AC;
+  --accent-300: #F89F7A;
+  --accent-400: #F47A4C;
+  --accent-500: #F05820;
+  --accent-600: #D8410E;
+  --accent-700: #B4340B;
+  --accent-800: #8E2A0A;
+  --accent-900: #70240B;
+  --accent-950: #3D1104;
 
   /* Neutrals — Light */
   --bg: #FFFFFF;
@@ -83,17 +86,17 @@
   --text-subtle: #6E6E7A;
 
   /* Accent scale — Dark */
-  --accent-50: #1A1730;
-  --accent-100: #221E3D;
-  --accent-200: #2E2856;
-  --accent-300: #453D80;
-  --accent-400: #6455B8;
-  --accent-500: #7B6EFF;
-  --accent-600: #9B8FFF;
-  --accent-700: #B5ABFF;
-  --accent-800: #D0C9FF;
-  --accent-900: #E8E4FF;
-  --accent-950: #F5F3FF;
+  --accent-50: #2A1108;
+  --accent-100: #3D190B;
+  --accent-200: #5A2410;
+  --accent-300: #853616;
+  --accent-400: #C04E1E;
+  --accent-500: #F0663A;
+  --accent-600: #FF8354;
+  --accent-700: #FFA179;
+  --accent-800: #FFC0A4;
+  --accent-900: #FFDDCB;
+  --accent-950: #FFF1EA;
 
   /* Status — Dark */
   --success: #22C55E;
@@ -117,17 +120,17 @@
     --text-subtle: #6E6E7A;
 
     /* Accent scale — Dark */
-    --accent-50: #1A1730;
-    --accent-100: #221E3D;
-    --accent-200: #2E2856;
-    --accent-300: #453D80;
-    --accent-400: #6455B8;
-    --accent-500: #7B6EFF;
-    --accent-600: #9B8FFF;
-    --accent-700: #B5ABFF;
-    --accent-800: #D0C9FF;
-    --accent-900: #E8E4FF;
-    --accent-950: #F5F3FF;
+    --accent-50: #2A1108;
+    --accent-100: #3D190B;
+    --accent-200: #5A2410;
+    --accent-300: #853616;
+    --accent-400: #C04E1E;
+    --accent-500: #F0663A;
+    --accent-600: #FF8354;
+    --accent-700: #FFA179;
+    --accent-800: #FFC0A4;
+    --accent-900: #FFDDCB;
+    --accent-950: #FFF1EA;
 
     --success: #22C55E;
     --warning: #F59E0B;

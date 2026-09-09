@@ -9,8 +9,8 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Resolve the app's public base URL for building absolute links (email,
- * ICS feed URLs) from server code. Prefers an explicitly configured
+ * Resolve the app's public base URL for building absolute links (currently
+ * only notification emails) from server code. Prefers an explicitly configured
  * NEXT_PUBLIC_APP_URL, then falls back to Vercel's auto-injected
  * deployment URLs so this doesn't silently regress to localhost in any
  * environment where the env var wasn't set by hand.
