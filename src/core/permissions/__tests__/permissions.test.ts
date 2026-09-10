@@ -1,74 +1,20 @@
-/**
- * Permission resolution tests, including the disabled-module case for EXCO.
- */
-import { describe, it, expect, beforeEach } from 'vitest'
-import {
-  registerPermissions,
-  resolvePermissions,
-  hasPermission,
-  _resetPermissions,
-} from '@/core/permissions'
+import { describe, expect, it } from 'vitest'
+import { hasPermission, permissionsForRole } from '@/core/permissions'
 
-describe('Permissions', () => {
-  beforeEach(() => {
-    _resetPermissions()
+describe('permissions', () => {
+  it('limits members to their own records and access requests', () => {
+    expect(permissionsForRole('MEMBER')).toEqual(new Set(['access.request']))
+    expect(hasPermission('MEMBER', 'session.manage')).toBe(false)
   })
 
-  it('resolves permissions for a role from enabled modules', () => {
-    registerPermissions('employees', [
-      { key: 'employee.view_all', description: 'View all', defaultRoles: ['EXCO'] },
-      { key: 'employee.view_own', description: 'View own', defaultRoles: ['EXCO', 'MEMBER'] },
-    ])
-
-    const perms = resolvePermissions('MEMBER', ['employees'])
-    expect(perms.has('employee.view_own')).toBe(true)
-    expect(perms.has('employee.view_all')).toBe(false)
+  it('allows exco to operate the portal', () => {
+    expect(hasPermission('EXCO', 'org.manage_members')).toBe(true)
+    expect(hasPermission('EXCO', 'instructor.manage')).toBe(true)
+    expect(hasPermission('EXCO', 'claim.generate')).toBe(true)
+    expect(hasPermission('EXCO', 'references.view')).toBe(true)
   })
 
-  it('EXCO gets all permissions from enabled modules', () => {
-    registerPermissions('employees', [
-      { key: 'employee.view_all', description: 'View all', defaultRoles: ['EXCO'] },
-      { key: 'employee.create', description: 'Create', defaultRoles: ['EXCO'] },
-    ])
-
-    const perms = resolvePermissions('EXCO', ['employees'])
-    expect(perms.has('employee.view_all')).toBe(true)
-    expect(perms.has('employee.create')).toBe(true)
-  })
-
-  it('permissions from disabled modules are NEVER granted, even for EXCO', () => {
-    registerPermissions('leave', [
-      { key: 'leave.approve', description: 'Approve leave', defaultRoles: ['EXCO', 'EXCO', 'MEMBER'] },
-    ])
-    registerPermissions('employees', [
-      { key: 'employee.view_own', description: 'View own', defaultRoles: ['EXCO', 'MEMBER'] },
-    ])
-
-    // Only 'employees' is enabled, not 'leave'
-    const enabledModules = ['employees']
-
-    expect(hasPermission('EXCO', enabledModules, 'leave.approve')).toBe(false)
-    expect(hasPermission('EXCO', enabledModules, 'employee.view_own')).toBe(true)
-  })
-
-  it('hasPermission returns false for unknown keys', () => {
-    registerPermissions('employees', [
-      { key: 'employee.view_own', description: 'View own', defaultRoles: ['EXCO'] },
-    ])
-
-    expect(hasPermission('EXCO', ['employees'], 'nonexistent.key')).toBe(false)
-  })
-
-  it('resolves permissions across multiple enabled modules', () => {
-    registerPermissions('employees', [
-      { key: 'employee.view_own', description: 'View own', defaultRoles: ['MEMBER'] },
-    ])
-    registerPermissions('leave', [
-      { key: 'leave.request', description: 'Request leave', defaultRoles: ['MEMBER'] },
-    ])
-
-    const perms = resolvePermissions('MEMBER', ['employees', 'leave'])
-    expect(perms.has('employee.view_own')).toBe(true)
-    expect(perms.has('leave.request')).toBe(true)
+  it('rejects unknown permission keys', () => {
+    expect(hasPermission('EXCO', 'nonexistent.permission')).toBe(false)
   })
 })

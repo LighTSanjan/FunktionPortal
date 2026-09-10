@@ -13,7 +13,7 @@ Every fact gets entered once. Every document is a rendering of it.
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-304890?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Prisma 7](https://img.shields.io/badge/Prisma-7-F05820?style=flat-square&logo=prisma&logoColor=white)](https://www.prisma.io)
 [![Postgres](https://img.shields.io/badge/Postgres-Supabase-F8A838?style=flat-square&logo=supabase&logoColor=white)](https://supabase.com)
-[![Tests](https://img.shields.io/badge/tests-177-58C0E8?style=flat-square&logo=vitest&logoColor=white)](#testing)
+[![Tests](https://img.shields.io/badge/tests-passing-58C0E8?style=flat-square&logo=vitest&logoColor=white)](#testing)
 
 <img src="docs/assets/band.svg" alt="" width="100%" height="10">
 
@@ -57,6 +57,19 @@ register requires API access.
   letterhead, verified by the Treasurer. A member-by-date matrix of YES/NO with the instructor as
   its first row.
 - **Reference numbering** — the four OSL series, allocated atomically.
+- **Sign-in** — Google OAuth and email/password, both provisioning the application user row that
+  every membership, signature and audit entry hangs off.
+- **Dashboard** — fund balances, where each reference series stands, and what is blocking the
+  month.
+- **Instructors** — contracted coaches and guests, their contact and bank details, and a rate
+  history that is appended to rather than edited, so a submitted invoice keeps the rate it was
+  raised at.
+- **Classes, attendance import and monthly run** — record attendance manually or review and apply
+  a trimester CSV, raise each coach's month, download both documents, and mark the submission sent.
+- **Register** — read-only history imported from the official and unofficial registers.
+- **Access requests** — members can request exco access and a different exco member must decide it.
+- **Row-level security** — the `app_user` role, policies on every table, and an append-only audit
+  path that stamps the actor from the connection rather than accepting it as an argument.
 
 Both documents derive from one list of sessions, so they cannot disagree about how many classes
 the coach actually taught.
@@ -74,14 +87,14 @@ flowchart TD
     A --> E["Attendance sheet .docx<br/>FUNKtion letterhead"]
     C --> E
     E --> F["Treasurer verifies"]
-    D --> G["Combine to one PDF"]
+    D --> G["Download both documents"]
     F --> G
-    G --> H["Submit to OSL<br/>within 3 working days"]
+    G --> H["Submit to OSL and mark sent"]
 ```
 
-A date where the instructor's row reads **NO** is a self-practice session: the club met, the
-attendance counts, and nobody bills for it. A month with only self-practice produces an attendance
-sheet and no invoice — that is a normal month, not an error.
+The document model understands self-practice dates, where the club met without a coach and nobody
+bills. The current `ClassSession` schema still requires an instructor, so recording those dates in
+the portal remains open work.
 
 <img src="docs/assets/band.svg" alt="" width="100%" height="6">
 
@@ -106,6 +119,17 @@ npm run dev
 
 Open <http://localhost:3000>.
 
+### After changing the Prisma schema
+
+`npm run db:generate` rewrites the client inside `node_modules`, and a running dev server has
+already loaded the old one. **Restart `npm run dev`** — nothing else picks the change up, and
+neither Turbopack's hot reload nor touching a source file is enough.
+
+The failure is not obvious, because it does not look like a stale client. A new model reads as
+`Cannot read properties of undefined` on the delegate; a new enum value reads as
+`Value 'X' not found in enum`. Both surface as a 500 from whichever page happens to touch it
+first, which is rarely the page you just edited.
+
 For the local stack, `.env` must keep `NEXT_PUBLIC_SUPABASE_URL` at `http://localhost:8000` (Kong,
 not the Postgres port and not GoTrue directly), use the anon JWT as
 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and use the service-role JWT only as the server-side
@@ -118,9 +142,15 @@ only runs when the Postgres volume is initialised for the first time.
 | | |
 | :--- | :--- |
 | Organisation | `funktion`, project code **097**, Arts cluster (A3006) |
-| Fund accounts | `PC-00097-A3006-A3006-000` (Seed, no rollover) · `PN-00097-A3006-A3006-000` / `-R00` (Income) |
+| Fund accounts | Seed `PC-00097-A3006-A3006-000` @ **$305.00**, cut-off 28 Feb 2027, no rollover · Income `PN-00097-A3006-A3006-000` / `-R00` @ **$3,615.16** |
 | Counters | **IV @ 0010**, SCF/PO/INC @ 0001 |
 | Instructors | JIN (Locking), KS (Popping) at $90.00/hr from 1 Apr 2026 |
+| Terms | Trimester 2 2026 (18 May – 22 Aug) · Trimester 3 2026 (14 Sep – 19 Dec) · Trimester 1 2027 (25 Jan – 1 May), $70 full / $35 half |
+
+Opening balances come from the FY2026 Transaction Register, with one correction to the Seed Fund —
+see **Known gaps** for why the register's own cell reads $1,520.00 and the true figure is $305.00.
+Collection dates are left unset on every term: the exco choose them, and every §2.2 deadline counts
+from there rather than from the term boundary.
 
 IV opens at 0010, not 0001: numbers 0001–0009 are already on documents sitting with the Office of
 Finance. Instructor addresses and bank accounts are deliberately **not** seeded — they are personal
@@ -132,29 +162,26 @@ invoice.
 
 ## Architecture
 
-A small platform **kernel** with feature **modules** registered on top of it. The kernel owns
-auth, tenancy, permissions, audit, notifications, storage and the design system; it knows nothing
-about invoices. Modules declare a manifest and the kernel derives nav, permissions and settings
-from it.
+The application is split by responsibility without a runtime plugin layer. `core` holds shared
+auth, data access and UI; domain code lives in `modules`; routes compose the two. Navigation and
+role permissions are ordinary static data because every feature ships with this application.
 
 ```
 src/
-├── core/                 # the kernel — no domain knowledge lives here
-│   ├── auth/             # Supabase SSR clients, DAL, org context
-│   ├── db/               # dbAs() = RLS-scoped · dbAdmin() = bypasses RLS, core-only
-│   ├── permissions/      # registry + kernel-owned permissions
-│   ├── modules/          # module manifests → nav, permissions, settings
-│   ├── audit/            # actor, before, after — on every financial write
-│   ├── notifications/    # in-app + email adapters, composed
-│   ├── storage/          # private Supabase bucket, signed URLs
-│   ├── events/           # in-process event bus
-│   └── ui/               # primitives, charts, app shell
+├── core/
+│   ├── auth/             # Supabase SSR clients, DAL, organisation context
+│   ├── db/               # dbAs() is RLS-scoped; dbAdmin() is core-only
+│   ├── permissions/      # static role permissions
+│   ├── audit/            # financial write audit trail
+│   ├── storage/          # private Supabase bucket and signed URLs
+│   └── ui/               # primitives and application shell
 ├── modules/
-│   ├── coach-claim/      # invoice + attendance sheet, rates, money, claim assembly
-│   ├── references/       # OSL labelling protocol + atomic allocation
-│   └── register.ts       # import-time registration barrel
+│   ├── attendance/       # attendance CSV parsing
+│   ├── coach-claim/      # sessions, claims and generated documents
+│   ├── references/       # OSL numbering and atomic allocation
+│   └── register.ts       # static navigation entries
 ├── app/                  # Next.js App Router
-└── proxy.ts              # session refresh + route protection
+└── proxy.ts              # session refresh and route protection
 ```
 
 Outside `src/`: `prisma/schema/` is split by domain (`_base`, `identity`, `organisation`,
@@ -190,22 +217,11 @@ confers no access at all — it only decides who gets notified and whose title p
 signature. Keeping offices as labels means a mid-year reshuffle is a dropdown rather than a
 security decision.
 
-Authorisation is server-side on every mutation, with Postgres row-level security intended as
-defence in depth. `dbAs()` opens a transaction as `app_user` with the caller's JWT claims
-installed, so every query inside it is evaluated by RLS; `dbAdmin` bypasses RLS and is confined to
-`src/core/**` by an ESLint boundary rule, alongside a second rule keeping the kernel from importing
-modules. Amounts are always computed server-side — the browser never posts a dollar figure.
-
-> [!IMPORTANT]
-> **The database half of that is not in the migration set yet.** `prisma/migrations/` is a clean
-> Prisma init: it creates tables, and no roles, policies, grants or the `write_audit_log()`
-> function. The HR kernel's hardening migrations did not survive the schema rewrite.
->
-> This fails loudly rather than quietly: `dbAs()` checks `current_user` inside the transaction and
-> raises `RlsScopeError` rather than running as the table owner, so there is no silent window where
-> queries appear to work while RLS is absent. `scripts/ci/verify-grants.sql` skips with a notice
-> until the role exists and arms every assertion the moment it does. Writing that migration is the
-> next piece of work on the data layer.
+Authorisation is server-side on every mutation. `dbAs()` opens a transaction as `app_user` with
+the caller's claims installed, so Postgres row-level security evaluates every query. `dbAdmin`
+bypasses RLS and is confined to `src/core/**` by ESLint. Amounts are computed server-side; the
+browser never posts a dollar figure. The RLS policies, grants and `write_audit_log()` function are
+in `20260909120000_rls_hardening`, and `npm run db:verify-rls` checks the deployed role directly.
 
 <img src="docs/assets/band.svg" alt="" width="100%" height="6">
 
@@ -253,13 +269,14 @@ in the series has an answer.
 | `npm run build` / `start` | Production build and serve |
 | `npm run lint` | ESLint, including the `dbAdmin` boundary rule |
 | `npm run test` / `test:run` | Vitest, watch / single-run |
-| `npm run test:db` | Adds the tests that need a real Postgres (`RUN_DB_TESTS=1`) |
 | `npm run test:e2e` | Playwright |
 | `npm run db:migrate` | Create and apply a migration in development |
 | `npm run db:deploy` | Apply pending migrations to the target database |
 | `npm run db:push` | Push schema without a migration (local only) |
 | `npm run db:studio` | Prisma Studio |
 | `npm run db:seed` | Opening state for FY2026 (idempotent) |
+| `npm run db:verify-rls` | Connects as `app_user` and checks RLS is actually enforcing |
+| `npx tsx scripts/db/import-attendance.ts <file> "<term>" [--apply]` | Dry-run or apply a back-catalogue attendance CSV |
 
 ## Testing
 
@@ -267,10 +284,11 @@ in the series has an answer.
 npm run test:run
 ```
 
-177 unit tests across 18 files, covering money and rate arithmetic, claim assembly, document
-composition, the reference protocol and atomic allocation, plus the kernel's permissions, audit,
-notifications, module registry and UI primitives. The database-backed tests are opt-in behind
-`RUN_DB_TESTS=1` so the default run needs no Postgres.
+The unit suite covers money and rate arithmetic, claim assembly, document composition, reference
+allocation, permissions, audit, attendance parsing and UI primitives. It runs without a database.
+
+The allocator's concurrency guarantee still needs an integration test against a throwaway Postgres
+database; the unit suite verifies its SQL and transaction contract only.
 
 CI (`.github/workflows/ci.yml`) runs typecheck, lint and unit tests, then applies the full
 migration set to a bare Postgres — with `scripts/ci/stub-supabase-schema.sql` standing in for the
@@ -298,12 +316,40 @@ Once per environment, beyond `npm run db:deploy`:
 2. **Storage bucket.** Nothing creates the private documents bucket automatically. Run
    `npx tsx scripts/create-storage-bucket.ts` once against the target project — it is idempotent.
    Skipping it means the first upload fails.
-3. **Hosted Supabase connection role.** Once the RLS migration lands (see the note above), set
-   `APP_USER_DATABASE_URL` to `app_user`'s own login credential. Hosted Supabase blocks `SET ROLE`
-   to any role outside its platform allowlist, so without this the RLS-scoped client cannot reach
-   `app_user`. Local and self-hosted Postgres have no such restriction and fall back to `SET ROLE`
-   automatically.
-4. **Self-hosted CORS origin.** `supabase/kong.yml` hardcodes `http://localhost:3000` as the only
+3. **Create `app_user`, before the migration.** Run `scripts/db/create-app-user.sql` once in the
+   Supabase SQL editor with a generated password pasted in (`openssl rand -base64 24`). It has to
+   run as `postgres`: Prisma migrates as `funktion_migrate`, which owns every table but has no
+   CREATEROLE and is not a member of `authenticated`, so it can neither create the role nor grant
+   it the membership the policies are written against. The RLS migration checks for the role and
+   refuses with a pointer back to this file if it is missing, so running them out of order fails
+   loudly instead of recording a half-applied migration.
+
+   Then set `APP_USER_DATABASE_URL` to that role's own connection string. Hosted Supabase blocks
+   `SET ROLE` to any role outside its platform allowlist, so `app_user` can only be reached by
+   connecting to it directly; without this `dbAs()` raises `RlsScopeError` rather than running
+   unscoped. Local and self-hosted Postgres have no such restriction and fall back to `SET ROLE`.
+4. **Enable the Google provider.** Sign-in is wired end to end in the app, but the provider itself
+   is Supabase dashboard configuration. Two different redirect settings are involved and they are
+   not the same URL:
+
+   | Where | Value |
+   | :--- | :--- |
+   | Google Cloud Console → Authorised redirect URIs | `https://<project-ref>.supabase.co/auth/v1/callback` |
+   | Supabase → Authentication → URL Configuration → Redirect URLs | `{NEXT_PUBLIC_APP_URL}/auth/callback` |
+
+   The first is where Google returns to Supabase; the second is where Supabase returns to this app.
+   Miss the second and sign-in completes at Google then dies on the way home. Add every origin the
+   app is served from — `http://localhost:3000/auth/callback`, the production domain, and
+   `https://*-<team>.vercel.app/auth/callback` if you want preview deployments to work.
+
+   Publish the Google consent screen rather than leaving it in Testing: testing-mode refresh tokens
+   expire after seven days, which will matter when Drive access lands in 02b and will look like the
+   code broke a week after it started working.
+5. **Set `NEXT_PUBLIC_APP_URL` per environment.** It is what the OAuth redirect is built from. On
+   Vercel it must be the deployment's own URL, not `localhost` — the code falls back to
+   `VERCEL_URL` when it is unset, which keeps preview builds working, but production should be
+   explicit so the URL does not change under you.
+6. **Self-hosted CORS origin.** `supabase/kong.yml` hardcodes `http://localhost:3000` as the only
    allowed origin. Edit the `origins` list before pointing a self-hosted deployment at a real
    domain.
 
@@ -313,12 +359,13 @@ Once per environment, beyond `npm run db:deploy`:
 
 | | Phase | Status |
 | :--- | :--- | :--- |
-| **01** | Invoice and attendance generation | Document composition, rates and reference allocation in place |
+| **01** | Invoice and attendance generation | Complete for coach-led sessions: sessions, attendance, generation, downloads and submission tracking are live |
+| **01b** | Access — invitations, promotion requests and revocation | Partly built: promotion requests and independent approval are live; invitations and revocation are not |
 | **02** | Fee collection — PayNow declaration, exco reconciliation, Income Deposit Form | Planned |
-| **02b** | Attendance import from Drive, stored signatures | Planned |
-| **03** | Telegram reminders alongside in-app and email | Planned |
+| **02b** | Attendance CSV import and stored signatures | CSV upload, review and apply are live; signature storage is not |
+| **03** | Automated reminders and Telegram delivery | Planned |
 | **04** | Procurement — PRF/PAF thresholds, quotations, approval chain | Planned |
-| **05** | Transaction Register sync, behind diff-and-approve | Planned — held back deliberately; it is the only irreversible write to a shared artefact |
+| **05** | Transaction Register sync, behind diff-and-approve | Read-only import is live; writeback is planned |
 | **06** | Handover — FY2027 rollover, all four counters reset to 0001 | March 2027 |
 
 The schema for every phase already exists in `prisma/schema/finance.prisma`; the phases above are
@@ -326,19 +373,33 @@ the UI and workflow on top of it.
 
 ### Known gaps
 
-Phase 01's document layer is written and tested; the shell around it is not finished. Three
-destinations are routed to but have no page yet, so a signed-in visitor 404s on arrival:
+The remaining product work is:
 
-| Route | Reached from |
+| Missing | Consequence |
 | :--- | :--- |
-| `/{orgSlug}/dashboard` | `src/app/page.tsx` after sign-in, `[orgSlug]/page.tsx`, the sidebar brand link |
-| `/onboarding` | `src/app/page.tsx` for a signed-in user with no organisation |
-| `/{orgSlug}/settings/profile` | `settings/page.tsx` |
+| Self-practice sessions | The document model supports them, but `ClassSession` still requires an instructor |
+| Re-raising a voided month | Voiding works; generating a replacement with a fresh reference does not |
+| Stored signatures and instructor photos | The private-storage base exists; these uploads do not |
+| Invitations and revocation | Promotion requests work, but the rest of the member-access lifecycle does not |
+| Fee collection and Income Deposit Form | Schema only |
+| Reminders, Telegram and production auth email | Delivery and scheduling are not configured |
+| Procurement forms and approvals | Schema only |
+| Register writeback | The imported history is read-only; diff-and-approve sync is not built |
+| FY2027 handover | Counter rollover and handover workflow are not built |
 
-`/{orgSlug}/settings/audit-log` is the only dashboard page with a route file, but it does not
-render either: its queries go through `dbAs()`, which raises without the `app_user` role. So the
-missing hardening migration is the first blocker, not a parallel one — no signed-in page works
-until it lands.
+**One number worth knowing before FY2026 is reconciled.** The register's Seed Fund balance cell
+reads `$1,520.00`, but the balance formula subtracts the *without-GST* column and the four June and
+July coach rows have their incl-GST cell filled with that cell left blank. Those four total
+`$1,215.00`, so the displayed balance overstates the fund by exactly that. The real figure is
+`$2,600.00 - $2,295.00 = $305.00`, and that is what the seed carries. The Income section has both
+GST columns populated on every row and needs no such correction.
+
+The same four rows carry no reference number in the register at all, which leaves only IV
+`0009` to account for four submitted documents. Either three numbers were issued and never written
+back to the sheet, or three submissions went out unnumbered — a question for OSL rather than for
+the code. Opening the counter at `0010` is safe under either reading.
+
+<img src="docs/assets/band.svg" alt="" width="100%" height="6">
 
 ## Design language
 

@@ -1,25 +1,4 @@
-/**
- * The Coaches Monthly Attendance Sheet.
- *
- * The club's own document — completed at the end of the month and submitted
- * to OSL alongside the instructor's invoice by the 15th of the following
- * month (§3.3). So it carries the logo and the kueh lapis banding, where the
- * invoice deliberately carries neither.
- *
- * Shape follows the real May 2026 submission: a member-by-date matrix of YES
- * and NO with the instructor as the first, highlighted row. A date where the
- * instructor row reads NO is a self-practice session — the club met, the
- * attendance counts, and nobody bills for it. Deriving the invoice from that
- * row rather than from a separate list is what stops the two documents
- * disagreeing about how many sessions the coach actually taught.
- *
- * The masthead uses the logo itself rather than the club's name set in a
- * document font: the club's mark is a wordmark, and Calibri bold is not it.
- *
- * Verified by the TREASURER. Earlier drafts had this signed by the secretary
- * or the president; the live submissions are signed by the treasurer, who is
- * also the only officer holding the fund balance printed above the block.
- */
+/** Build the club's monthly member-by-date attendance document. */
 import {
   Document, Paragraph, TextRun, Table, TableRow, TableCell, WidthType,
   AlignmentType, BorderStyle, VerticalAlign, ImageRun, PageOrientation, Packer,
@@ -61,10 +40,6 @@ function cell(children: Paragraph[], width?: number, valign: ITableCellOptions['
   })
 }
 
-/**
- * The four stacked layers of the logo, laid out flat as a rule under the
- * masthead. The only decoration on the page.
- */
 function bandedRule(colours: string[]) {
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
@@ -105,15 +80,7 @@ function fact(label: string, value: string, align?: (typeof AlignmentType)[keyof
   })
 }
 
-/**
- * "$405.00 ($90.00/hr x 3 sessions x 1.5 hr/session)" — the same working the
- * club already shows on the sheet, so a reader can check the arithmetic
- * without the register in front of them.
- *
- * Only holds when every billed session ran the same length. Where they
- * differ — a 3 hour workshop beside the usual 90 minutes — one multiplication
- * would be a lie, so the hours are listed instead.
- */
+/** Summarise uniform sessions; list hours when durations or rates differ. */
 function claimWorking(lines: ClaimLine[]): string | null {
   if (lines.length === 0) return null
 

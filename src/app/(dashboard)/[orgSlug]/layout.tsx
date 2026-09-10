@@ -1,21 +1,8 @@
-// Registration barrel — populates the module/permission registries as an
-// import-time side effect. This layout wraps every org route, so importing
-// it here (rather than relying on one page, e.g. dashboard, to pull it in)
-// guarantees the registry is populated before ANY child route renders,
-// regardless of which route a fresh Lambda instance happens to serve first.
-// Previously only dashboard/page.tsx imported this, so a cold instance whose
-// first request was to a module route saw an empty
-// manifests/permissions registry — moduleGuard() and hasPermission() both
-// read from it, and both fail closed (notFound()) on empty, which is why
-// those routes intermittently 404'd while dashboard never did.
-import '@/modules/register'
-
 import { verifySession, getOrgContext } from '@/core/auth'
-import { resolveNav } from '@/core/modules'
 import { hasPermission } from '@/core/permissions'
 import { AppShell } from '@/core/ui/shell'
 import { getOrgBranding } from '@/core/org/queries'
-import { getUserNotifications } from '@/core/notifications/queries'
+import { resolveNav } from '@/modules/register'
 
 export default async function OrgDashboardLayout({
   children,
@@ -26,23 +13,12 @@ export default async function OrgDashboardLayout({
 }) {
   const session = await verifySession()
   const { orgSlug } = await params
-  const { org, membership, enabledModules } = await getOrgContext(orgSlug)
+  const { org, membership } = await getOrgContext(orgSlug)
 
-  // Resolve nav from module registry — no hardcoded navigation
-  const navEntries = resolveNav(membership.role, enabledModules)
+  const navEntries = resolveNav(membership.role)
 
-  // Compute Settings visibility (same permission all settings sub-pages require).
-  // Gated on org.manage_settings, which the kernel registers. It was gated on
-  // 'department.manage' from the HR fork — a key nothing registers, and
-  // hasPermission returns false for an unknown key, so the Settings link never
-  // rendered for anyone and the audit log was unreachable by navigation.
-  const canManageSettings = hasPermission(membership.role, enabledModules, 'org.manage_settings')
-
-  // Fetch org logo and notifications in parallel (independent queries)
-  const [branding, { notifications, unreadCount }] = await Promise.all([
-    getOrgBranding(org.id),
-    getUserNotifications(session.userId, org.id),
-  ])
+  const canManageSettings = hasPermission(membership.role, 'org.manage_settings')
+  const branding = await getOrgBranding(org.id)
 
   return (
     <AppShell
@@ -52,8 +28,6 @@ export default async function OrgDashboardLayout({
       userName={session.name}
       userEmail={session.email}
       navEntries={navEntries}
-      notifications={notifications}
-      unreadCount={unreadCount}
       canManageSettings={canManageSettings}
     >
       {children}

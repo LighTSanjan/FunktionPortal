@@ -31,6 +31,12 @@
   --color-brand-marigold: var(--brand-marigold);
   --color-brand-sky: var(--brand-sky);
   --color-brand-indigo: var(--brand-indigo);
+  --color-brand-ink: var(--brand-ink);
+
+  /* Warm paper */
+  --color-paper: var(--paper);
+  --color-paper-deep: var(--paper-deep);
+  --color-paper-line: var(--paper-line);
 
   /* Status */
   --color-success: var(--success);
@@ -187,5 +193,282 @@ body {
 
   .check-draw-in {
     stroke-dashoffset: 0;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   Kueh lapis
+   ══════════════════════════════════════════════════════════════════
+
+   The club's logo is a wordmark stacked four times, each layer offset down
+   and to the right in a fixed order — vermilion, marigold, sky, indigo. Every
+   interactive surface in the portal borrows that one device, so focusing a
+   field and pressing a button are recognisably the same gesture as the logo
+   rather than four unrelated decorations.
+
+   Two rules hold everywhere:
+     · the stack only ever falls down and right, never up or left;
+     · the order never changes, because the order is what makes it read as
+       the logo instead of as a rainbow.
+
+   Implemented with box-shadow rather than real elements: box-shadow animates
+   on the compositor, needs no extra DOM inside a form control, and each
+   layer is exactly the border-radius of the thing it sits behind, so it
+   works on a pill, a card and a 9px-radius button without being re-cut. */
+
+@property --lapis-spread {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+/* ─── Fields ──────────────────────────────────────────────────────
+   Resting state carries the stack at zero offset, which is invisible but
+   means focus animates an existing shadow rather than creating one — the
+   difference between the layers sliding out and them blinking on. */
+.lapis-field {
+  transition:
+    box-shadow var(--dur-2) var(--ease-soft),
+    transform var(--dur-2) var(--ease-soft),
+    border-color var(--dur-1) linear;
+  box-shadow:
+    0 0 0 0 var(--brand-vermilion),
+    0 0 0 0 var(--brand-marigold),
+    0 0 0 0 var(--brand-sky),
+    0 0 0 0 var(--brand-indigo);
+}
+
+.lapis-field:hover:not(:focus):not(:disabled) {
+  border-color: var(--border-strong);
+  box-shadow:
+    1px 1px 0 0 var(--brand-vermilion),
+    2px 2px 0 0 var(--brand-marigold),
+    3px 3px 0 0 var(--brand-sky),
+    4px 4px 0 0 var(--brand-indigo);
+}
+
+.lapis-field:focus,
+.lapis-field:focus-visible,
+.lapis-field:focus-within {
+  outline: none;
+  border-color: var(--brand-ink);
+  /* Lifts by the first layer's offset, so the front face stays put on the
+     page and the stack appears to come out from under it. */
+  transform: translate(-1px, -1px);
+  box-shadow:
+    2px 2px 0 0 var(--brand-vermilion),
+    4px 4px 0 0 var(--brand-marigold),
+    6px 6px 0 0 var(--brand-sky),
+    8px 8px 0 0 var(--brand-indigo);
+}
+
+.lapis-field[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+/* ─── Buttons ─────────────────────────────────────────────────────
+   The press is the point: down and right onto the stack, which collapses
+   under it, then back up on release. The travel distance and the shadow
+   offset are the same number, so the button's front face lands exactly where
+   its own shadow was and nothing appears to slide. */
+.lapis-press {
+  transition:
+    transform var(--dur-1) var(--ease-spring),
+    box-shadow var(--dur-1) var(--ease-soft),
+    background-color var(--dur-1) linear,
+    border-color var(--dur-1) linear;
+  will-change: transform;
+}
+
+.lapis-press:active:not(:disabled) {
+  transition-duration: 70ms;
+}
+
+/* Full stack — for the one button on a screen that is the actual verb. */
+.lapis-stack {
+  box-shadow:
+    2px 2px 0 0 var(--brand-marigold),
+    4px 4px 0 0 var(--brand-sky),
+    6px 6px 0 0 var(--brand-indigo);
+}
+
+.lapis-stack:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow:
+    3px 3px 0 0 var(--brand-marigold),
+    6px 6px 0 0 var(--brand-sky),
+    9px 9px 0 0 var(--brand-indigo);
+}
+
+.lapis-stack:active:not(:disabled) {
+  transform: translate(4px, 4px);
+  box-shadow:
+    0 0 0 0 var(--brand-marigold),
+    1px 1px 0 0 var(--brand-sky),
+    2px 2px 0 0 var(--brand-indigo);
+}
+
+.lapis-stack:disabled {
+  box-shadow: 2px 2px 0 0 var(--border-strong);
+}
+
+/* One layer — for the buttons that are not the verb but should still feel
+   like they belong to the same object. */
+.lapis-tap {
+  box-shadow: 2px 2px 0 0 var(--border-strong);
+}
+
+.lapis-tap:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 0 var(--brand-indigo);
+}
+
+.lapis-tap:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 0 var(--brand-indigo);
+}
+
+/* ─── Cards and panels ────────────────────────────────────────────
+   The same stack at rest, so a card looks like a printed thing sitting on
+   the page rather than a div with a border. */
+.lapis-plate {
+  box-shadow:
+    3px 3px 0 0 var(--brand-marigold),
+    6px 6px 0 0 var(--brand-sky),
+    9px 9px 0 0 var(--brand-indigo);
+}
+
+.lapis-plate-sm {
+  box-shadow:
+    2px 2px 0 0 var(--brand-marigold),
+    4px 4px 0 0 var(--brand-sky);
+}
+
+/* Lift on hover, for cards that are links. */
+.lapis-lift {
+  transition:
+    transform var(--dur-2) var(--ease-soft),
+    box-shadow var(--dur-2) var(--ease-soft),
+    border-color var(--dur-2) var(--ease-soft);
+}
+
+/* Deliberately shallow. An earlier version travelled 2px and threw a 12px
+   stack, which on a grid of cards read as the whole page twitching every time
+   the pointer crossed it. The point is that the card acknowledges the
+   pointer, not that it leaves the page. */
+.lapis-lift:hover {
+  transform: translate(-1px, -1px);
+  box-shadow:
+    2px 2px 0 0 var(--brand-vermilion),
+    4px 4px 0 0 var(--brand-marigold),
+    6px 6px 0 0 var(--brand-sky);
+}
+
+.lapis-lift:active {
+  transform: translate(1px, 1px);
+  box-shadow:
+    1px 1px 0 0 var(--brand-vermilion),
+    2px 2px 0 0 var(--brand-marigold),
+    2px 2px 0 0 var(--brand-sky);
+}
+
+/* The band. Four equal stripes, used full-bleed at the top of a page. */
+.lapis-band {
+  background: linear-gradient(
+    to right,
+    var(--brand-vermilion) 0 25%,
+    var(--brand-marigold) 25% 50%,
+    var(--brand-sky) 50% 75%,
+    var(--brand-indigo) 75% 100%
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   Entrances
+   ══════════════════════════════════════════════════════════════════
+   One curve, one distance, staggered by an inline --delay. Server-rendered
+   pages get their movement from CSS alone; nothing here needs JavaScript to
+   run before the page can be looked at. */
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise-in {
+  animation: rise-in var(--dur-4) var(--ease-soft) backwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fade-in {
+  animation: fade-in var(--dur-3) var(--ease-soft) backwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* The donut's arcs, drawn on from nothing. Animating the dash LENGTH rather
+   than the offset keeps each arc anchored where it starts, so the ring grows
+   segment by segment instead of sliding round. */
+@keyframes ring-grow {
+  from { stroke-dasharray: 0 100000; }
+}
+
+.ring-grow {
+  animation: ring-grow var(--dur-4) var(--ease-soft) backwards;
+  animation-delay: var(--delay, 140ms);
+}
+
+/* Bars and rings that fill from empty on load, so a balance reads as a
+   quantity arriving rather than as a number that was always there. */
+@keyframes bar-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.bar-fill {
+  transform-origin: left center;
+  animation: bar-fill var(--dur-4) var(--ease-soft) backwards;
+  animation-delay: var(--delay, 120ms);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   prefers-reduced-motion
+   ══════════════════════════════════════════════════════════════════
+   Motion is removed; the states themselves are not. A focused field still
+   shows its stack and a pressed button still looks pressed — they just
+   arrive instantly. Reduced motion is a request for less movement, not for
+   less feedback. */
+@media (prefers-reduced-motion: reduce) {
+  .lapis-field,
+  .lapis-press,
+  .lapis-lift {
+    transition-duration: 1ms;
+  }
+
+  .lapis-field:focus,
+  .lapis-field:focus-visible,
+  .lapis-field:focus-within,
+  .lapis-stack:hover:not(:disabled),
+  .lapis-tap:hover:not(:disabled),
+  .lapis-lift:hover {
+    transform: none;
+  }
+
+  .rise-in,
+  .fade-in,
+  .bar-fill,
+  .ring-grow {
+    animation: none;
   }
 }

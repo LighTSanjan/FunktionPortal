@@ -6,12 +6,20 @@
 
 :root {
   /* Brand — the kueh lapis stack, front to back. The order is fixed: it is
-     what makes the device read as the logo rather than as decoration. */
-  --brand-vermilion: #F05820;
-  --brand-marigold: #F8A838;
-  --brand-sky: #58C0E8;
-  --brand-indigo: #304890;
-  --brand-gradient: linear-gradient(135deg, #F05820 0%, #F8A838 33%, #58C0E8 66%, #304890 100%);
+     what makes the device read as the logo rather than as decoration, and the
+     stack always falls down and to the right, the way it does in the logo.
+
+     Sampled from logo/LOGO kueh lapis.png rather than eyeballed, so the band
+     across the auth page and the layers behind a focused field are the same
+     four inks the wordmark is drawn in. */
+  --brand-vermilion: #F05B23;
+  --brand-marigold: #FBAE3A;
+  --brand-sky: #5BC5EF;
+  --brand-indigo: #344D90;
+  /* The outline every shape in the logo carries. Not pure black — pure black
+     against warm paper reads as a hole rather than as ink. */
+  --brand-ink: #111114;
+  --brand-gradient: linear-gradient(135deg, #F05B23 0%, #FBAE3A 33%, #5BC5EF 66%, #344D90 100%);
 
   /* Accent scale — vermilion, the single hot accent. brandPrimaryColor is
      read from OrganisationSettings but not yet applied to these tokens. */
@@ -20,7 +28,7 @@
   --accent-200: #FBC4AC;
   --accent-300: #F89F7A;
   --accent-400: #F47A4C;
-  --accent-500: #F05820;
+  --accent-500: #F05B23;
   --accent-600: #D8410E;
   --accent-700: #B4340B;
   --accent-800: #8E2A0A;
@@ -70,6 +78,24 @@
   --sidebar-width: 240px;
   --sidebar-collapsed-width: 56px;
 
+  /* Warm paper — the club surfaces. The neutral scale above is the working
+     grey the tables and forms sit on; these are for the screens that are
+     meant to feel like the club rather than like a ledger. Kept as separate
+     tokens so a data table never accidentally goes cream. */
+  --paper: #FBF8F3;
+  --paper-deep: #F4EFE6;
+  --paper-line: #E8E0D2;
+
+  /* Motion. Two curves and four durations, so everything in the portal
+     accelerates the same way — the thing that actually reads as "smooth" is
+     consistency, not duration. */
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --dur-1: 120ms;
+  --dur-2: 220ms;
+  --dur-3: 380ms;
+  --dur-4: 620ms;
+
   color-scheme: light;
 }
 
@@ -104,6 +130,12 @@
   --danger: #EF4444;
   --info: #3B82F6;
 
+  --paper: #131318;
+  --paper-deep: #0E0E12;
+  --paper-line: #26262F;
+  /* The outline colour inverts: ink on paper becomes paper on ink. */
+  --brand-ink: #F2EDE3;
+
   color-scheme: dark;
 }
 
@@ -136,6 +168,11 @@
     --warning: #F59E0B;
     --danger: #EF4444;
     --info: #3B82F6;
+
+    --paper: #131318;
+    --paper-deep: #0E0E12;
+    --paper-line: #26262F;
+    --brand-ink: #F2EDE3;
 
     color-scheme: dark;
   }

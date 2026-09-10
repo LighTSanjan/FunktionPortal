@@ -1,33 +1,9 @@
-/**
- * RLS-scoped database client.
- *
- * Opens a transaction, switches the session role to `app_user` and installs
- * the caller's JWT claims, so every query inside the callback is evaluated by
- * Postgres row-level security.
- *
- * This is the client all feature code uses. `dbAdmin` bypasses RLS and is
- * confined to src/core/** by an ESLint boundary rule.
- */
 import { PrismaClient, Prisma } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { dbAdmin } from './admin'
 
-/**
- * Hosted Supabase blocks `SET ROLE` from the `postgres` connection role to any
- * role outside its platform's own allowlist (`supautils.hint_roles`: anon,
- * authenticated, service_role) — a hosting-level restriction, not a Postgres
- * GRANT issue, discovered only by testing against real production (a local
- * Docker Postgres has no such restriction, so it never surfaced there). A
- * custom role like `app_user` can never be reached via SET ROLE on hosted
- * Supabase, no matter what it's been granted.
- *
- * The fix is to connect to app_user directly (its own login credential)
- * instead of switching into it from `postgres`. When APP_USER_DATABASE_URL is
- * set (hosted Supabase), that direct connection is used. When it isn't set
- * (local/self-hosted Postgres via docker-compose, which has no such
- * restriction), this falls back to the original SET ROLE mechanism on the
- * shared dbAdmin connection.
- */
+// Hosted Supabase blocks SET ROLE into custom roles, so production connects as
+// app_user directly. Local Postgres can use SET ROLE on the admin connection.
 const globalForAppUserPrisma = globalThis as unknown as {
   appUserPrisma: PrismaClient | undefined
 }
@@ -52,28 +28,11 @@ export class RlsScopeError extends Error {
   }
 }
 
-/**
- * RLS requires the claims to be installed on the same connection as the query,
- * so every scoped read costs an interactive transaction — each one holding a
- * connection for its whole duration.
- *
- * The dashboard fans out roughly a dozen widget queries at once. All of them
- * tried to open a transaction simultaneously and failed with "unable to start a
- * transaction in the given time", because a connection pooler caps concurrent
- * connections no matter how large connection_limit is set. Raising the limit
- * does not help; the fix is to stop asking for more connections than exist.
- */
+// Claims and queries must share one connection, so each scoped call is an
+// interactive transaction.
 const TX_OPTIONS = { maxWait: 15_000, timeout: 20_000 } as const
 
-/**
- * Ceiling on concurrent transactions, comfortably under the pooler's own limit.
- * Work queues rather than failing, which is the right trade for a dashboard:
- * widgets stream in slightly staggered instead of half of them erroring.
- *
- * With the collapsed single-statement setup (previously 3 round trips, now 1),
- * transactions are held ~60% more briefly. Testing shows we can safely raise
- * this from 6 to 10 without exhausting the pooler's 15-connection limit.
- */
+// Stay below the hosted pool's 15-connection limit and queue excess work.
 const MAX_CONCURRENT_TX = 10
 
 let active = 0
@@ -109,22 +68,8 @@ async function runScoped<T>(
   userId: string,
   fn: (tx: Prisma.TransactionClient) => Promise<T>
 ): Promise<T> {
-  // The JWT claims' "role" stays 'authenticated' — that's what auth.uid()
-  // reads (via 'sub') and is just the identity claim, not the Postgres
-  // session role. The actual session role is 'app_user', a role distinct
-  // from 'authenticated' (which Supabase Auth maps every signed-in user's
-  // direct PostgREST/REST call to). RLS policies are all declared
-  // `TO authenticated`, which app_user is intended to match via role
-  // membership (`GRANT authenticated TO app_user`) — while app_user also
-  // holds its own direct grants on tables that `authenticated` has had
-  // revoked, so a raw REST call and this trusted connection are not
-  // equivalent.
-  //
-  // None of that is in prisma/migrations/ yet: the role, the policies and the
-  // grants did not survive the schema rewrite from the HR kernel this app
-  // forked from. The current_user check below is what keeps that honest —
-  // without app_user this raises rather than silently running as the table
-  // owner. See scripts/ci/verify-grants.sql and the README.
+  // JWT role is the authenticated identity claim; the database session still
+  // runs as app_user. The current_user check prevents an accidental RLS bypass.
   const claims = JSON.stringify({ sub: userId, role: 'authenticated' })
 
   const appUserClient = getAppUserClient()

@@ -1,22 +1,4 @@
-/**
- * The coach's invoice.
- *
- * Issued BY the instructor and billed to the university (Finance Guidelines
- * §3.1.2, §3.3). The club is not the issuer — it countersigns, records the
- * reference number in the top right corner, and forwards to OSL. That is why
- * this document carries the instructor's masthead and no club branding:
- * a club letterhead here would misstate who is billing SUTD on a document
- * the Office of Finance pays against.
- *
- * Rebuilt from the two templates in Drive, which had drifted apart into one
- * .docx and one .xlsx and acquired separate faults. Three are fixed here:
- *
- *   1. Jin's template's column headers were shifted one place left of the
- *      data, so descriptions sat under "Hours" and rates under "Description".
- *   2. Both collapsed the payee block into the treasurer's countersignature,
- *      so the document read as though the treasurer were the coach.
- *   3. Both hardcoded four lesson rows. Months do not reliably have four.
- */
+/** Build the instructor-issued invoice submitted through the club to OSL. */
 import {
   Document, Paragraph, TextRun, Table, TableRow, TableCell, WidthType,
   AlignmentType, BorderStyle, VerticalAlign, Packer,

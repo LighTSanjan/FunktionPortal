@@ -1,11 +1,4 @@
-/**
- * Assembling a month's claim.
- *
- * Both documents derive from one list of sessions, so they cannot disagree.
- * The old process typed the invoice total and the sheet total separately,
- * which is how the two come to differ by one session and nobody notices
- * until OSL asks.
- */
+/** Assemble both monthly documents from one session list. */
 import type {
   ClaimLine, InstructorDetails, InvoiceDocData, AttendanceSheetDocData,
   FundSource, SessionInput, RosterMember, SheetSession, Verification, Branding, BillTo,

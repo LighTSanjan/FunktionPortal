@@ -404,8 +404,9 @@
   </div>
 
   <div class="note flag">
-    <span class="note-label">Discrepancy in the current register</span>
-    <p>The FY2026 register records the summer collection as <code>INC-26-097-0001</code>, with a hyphen after the prefix. The protocol gives <code>INC24-020-0001</code> as the pattern, so the correct form is <code>INC26-097-0001</code>. Worth correcting before it is copied forward.</p>
+    <span class="note-label">Discrepancies in the INC series</span>
+    <p>The FY2026 register records the summer collection as <code>INC-26-097-0001</code>, with a hyphen after the prefix. The protocol gives <code>INC24-020-0001</code> as the pattern, so the correct form is <code>INC26-097-0001</code>. It was not a one-off: FY2025 carries the same hyphen on both of its term collections, so the malformed shape has already been copied forward once.</p>
+    <p>FY2025 also prints the Art Fiesta receipt's reference as <code>INC25-097-0003 4</code> &mdash; with 0003 already spent on the Spring Term collection four rows above it. Read as 0004 on import, which is the only number that leaves the series intact, and flagged here because the sheet is still the authority.</p>
   </div>
 </section>
 
@@ -779,9 +780,37 @@ flowchart TD
         <tr><td>Approve a purchase</td><td>&mdash;</td><td>Yes</td></tr>
         <tr><td>Write to the Transaction Register</td><td>&mdash;</td><td>Yes</td></tr>
         <tr><td>Read the audit log</td><td>&mdash;</td><td>Yes</td></tr>
+        <tr><td>Request to join, or to be made exco</td><td>Yes</td><td>&mdash;</td></tr>
+        <tr><td>Approve someone else's request, invite, or revoke</td><td>&mdash;</td><td>Yes</td></tr>
       </tbody>
     </table>
   </div>
+
+  <h3>How somebody gets access</h3>
+  <p>Two directions, and the club needs both. An <strong>invitation</strong> is an exco member naming an email and the person accepting it when they sign in. A <strong>request</strong> is the reverse: somebody signs in, finds themselves on nobody's roster, and asks to be let in. Invitation is the primary path because it is the one where the club decides first; requests are the fallback that stops a treasurer having to be reachable before anyone can be useful.</p>
+
+  <div class="note rule">
+    <span class="note-label">Rule</span>
+    <p>A request is never self-approvable. The approver has to be a different active exco member, and both halves &mdash; who asked, who granted &mdash; are written to the audit log. A request that could be approved by the person who raised it is not an approval, it is a formality.</p>
+  </div>
+
+  <h4>Joining and being promoted are different requests</h4>
+  <p>Anyone with a Google account can reach the sign-in page, so the two have to be scored differently. Asking to <em>join as a member</em> is low-stakes: the roster is imported from Drive anyway, and the worst case is a stranger who sees their own empty fee record. Asking for <em>exco</em> is a privilege-escalation request &mdash; it reaches the roster, every payment, the fund balances and the register.</p>
+  <p>So they are separate request types with separate queues, and the exco one names what it grants in the approval screen rather than saying &ldquo;approve&rdquo;. An approver who has not been told they are handing over the payment records is an approver who clicks yes.</p>
+
+  <h4>The office is not the request</h4>
+  <p>&ldquo;Request to become treasurer&rdquo; is really two things, and keeping them apart is what preserves the property in the section above. The <strong>role</strong> &mdash; exco &mdash; is the access. The <strong>office</strong> &mdash; treasurer &mdash; is a label that routes notifications and prints under a signature, and confers nothing.</p>
+  <p>So the request grants the role, and the office is assigned separately by an exco member afterwards. Collapsing them would make adding an office a security decision, which is exactly what the offices-are-labels design exists to avoid: at that point a mid-year reshuffle stops being a dropdown and becomes a lockout risk.</p>
+
+  <h4>Constraints worth building in from the start</h4>
+  <ul>
+    <li><strong>One open request per person at a time.</strong> The sign-in page is reachable by anyone; without this the queue is a spam surface, and a queue nobody wants to read is a queue where things get approved unread.</li>
+    <li><strong>Requests expire.</strong> An approval acting on a six-month-old request is approving a decision nobody is still thinking about.</li>
+    <li><strong>Revocation is the same screen.</strong> The exco list and the request queue belong together, because the handover month is the one time both happen at once &mdash; and an outgoing exco who is never removed is the most common way a club's access list rots.</li>
+    <li><strong>The first exco cannot come from here.</strong> On an empty database there is no one to approve anything, so the environment-allowlist bootstrap stays. It disarms itself once any active membership exists.</li>
+  </ul>
+
+  <p>There is a second reason to build this rather than adding exco by hand in the database: the approval is the handover record. &ldquo;Who let this person into the club's finances, and when&rdquo; is a question the audit log should be able to answer in March, and a row inserted straight into Postgres answers it with silence.</p>
 
   <h3>Stored signatures</h3>
   <p>Signing the same three documents by hand every month is the kind of friction that ends with a stack of pre-signed blanks. Instead each signatory uploads their signature once and the portal stamps it while composing the document.</p>
@@ -809,19 +838,20 @@ flowchart TD
 
 <section>
   <h2>Build sequence</h2>
+  <p>Status checked against the repository on 10 September 2026. The dates below are the original sequence, not a claim that unfinished phases have shipped.</p>
   <ol class="phases">
     <li class="phase">
       <div class="phase-n">01</div>
       <div>
-        <div class="when">Days 1&ndash;3</div>
+        <div class="when">Complete for coach-led sessions</div>
         <h4>Invoice and attendance generation</h4>
-        <p>Google sign-in, roles and offices, instructors, sessions, attendance. Templates filled with <code>docxtemplater</code> and <code>exceljs</code>, downloaded from the browser. Reference numbers allocated transactionally. No Drive access needed, so nothing here can damage anything.</p>
+        <p>Sign-in, roles, instructors, sessions, attendance, monthly runs and generated <code>.docx</code> downloads are live. Reference numbers are allocated transactionally. Self-practice sessions and re-raising a voided month remain open.</p>
       </div>
     </li>
     <li class="phase">
       <div class="phase-n">02</div>
       <div>
-        <div class="when">Week 2</div>
+        <div class="when">Not started</div>
         <h4>Fee collection</h4>
         <p>Member sign-in, PayNow QR, declaration with screenshot, exco reconciliation, Income Deposit Form with derived GST. Built early on purpose: only one or two collections fall before handover, and the flow needs at least one real run.</p>
       </div>
@@ -829,23 +859,23 @@ flowchart TD
     <li class="phase">
       <div class="phase-n">02b</div>
       <div>
-        <div class="when">Week 2</div>
+        <div class="when">Attendance import complete; signatures not started</div>
         <h4>Attendance import and signatures</h4>
-        <p>Read-only Sheets access to the attendance folder: parse the trimester grid, match on student ID, confirm the date-to-instructor mapping, write sessions. Signature upload and stamping lands alongside it, since both remove the same kind of retyping. Read-only for now &mdash; the portal writes nothing to Drive until phase 05.</p>
+        <p>CSV upload, member matching, date-to-instructor review and applying sessions are live. Signature storage remains. The implemented import uses a treasurer-exported CSV rather than standing Google Drive credentials.</p>
       </div>
     </li>
     <li class="phase">
       <div class="phase-n">03</div>
       <div>
-        <div class="when">Week 2&ndash;3</div>
+        <div class="when">Not started</div>
         <h4>Reminders</h4>
-        <p>Telegram adapter alongside the existing in-app and email adapters. Group messages for fee deadlines, direct messages to the treasurer for submission cut-offs. Driven by a daily cron.</p>
+        <p>Scheduled deadline generation, in-app delivery, Telegram delivery and production email configuration remain.</p>
       </div>
     </li>
     <li class="phase">
       <div class="phase-n">04</div>
       <div>
-        <div class="when">Week 3</div>
+        <div class="when">Not started</div>
         <h4>Procurement</h4>
         <p>PRF and PAF with the threshold rules, quotation requirements and approval chain from Table 1.</p>
       </div>
@@ -853,7 +883,7 @@ flowchart TD
     <li class="phase">
       <div class="phase-n">05</div>
       <div>
-        <div class="when">October</div>
+        <div class="when">Read-only import complete; writeback not started</div>
         <h4>Register sync</h4>
         <p>Held back deliberately. It is the only irreversible write to a shared artefact, and diff-and-approve is where a week disappears quietly. Copying four rows by hand for one month is a cheap way to keep it off the critical path until the generators have proven their numbers.</p>
       </div>
@@ -861,7 +891,7 @@ flowchart TD
     <li class="phase">
       <div class="phase-n">06</div>
       <div>
-        <div class="when">February&ndash;March 2027</div>
+        <div class="when">Not started &middot; due February&ndash;March 2027</div>
         <h4>Handover</h4>
         <p>Financial year rolls to FY2027 and all four counters reset to 0001. Transfer to the club-owned accounts, and write the handover pack.</p>
       </div>
@@ -880,23 +910,141 @@ flowchart TD
 
   <h3>The stack</h3>
   <ul>
-    <li><strong>Buttons</strong> sit on a hard offset shadow in the next layer colour &mdash; no blur, no gradient. Pressing collapses the offset to zero and translates the button into its own shadow, so the control physically compresses.</li>
-    <li><strong>Cards and panels</strong> carry a thin stacked edge on one side, two or three layers deep. Depth encodes importance: a flat card is routine, a three-layer card is the thing needing attention.</li>
-    <li><strong>Focus</strong> is a full offset outline in vermilion rather than a browser default ring, so keyboard navigation looks like part of the system.</li>
-    <li><strong>Layer order is fixed</strong> &mdash; vermilion, marigold, sky, indigo, front to back. Keeping the order constant is what makes the device read as the logo rather than as decoration.</li>
+    <li><strong>Buttons</strong> sit on a hard offset shadow in the next layer colour &mdash; no blur, no gradient. Pressing collapses the offset to zero and translates the button into its own shadow by exactly the offset distance, so the front face lands where its shadow was and the control physically compresses. The primary button carries the full three-layer stack; secondary and destructive carry one; ghost carries none, because it is a link wearing a button&rsquo;s clothes and should not read as a physical object.</li>
+    <li><strong>Fields</strong> hold the stack at zero offset when idle and fan it out to 2/4/6/8px on focus, lifting one pixel up and left so the face stays put and the layers appear to slide out from under it. Idle-to-focus is a transition on an existing shadow rather than a new one, which is the difference between the layers sliding and them blinking on.</li>
+    <li><strong>Cards and panels</strong> carry a thin stacked edge on the bottom-right, two or three layers deep. Depth encodes importance: a flat card is routine, a three-layer card is the thing needing attention. Cards that are links lift towards the reader on hover and settle back on press.</li>
+    <li><strong>Layer order is fixed</strong> &mdash; vermilion, marigold, sky, indigo, front to back &mdash; and the stack only ever falls down and to the right. Keeping both constant is what makes the device read as the logo rather than as decoration.</li>
   </ul>
+
+  <h3>Where it lives in the code</h3>
+  <p>All of it is a handful of classes in <code>globals.css</code> &mdash; <code>lapis-field</code>, <code>lapis-press</code> with <code>lapis-stack</code> or <code>lapis-tap</code>, <code>lapis-plate</code>, <code>lapis-lift</code>, <code>lapis-band</code> &mdash; over four brand tokens and a small motion scale (<code>--ease-soft</code>, <code>--ease-spring</code>, <code>--dur-1</code>&hellip;<code>--dur-4</code>) in <code>tokens.css</code>. Two curves and four durations for the whole portal, because what actually reads as smooth is everything accelerating the same way, not anything being slow. Entrances are one keyframe (<code>rise-in</code>) staggered by an inline <code>--delay</code>, so a server-rendered page gets its movement from CSS alone and nothing has to hydrate before the page can be looked at.</p>
+  <p>The brand inks are sampled from the logo artwork rather than eyeballed, so the band across the auth page and the layers behind a focused field are the same four inks the wordmark is drawn in.</p>
+
+  <h3>Light by default</h3>
+  <p>The portal now defaults to light rather than following the operating system. The palette it is drawn in &mdash; warm paper, four bright inks, a photograph &mdash; is a light one, and served to a laptop set to dark it came out as a black page with an orange button on it. Dark is still reachable from the profile menu; it is just no longer inherited. The class is set by a synchronous inline script in the root layout, because React cannot put it on <code>&lt;html&gt;</code> before the browser paints.</p>
+
+  <h3>The mark</h3>
+  <p>The wordmark is a real vector now, traced from the club&rsquo;s own artwork by a small contour tracer (crack-boundary walk, Douglas&ndash;Peucker, then re-smoothed to quadratics; the script is in the scratch notes, not the repo). It replaces a PNG that was exported at one size and went soft the moment anything asked it to be bigger. A separate <code>funktion-mark.svg</code> carries a redrawn layered <strong>F</strong> for the places too small for the wordmark &mdash; a crop of the real logo was tried first and turns to mush below about 32px, because the drawn artwork carries hairline highlights that disappear before the letter does.</p>
 
   <h3>Where it stops</h3>
   <p>Registers, figures and tables stay quiet. A finance screen has to be read quickly and trusted, and stacking every row would fight that. The layered treatment belongs to controls, navigation and status &mdash; the things you act on &mdash; while the numbers themselves sit on plain ground in tabular figures.</p>
-  <p>Two constraints keep it usable: offset alone never carries meaning that colour or text does not also carry, since depth is invisible to a screen reader; and the press animation is dropped entirely under <code>prefers-reduced-motion</code>.</p>
+  <p>Two constraints keep it usable: offset alone never carries meaning that colour or text does not also carry, since depth is invisible to a screen reader; and under <code>prefers-reduced-motion</code> the movement is removed while the states themselves are not &mdash; a focused field still shows its stack, it just arrives instantly. Reduced motion is a request for less movement, not for less feedback.</p>
+</section>
+
+<section>
+  <h2>The club&rsquo;s front page</h2>
+  <p>The dashboard answers four questions in order: what needs a person today, what money is left, how big the club is right now, and who teaches it.</p>
+  <ul>
+    <li><strong>Alerts lead.</strong> The deadlines in the guidelines are the kind that are invisible until they are missed &mdash; an invoice due three working days after its own date, a seed fund that stops accepting submissions in February &mdash; so the page opens with them rather than with balances. Each row is one sentence about one thing and links to the screen that clears it. The empty state is stated rather than implied: &ldquo;nothing is on fire&rdquo; is information a treasurer wants confirmed.</li>
+    <li><strong>Funds are shown as quantities.</strong> What is <em>left</em> is set at display size; the opening balance and what has been drawn against it are the supporting figures, and a bar repeats the same three numbers in a form you can read without reading. Committed means invoices that are not void, plus purchases at approved or beyond &mdash; a request still working through treasurer and president is not yet a commitment.</li>
+    <li><strong>Coaches are cards, not rows.</strong> The club knows these people; a table of names with warning badges beside them reads like a supplier ledger. Until there are photographs, the plate is the coach&rsquo;s initials over one of the four inks, keyed to their name so a given coach is always the same colour.</li>
+    <li><strong>Money is exco-only</strong> &mdash; not because the numbers are secret, but because a member opening the portal to pay their subscription should not have to scroll past a fund report to find it. A member sees the greeting, the club&rsquo;s size, who teaches, and how to ask for wider access.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>What is built</h2>
+  <p>As of this pass the signed-in portal is complete end to end for the coach claim:</p>
+  <ul>
+    <li><strong>Classes</strong> (<code>/:org/sessions</code>) &mdash; a month at a time, because a month is the unit everything downstream works in. Record a class, correct one, mark the register. The whole roster is written on every save, present and absent alike: an absent member with no row is indistinguishable from a member nobody got round to marking.</li>
+    <li><strong>Attendance import</strong> (<code>/:org/attendance</code>) &mdash; upload a trimester CSV export, review member and instructor matching, then apply the sessions and marks. The spreadsheet is parsed and audited before any register rows are written.</li>
+    <li><strong>Monthly run</strong> (<code>/:org/monthly-run</code>) &mdash; a status board rather than a wizard, because the work is several coaches at different stages. Raising a month allocates the IV reference inside the same transaction that writes the invoice, checks the coach is invoiceable <em>before</em> allocating, and produces both documents. Defaults to last month, since a claim covers a finished one.</li>
+    <li><strong>Documents</strong> are rebuilt from the stored rows on download rather than kept as blobs, so there is one copy of the truth and a document downloaded twice cannot differ from itself. The two values fixed at generation &mdash; the reference number and the invoice date &mdash; are read back rather than recomputed.</li>
+    <li><strong>Profile</strong> (<code>/:org/settings/profile</code>) &mdash; the page the Settings link lands on. Editing your own name matters because it prints under the treasurer's signature, and Google hands over whatever the account is called.</li>
+    <li><strong>Password reset</strong> &mdash; <code>/forgot-password</code> and <code>/reset-password</code>. The recovery branch of <code>/auth/confirm</code> had redirected to a page that did not exist.</li>
+  </ul>
+
+  <div class="note">
+    <span class="note-label">Two rules the database now enforces about a raised month</span>
+    <p>A class that is on an invoice cannot be deleted or edited, checked two ways: the invoice line records which class it bills, and, separately, the coach's month is checked for any non-void invoice. Either check alone has a hole &mdash; a line whose link was never written passes the first, and the second is what catches it. Changing a raised month is worse than deleting from it, because a deletion leaves an obvious gap while a changed duration silently makes a submitted invoice stop following from the register.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Funds</h2>
+  <p>A fund is stated as three facts rather than as one balance: what it opened at, what has been paid into it since, and what has been drawn out. A balance alone cannot be checked, and it cannot be re-derived once the portal starts recording its own expenses beside figures that predate it.</p>
+  <table>
+    <thead><tr><th>Fund</th><th>Opened</th><th>Paid in</th><th>Drawn</th><th>Left</th></tr></thead>
+    <tbody>
+      <tr><td>OSL Seed</td><td>$2,600.00</td><td>&mdash;</td><td>$2,295.00</td><td>$305.00</td></tr>
+      <tr><td>Income</td><td>$2,620.44</td><td>$1,669.72</td><td>$675.00</td><td>$3,615.16</td></tr>
+      <tr><td>Unofficial</td><td>$550.19</td><td>&mdash;</td><td>&mdash;</td><td>$550.19</td></tr>
+    </tbody>
+  </table>
+  <p>The <code>prior_income_cents</code> and <code>prior_spend_cents</code> columns carry the pre-portal movement. They exist because the income fund <em>grows</em> &mdash; subscriptions are paid into it during the year &mdash; while the seed fund only shrinks, and a model with an opening balance and a spend column cannot express the first case. Both are opening adjustments and stay fixed; everything recorded from now on lands in <code>invoices</code> or <code>purchase_requests</code>.</p>
+  <p>The <strong>unofficial fund</strong> is money the exco hold outside the OSL accounts. It is real money the club can spend, so it belongs on the dashboard beside the others, but it is not an OSL fund and no invoice may be drawn on it: there is no WBS element to quote and nothing for OSL to reimburse. The invoice action's own enum is <code>SEED | INCOME</code>, which is what enforces that &mdash; the wider <code>FundSource</code> enum only makes the fund representable.</p>
+
+  <div class="note">
+    <span class="note-label">On the register's Seed Fund cell</span>
+    <p>It reads $1,520.00 and is wrong. The cell is computed as income minus the <em>without-GST</em> column, and the four June and July coach rows have their incl-GST cell filled and their without-GST cell blank, so those four ($270 + $405 + $405 + $135 = $1,215.00) are never subtracted from the figure the sheet displays. $2,600.00 &minus; $2,295.00 = $305.00 is the real balance.</p>
+  </div>
+</section>
+
+<section>
+  <h2>The transaction registers</h2>
+  <p>Both of the club's registers are imported and readable at <code>/:org/register</code>: the OSL one the university reads &mdash; three financial years of it, FY2024 through FY2026 &mdash; and the unofficial one the exco keep themselves, which runs from 2017 and is the only thing that makes the unofficial balance explicable rather than merely asserted. 230 rows, filterable by fund and by year.</p>
+  <p>FY2024 is as far back as the OSL side goes. Earlier registers survive only as the figures carried forward into FY2024's opening rows; the sheets themselves did not come through a handover.</p>
+  <p>The spreadsheets remain the authority &mdash; OSL open the sheet, not this &mdash; so the screen is read-only. Rows enter through the seeded import in <code>prisma/data</code>; new spend enters as invoices and purchase requests, which is what the register sync in phase 05 pushes back the other way.</p>
+
+  <div class="note">
+    <span class="note-label">Why the import is trustworthy</span>
+    <p>It is a hand transcription of somebody else's bookkeeping &mdash; nine years of it, in a sheet with merged cells, three separate blocks all labelled &ldquo;Subtotal for 2021&rdquo;, and dates in four formats. What makes it safe to rely on is that both sheets publish their own control totals, and every one of them is asserted by the tests in <code>prisma/data/__tests__</code>: each section's totals row, each year's subtotal, and the summary box's total credit, total debit and net balance. Correcting a figure without correcting its total fails the suite.</p>
+    <p>Each OSL year is checked twice over: every section's totals row, and then the &ldquo;Total Balance&rdquo; figure printed in the sheet header. The second check is the one that earns its keep &mdash; a row filed under the wrong section reconciles both totals it touches and still moves the year's balance. FY2024's rows land on $1,842.79 and FY2025's on $2,620.47, which is what those two headers say.</p>
+    <p>The two derivations then agree independently: the FY2026 ledger rows net to $4,470.35, and the three fund accounts &mdash; built from separate figures &mdash; leave $4,470.35.</p>
+  </div>
+
+  <div class="note">
+    <span class="note-label">Three cents, twice</span>
+    <p>FY2024 closes its income fund at $1,842.79 and FY2025 opens at $1,842.82. FY2025 closes at $2,620.47 and FY2026 opens at $2,620.44. Three cents appear at one year boundary and disappear at the next.</p>
+    <p><strong>Not a defect to chase.</strong> These carried-forward figures are set by OSL and confirmed against their own records; the club cannot restate them, and the two drifts cancel. Pinned by a test so the numbers stay as the sheets state them, and recorded here so the next treasurer who reconciles one year against the next finds the answer rather than the question.</p>
+  </div>
+
+  <p>Two further things the OSL sheets record only by accident. <code>IV24-097-0024</code> appears nowhere &mdash; the FY2024 series jumps 0023 to 0025 &mdash; and a gap in a running number is exactly what OSL queries. And in both FY2024 and FY2025 the July locking fee is one invoice split across two funds, because the seed fund ran out mid-invoice; one reference number, two register rows, which is why the import keys on position rather than on the number.</p>
+
+  <p>One thing the sheets cannot supply is dates. Forty of the unofficial rows carry only the year they were filed under, and a few carry a term (&ldquo;Throughout Term 3&rdquo;) instead. Those are stored with a null date and shown as their financial year; inventing a date to fill the column would make the table tidier and the record worse.</p>
+</section>
+
+<section>
+  <h2>Attendance import</h2>
+  <p>The club records attendance in a Google Sheet per trimester and has since 2017: the roster down the left, one column per class date across the top, a <code>1</code> where somebody turned up, and a subtotal row under each block of members. The portal reads that sheet rather than replacing it, at <code>/:org/attendance</code>.</p>
+  <p>It takes a CSV export, not a Drive connection. The treasurer downloads the attendance tab and uploads it. That is a deliberate trade: a service account with standing read access to the club's Drive is a larger thing to hold than a file somebody chose to hand over, and the register sync in phase 05 is the only place that access is actually unavoidable.</p>
+
+  <div class="note">
+    <span class="note-label">The sheet knows who taught</span>
+    <p>This schema was written expecting a human to assign every date to a coach by hand, on the reasoning that a sheet recording who attended cannot record who taught. That turns out to be wrong for these sheets. Two <code>INSTRUCTOR</code> rows sit below the roster with a mark against each date they took, and a legend above them reads <code>1 -&gt; 1.5h; 2 -&gt; 3h</code>.</p>
+    <p>So the mapping is read from the sheet and the treasurer confirms it, rather than typing twenty-six assignments from scratch. It reconciles: the marks give Jin 16.5 hours and KS 19.5 in Trimester 1, and Jin 10.5 and KS 12 in Trimester 2, which is exactly what the Total Hours block the treasurer keeps for the contract renewal says. The legend is read from the cell rather than hard-coded, so a term that changes the class length reconciles on its own instead of quietly billing the old one.</p>
+  </div>
+
+  <p>The date headers carry no year &mdash; just &ldquo;18 May&rdquo; &mdash; which is why an import is filed against a term and why the term's own start and end dates resolve them. A header that lands outside the selected term is an error rather than a guess, because a class placed in the wrong year lands on the wrong month's coach invoice.</p>
+
+  <h3>What the sheets turned out to contain</h3>
+  <ul>
+    <li><strong>Subtotals that disagree with the marks above them.</strong> Three cells in Trimester 1, four in Trimester 2. The marks are imported &mdash; they are what people actually ticked &mdash; and the disagreements are listed on the review screen rather than resolved silently.</li>
+    <li><strong>Classes nobody is recorded as teaching.</strong> Four dates in Trimester 1 and one in Trimester 2, including 26 May, when twenty-five people attended and neither coach is marked. Self-practice, almost certainly. A <code>ClassSession</code> requires an instructor, so these stay out of the import unless somebody assigns one &mdash; which is the honest outcome, not a silent drop.</li>
+    <li><strong>Birthdays in two different formats.</strong> The column header declares DDMMYY and most rows follow it, but five are plainly month-first (&ldquo;9/18/2003&rdquo;). Those are read the other way round and reported; anything still unreadable is left blank rather than guessed, because the club uses this to send birthday messages and a transposed date sends it on the wrong day.</li>
+    <li><strong>A roster row with no student ID.</strong> It is set aside rather than created: keyed on nothing, it would be created fresh by every future import.</li>
+  </ul>
+
+  <p>Matching is on student ID first, then email, then an exact name &mdash; and never on a name two people share, which is a real case here. Everything unmatched is shown before anything is written.</p>
+
+  <div class="note">
+    <span class="note-label">The import reconciles against the register</span>
+    <p>Trimesters 1 and 2 of 2026 are loaded: 54 members, 37 classes, 802 attendance marks. The check that makes it trustworthy is that those classes reproduce the money.</p>
+    <p>Every one of the <strong>ten FY2026 coach payments</strong> in the OSL register comes back out of the attendance sheets exactly, at the contract rate of $90 an hour &mdash; March through July, both coaches, from $135.00 to $405.00. The register was transcribed by hand from a spreadsheet; the attendance came out of a different spreadsheet through a parser. Nothing connects them but the classes actually having happened.</p>
+    <p>It also rescues the four register rows that carry no reference number. Their invoice dates are useless &mdash; all four are dated 17 August, covering June <em>and</em> July &mdash; but the attendance sheets confirm what each is for: 3.0h and 4.5h of June, 4.5h and 1.5h of July. The numbers were never allocated, but the work behind them is now evidenced.</p>
+  </div>
 </section>
 
 <section>
   <h2>Still open</h2>
   <ul>
-    <li>Trimester start and end dates through March 2027. Needed to resolve the yearless date headers on the attendance sheets, so this one blocks the import. The collection date inside a term does not need to be fixed in advance &mdash; the exco sets it when they set it, and the portal counts the deadlines from there.</li>
-    <li>Whether the Student Claim Form path is in use &mdash; it is referenced by both PRF and PAF, but only outdated templates are in the Drive.</li>
-    <li>Opening balances to carry into the portal: seed fund, income, and the unofficial register's contested $550.19.</li>
+    <li>A spend-over-time chart. Now that the registers are imported there is enough dated history to draw one honestly &mdash; it was not worth adding while pre-portal spend was a single undated lump.</li>
+    <li>Four coach payments in the FY2026 register (June and July) carry no reference number at all. The numbers were never allocated, so the series has no gap to answer for, but the register rows cannot be tied back to a document.</li>
+    <li><code>IV24-097-0024</code> is missing from the FY2024 register entirely. Either a document was voided without being recorded as voided, or a row never got written down; nobody currently knows which, and OSL will ask.</li>
+    <li>Self-practice sessions. <code>ClassSession</code> requires an instructor, so the portal can only record coach-led classes &mdash; and the 2026 import has now put a number on what that costs: five dates across two trimesters are left out, one of them with twenty-five people on it. Worth making the instructor optional, or modelling a self-practice session as its own thing.</li>
+    <li>Re-raising a voided month. Voiding is modelled; raising a replacement is refused, because the unique key on (org, coach, month) has to be cleared first and the replacement needs a fresh reference number rather than the voided one.</li>
+    <li>Instructor photographs. The card is already built to take one &mdash; <code>photoUrl</code> is threaded through the component &mdash; but there is no column and no upload yet, so every plate is currently initials. It belongs with the signature upload in phase 02b, since both are the same private-bucket pattern.</li>
+    <li>Production authentication email. Supabase's built-in sender is for development and is too rate-limited for a club-wide signup. Configure a transactional SMTP provider in Supabase before launch; no application email SDK is needed.</li>
   </ul>
 </section>
 

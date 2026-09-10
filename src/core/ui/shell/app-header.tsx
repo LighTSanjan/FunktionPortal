@@ -3,16 +3,10 @@
 import * as React from 'react'
 import { Search, Moon, Sun, Monitor, LogOut } from 'lucide-react'
 import { Avatar } from '@/core/ui/avatar'
-import { Breadcrumb, type BreadcrumbItem } from '@/core/ui/breadcrumb'
-import { NotificationPanel } from './notification-panel'
 
 interface AppHeaderProps {
   userName: string
   userEmail: string
-  orgSlug: string
-  notifications: { id: string; title: string; message: string; link: string | null; isRead: boolean; createdAt: Date }[]
-  unreadCount: number
-  breadcrumbs?: BreadcrumbItem[]
   onSignOut: () => void
   onCommandPalette?: () => void
 }
@@ -20,13 +14,14 @@ interface AppHeaderProps {
 type Theme = 'system' | 'light' | 'dark'
 const THEME_KEY = 'funktion-theme'
 
+/** Match the root layout's pre-paint default. */
 function getThemeSnapshot(): Theme {
-  if (typeof window === 'undefined') return 'system'
-  return (localStorage.getItem(THEME_KEY) as Theme) || 'system'
+  if (typeof window === 'undefined') return 'light'
+  return (localStorage.getItem(THEME_KEY) as Theme) || 'light'
 }
 
 function getThemeServerSnapshot(): Theme {
-  return 'system'
+  return 'light'
 }
 
 function subscribeTheme(callback: () => void): () => void {
@@ -44,10 +39,6 @@ function applyTheme(t: Theme) {
 function AppHeader({
   userName,
   userEmail,
-  orgSlug,
-  notifications,
-  unreadCount,
-  breadcrumbs = [],
   onSignOut,
   onCommandPalette,
 }: AppHeaderProps) {
@@ -55,12 +46,10 @@ function AppHeader({
   const [profileOpen, setProfileOpen] = React.useState(false)
   const menuRef = React.useRef<HTMLDivElement>(null)
 
-  // Apply theme class on mount and changes
   React.useEffect(() => {
     applyTheme(theme)
   }, [theme])
 
-  // Handle keyboard shortcut for command palette
   React.useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -72,7 +61,6 @@ function AppHeader({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [onCommandPalette])
 
-  // Close menu on click outside
   React.useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -95,15 +83,8 @@ function AppHeader({
   const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-border bg-bg px-4">
-      {/* Left: breadcrumbs */}
-      <div className="flex items-center gap-3 min-w-0">
-        {breadcrumbs.length > 0 && <Breadcrumb items={breadcrumbs} />}
-      </div>
-
-      {/* Right: actions */}
+    <header className="flex h-14 items-center justify-end border-b border-border bg-bg px-4">
       <div className="flex items-center gap-1">
-        {/* Command palette trigger */}
         <button
           onClick={onCommandPalette}
           className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-border px-2.5 py-1 text-[12px] text-text-subtle transition-colors hover:bg-surface-hover hover:text-text-muted"
@@ -116,14 +97,6 @@ function AppHeader({
           </kbd>
         </button>
 
-        {/* Notifications */}
-        <NotificationPanel
-          notifications={notifications}
-          unreadCount={unreadCount}
-          orgSlug={orgSlug}
-        />
-
-        {/* Profile menu */}
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setProfileOpen(!profileOpen)}

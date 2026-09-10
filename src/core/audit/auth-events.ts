@@ -1,17 +1,15 @@
-/**
- * Login/session audit events.
- *
- * Authentication happens before there's a request-scoped org context (and a
- * user can belong to more than one org), so these fan out one audit_logs row
- * per active org membership rather than trying to force a single org onto
- * the entry — each org's own audit trail should show "this member signed
- * in", scoped to that org, not a global cross-tenant feed.
- */
+/** Record auth events in each organisation the user belongs to. */
 import { headers } from 'next/headers'
 import { dbAdmin } from '@/core/db/admin'
 import { writeAudit } from '@/core/audit'
 
-export type AuthEventAction = 'auth.sign_in' | 'auth.sign_in_failed' | 'auth.sign_out'
+export type AuthEventAction =
+  | 'auth.sign_in'
+  | 'auth.sign_in_failed'
+  | 'auth.sign_out'
+  // A changed password is a change of who can act as this person, so it
+  // belongs in the same log as the sign-ins it enables.
+  | 'auth.password_reset'
 
 async function requestMetadata(): Promise<{ ip: string | null; userAgent: string | null }> {
   const h = await headers()
@@ -20,12 +18,6 @@ async function requestMetadata(): Promise<{ ip: string | null; userAgent: string
   return { ip, userAgent }
 }
 
-/**
- * Log an auth event against every active org the user belongs to.
- * Uses the no-tx dbAdmin fallback of writeAudit() — there is no RLS-scoped
- * transaction at this point in the auth flow, same as every other
- * pre-request-scope write in the app.
- */
 export async function logAuthEvent(userId: string, action: AuthEventAction): Promise<void> {
   const metadata = await requestMetadata()
 

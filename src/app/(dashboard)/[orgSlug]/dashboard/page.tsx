@@ -1,0 +1,436 @@
+import Link from 'next/link'
+import { verifySession, getOrgContext } from '@/core/auth/dal'
+import { hasPermission } from '@/core/permissions'
+import { dbAs } from '@/core/db'
+import { countPendingRequests, getMembership, OFFICE_LABELS } from '@/core/access'
+import { listLedger, countLedger, SECTION_FUND, SECTION_LABEL } from '@/core/register'
+import { rateForDate } from '@/modules/coach-claim/rates'
+import { formatSgd } from '@/modules/coach-claim/money'
+import { Hero } from './_components/hero'
+import { FundCard, type FundView } from './_components/fund-card'
+import { FundsOverview } from './_components/funds-overview'
+import { SpendRing } from './_components/spend-ring'
+import { RecentTransactions, type LedgerRow } from './_components/recent-transactions'
+import { Alerts, type DashboardAlert } from './_components/alerts'
+import { StatTile } from './_components/stat-tile'
+import { InstructorCard } from '../_components/instructor-card'
+
+export const dynamic = 'force-dynamic'
+
+const FINANCIAL_YEAR = 2026
+const DAY = 24 * 60 * 60 * 1000
+
+export default async function DashboardPage({
+  params,
+}: {
+  params: Promise<{ orgSlug: string }>
+}) {
+  const { orgSlug } = await params
+  const { org, membership } = await getOrgContext(orgSlug)
+  const { userId, name } = await verifySession()
+
+  const isExco = membership.role === 'EXCO'
+  const canSeeInstructors = hasPermission(membership.role, 'instructor.view')
+
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+
+  // Keep dashboard reads on one RLS-scoped pooler connection.
+  const data = await dbAs(userId, async (tx) => ({
+    funds: await tx.fundAccount.findMany({
+      where: { orgId: org.id, financialYear: FINANCIAL_YEAR },
+      orderBy: { source: 'asc' },
+    }),
+    counters: await tx.referenceCounter.findMany({
+      where: { orgId: org.id, financialYear: FINANCIAL_YEAR },
+      orderBy: { series: 'asc' },
+    }),
+    instructors: await tx.instructor.findMany({
+      where: { orgId: org.id },
+      orderBy: [{ isActive: 'desc' }, { fullName: 'asc' }],
+      include: { rates: { orderBy: { effectiveFrom: 'asc' } } },
+    }),
+    // Voided invoices keep their references but no longer commit funds.
+    invoiceTotals: await tx.invoice.groupBy({
+      by: ['fundSource'],
+      where: { orgId: org.id, status: { not: 'VOID' } },
+      _sum: { totalCents: true },
+    }),
+    // Pending purchase requests do not commit funds.
+    purchaseTotals: await tx.purchaseRequest.groupBy({
+      by: ['fundSource'],
+      where: { orgId: org.id, status: { in: ['APPROVED', 'PURCHASED', 'CLOSED'] } },
+      _sum: { amountCents: true },
+    }),
+    overdueInvoices: await tx.invoice.count({
+      where: {
+        orgId: org.id,
+        status: { in: ['GENERATED', 'SIGNED'] },
+        submittedToOslAt: null,
+        submissionDueAt: { lt: now },
+      },
+    }),
+    memberCount: await tx.member.count({ where: { orgId: org.id, isActive: true } }),
+    sessionCount: await tx.classSession.count({ where: { orgId: org.id } }),
+    sessionsThisMonth: await tx.classSession.count({
+      where: { orgId: org.id, heldOn: { gte: monthStart, lt: monthEnd } },
+    }),
+    referencesIssued: await tx.referenceNumber.count({
+      where: { orgId: org.id, financialYear: FINANCIAL_YEAR, voidedAt: null },
+    }),
+    declaredPayments: await tx.feePayment.count({
+      where: { orgId: org.id, status: 'DECLARED' },
+    }),
+    currentTerm: await tx.term.findFirst({
+      where: { orgId: org.id, startDate: { lte: now }, endDate: { gte: now } },
+      select: { name: true },
+    }),
+  }))
+
+  const [pendingRequests, ownMembership, ledger, ledgerCount] = await Promise.all([
+    isExco ? countPendingRequests(org.id) : Promise.resolve(0),
+    getMembership(org.id, userId),
+    isExco ? listLedger(userId, org.id, { take: 6 }) : Promise.resolve([]),
+    isExco ? countLedger(userId, org.id) : Promise.resolve(0),
+  ])
+
+  const committedFor = (source: FundView['source']) =>
+    (data.invoiceTotals.find((row) => row.fundSource === source)?._sum.totalCents ?? 0) +
+    (data.purchaseTotals.find((row) => row.fundSource === source)?._sum.amountCents ?? 0)
+
+  const FUND_LABEL: Record<FundView['source'], string> = {
+    SEED: 'OSL Seed Fund',
+    INCOME: 'Income',
+    DONATION: 'Donations',
+    UNOFFICIAL: 'Unofficial',
+  }
+
+  // Balance = opening + prior income - prior and current spend.
+  const funds: FundView[] = data.funds.map((fund) => {
+    const committedCents = committedFor(fund.source)
+    const spentCents = committedCents + fund.priorSpendCents
+    const availableCents = fund.openingBalanceCents + fund.priorIncomeCents
+    return {
+      source: fund.source,
+      label: FUND_LABEL[fund.source],
+      wbsElement: fund.source === 'UNOFFICIAL' ? null : fund.wbsElement,
+      openingCents: availableCents,
+      priorSpendCents: fund.priorSpendCents,
+      committedCents,
+      spentCents,
+      remainingCents: availableCents - spentCents,
+      rollsOver: fund.rollsOver,
+      deadline: fund.submissionDeadline,
+      note:
+        fund.source === 'INCOME'
+          ? 'Subscriptions and donations. Rolls over.'
+          : fund.source === 'UNOFFICIAL'
+            ? 'Held by the exco. No OSL invoice may be drawn on it.'
+            : undefined,
+    }
+  })
+
+
+  const activeInstructors = data.instructors.filter((row) => row.isActive)
+  const blocked = activeInstructors.filter((row) => missingFor(row).length > 0)
+
+  const alerts: DashboardAlert[] = []
+
+  if (data.overdueInvoices > 0) {
+    alerts.push({
+      id: 'invoices-overdue',
+      tone: 'urgent',
+      title: `${data.overdueInvoices} invoice${data.overdueInvoices === 1 ? '' : 's'} past the submission window`,
+      detail:
+        'An invoice has to reach OSL within three working days of its own date. Past that, expect it to come back.',
+      href: `/${orgSlug}/monthly-run`,
+    })
+  }
+
+  for (const fund of funds) {
+    if (fund.rollsOver || !fund.deadline) continue
+    const remaining = fund.remainingCents
+    if (remaining <= 0) continue
+    const daysLeft = Math.ceil((fund.deadline.getTime() - now.getTime()) / DAY)
+    if (daysLeft < 0) {
+      alerts.push({
+        id: `fund-${fund.source}-closed`,
+        tone: 'urgent',
+        title: `${formatSgd(remaining)} of seed fund was never drawn`,
+        detail: `The submission window closed on ${fund.deadline.toISOString().slice(0, 10)}. Unspent seed fund does not roll over.`,
+      })
+    } else if (daysLeft <= 90) {
+      alerts.push({
+        id: `fund-${fund.source}-closing`,
+        tone: daysLeft <= 30 ? 'urgent' : 'soon',
+        title: `${formatSgd(remaining)} of seed fund still unspent`,
+        detail: `${daysLeft} day${daysLeft === 1 ? '' : 's'} until the submission cut-off. Anything left after that is lost, not carried over.`,
+      })
+    }
+  }
+
+  if (blocked.length > 0) {
+    alerts.push({
+      id: 'instructors-blocked',
+      tone: 'soon',
+      title: `${blocked.length} coach${blocked.length === 1 ? '' : 'es'} cannot be invoiced yet`,
+      detail: blocked
+        .map((row) => `${row.fullName} — no ${missingFor(row).join(', ')}`)
+        .join(' · '),
+      href: `/${orgSlug}/instructors`,
+    })
+  }
+
+  if (isExco && pendingRequests > 0) {
+    alerts.push({
+      id: 'access-requests',
+      tone: 'todo',
+      title: `${pendingRequests} access request${pendingRequests === 1 ? '' : 's'} waiting`,
+      detail: 'Somebody has asked for exco access. Another exco member has to decide it.',
+      href: `/${orgSlug}/settings/access`,
+    })
+  }
+
+  if (isExco && data.declaredPayments > 0) {
+    alerts.push({
+      id: 'payments-declared',
+      tone: 'todo',
+      title: `${data.declaredPayments} subscription payment${data.declaredPayments === 1 ? '' : 's'} to confirm`,
+      detail:
+        'Members have declared payment and attached their PayNow confirmation. Confirming is an exco act.',
+    })
+  }
+
+  if (isExco && data.sessionsThisMonth === 0 && now.getDate() >= 20) {
+    alerts.push({
+      id: 'no-sessions',
+      tone: 'soon',
+      title: 'No classes recorded this month',
+      detail:
+        'The month is nearly out and nothing has been entered. The invoice and the attendance sheet are both built from these.',
+      href: `/${orgSlug}/sessions`,
+    })
+  }
+
+  const ledgerRows: LedgerRow[] = ledger.map((entry) => ({
+    id: entry.id,
+    description: entry.description,
+    payee: entry.payeeName,
+    reference: entry.reference,
+    amountCents: entry.amountCents,
+    on: entry.documentDate,
+    fundSource: SECTION_FUND[entry.section],
+    fundLabel: SECTION_LABEL[entry.section],
+  }))
+
+  const roleLabel = ownMembership?.office
+    ? OFFICE_LABELS[ownMembership.office]
+    : isExco
+      ? 'Exco'
+      : 'Member'
+
+  return (
+    <div className="mx-auto max-w-[1180px] space-y-5">
+      <Hero
+        greetingName={name.split(/\s+/)[0] ?? name}
+        orgName={org.name}
+        roleLabel={roleLabel}
+        termName={data.currentTerm?.name ?? null}
+        financialYear={FINANCIAL_YEAR}
+        today={now}
+      />
+
+      {isExco && <Alerts alerts={alerts} delayMs={40} />}
+
+      {isExco && funds.length > 0 && (
+        <>
+          <FundsOverview funds={funds} delayMs={80} />
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {funds.map((fund, i) => (
+              <FundCard key={fund.source} fund={fund} delayMs={130 + i * 60} />
+            ))}
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <SpendRing funds={funds} delayMs={190} />
+            <RecentTransactions
+              rows={ledgerRows}
+              orgSlug={orgSlug}
+              totalCount={ledgerCount}
+              delayMs={230}
+            />
+          </div>
+        </>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile
+          label="Members on the roster"
+          value={data.memberCount}
+          accent="vermilion"
+          delayMs={200}
+        />
+        <StatTile
+          label="Coaches"
+          value={activeInstructors.length}
+          href={canSeeInstructors ? `/${orgSlug}/instructors` : undefined}
+          accent="marigold"
+          delayMs={240}
+        />
+        <StatTile
+          label="Classes this month"
+          value={data.sessionsThisMonth}
+          suffix={data.sessionCount > 0 ? `of ${data.sessionCount}` : undefined}
+          accent="sky"
+          delayMs={280}
+        />
+        <StatTile
+          label={`Reference numbers issued FY${FINANCIAL_YEAR % 100}`}
+          value={data.referencesIssued}
+          accent="indigo"
+          delayMs={320}
+        />
+      </div>
+
+      {!isExco && (
+        <section
+          className="rise-in rounded-[var(--radius-lg)] border border-border bg-surface px-5 py-5"
+          style={{ '--delay': '360ms' } as React.CSSProperties}
+        >
+          <p className="text-[14px] font-medium text-text">You are a member of {org.name}.</p>
+          <p className="mt-1.5 max-w-[64ch] text-[13px] leading-relaxed text-text-muted">
+            That is everything most people need. If you have taken on a committee post, you can
+            ask for your access to be widened — another exco member decides it, never you.
+          </p>
+          <Link
+            href={`/${orgSlug}/access`}
+            className="mt-3 inline-block text-[13px] font-medium text-accent-600 underline-offset-4 hover:underline"
+          >
+            Ask for exco access
+          </Link>
+        </section>
+      )}
+
+      {canSeeInstructors && data.instructors.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-end justify-between gap-3">
+            <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-text">
+              Who teaches here
+            </h2>
+            <Link
+              href={`/${orgSlug}/instructors`}
+              className="text-[12.5px] font-medium text-accent-600 underline-offset-4 hover:underline"
+            >
+              All coaches
+            </Link>
+          </div>
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {data.instructors.slice(0, 10).map((row, i) => (
+              <li key={row.id}>
+                <InstructorCard
+                  href={`/${orgSlug}/instructors/${row.id}`}
+                  fullName={row.fullName}
+                  danceStyle={row.danceStyle}
+                  shortCode={row.shortCode}
+                  rateCents={currentRateOrNull(row.rates)}
+                  engagement={row.engagement}
+                  isActive={row.isActive}
+                  missing={missingFor(row)}
+                  delayMs={380 + i * 50}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {isExco && data.counters.length > 0 && (
+        <section
+          className="rise-in rounded-[var(--radius-lg)] border border-border bg-surface px-5 py-4"
+          style={{ '--delay': '440ms' } as React.CSSProperties}
+        >
+          <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-subtle">
+            Next reference number
+          </h2>
+          <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {data.counters.map((counter, i) => (
+              <div
+                key={counter.id}
+                className="rounded-[var(--radius-sm)] border-l-[3px] bg-paper px-3 py-2"
+                style={{
+                  borderLeftColor: `var(--brand-${
+                    (['vermilion', 'marigold', 'sky', 'indigo'] as const)[i % 4]
+                  })`,
+                }}
+              >
+                <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-text-subtle">
+                  {counter.series}
+                </dt>
+                <dd className="font-mono text-[14px] tabular-nums text-text">
+                  {counter.series}
+                  {String(FINANCIAL_YEAR % 100)}-097-
+                  {String(counter.nextSequence).padStart(4, '0')}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+
+      {isExco && data.sessionCount === 0 && (
+        <section
+          className="rise-in rounded-[var(--radius-lg)] border border-dashed border-border-strong bg-surface px-5 py-8 text-center"
+          style={{ '--delay': '480ms' } as React.CSSProperties}
+        >
+          <p className="text-[14px] font-medium text-text">No classes recorded yet</p>
+          <p className="mx-auto mt-1.5 max-w-[52ch] text-[13px] leading-relaxed text-text-muted">
+            {activeInstructors.length === 0
+              ? 'Add the coaches first, then record the classes they taught. The invoice and the attendance sheet are both derived from those.'
+              : 'Record the classes that ran and the portal can raise the month’s invoice and attendance sheet from them.'}
+          </p>
+          <Link
+            href={
+              activeInstructors.length === 0
+                ? `/${orgSlug}/instructors/new`
+                : `/${orgSlug}/sessions`
+            }
+            className="mt-3 inline-block text-[13px] font-medium text-accent-600 underline-offset-4 hover:underline"
+          >
+            {activeInstructors.length === 0 ? 'Add a coach' : 'Record a class'}
+          </Link>
+        </section>
+      )}
+    </div>
+  )
+}
+
+/** Which required fields are still blank. Mirrors missingForInvoice(). */
+function missingFor(row: { bankName: string | null; bankAccountNo: string | null; rates: unknown[] }): string[] {
+  const missing: string[] = []
+  if (!row.bankName?.trim()) missing.push('bank')
+  if (!row.bankAccountNo?.trim()) missing.push('account number')
+  if (row.rates.length === 0) missing.push('rate')
+  return missing
+}
+
+/**
+ * What they bill at today. rateForDate throws when nothing covers today — a
+ * rate that only starts next term is a real state, and it reads here as "no
+ * rate yet" rather than taking the page down.
+ */
+function currentRateOrNull(
+  rates: { hourlyRateCents: number; effectiveFrom: Date; note: string | null }[]
+): number | null {
+  try {
+    // `note` is nullable in the row and optional in RateSchedule; the rate
+    // resolver never reads it, so it is dropped rather than widened.
+    return rateForDate(
+      rates.map(({ hourlyRateCents, effectiveFrom }) => ({ hourlyRateCents, effectiveFrom })),
+      new Date()
+    )
+  } catch {
+    return null
+  }
+}

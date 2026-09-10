@@ -40,6 +40,14 @@ enum ExcoOffice {
   OTHER
 }
 
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  /// Withdrawn by the requester, or aged out past expiresAt.
+  CANCELLED
+}
+
 enum InvitationStatus {
   PENDING
   ACCEPTED
@@ -58,6 +66,13 @@ enum FundSource {
   SEED
   INCOME
   DONATION
+  /// Money the club holds outside the OSL accounts — the "unofficial"
+  /// register the exco keep themselves. It is real money the club can spend,
+  /// so it belongs on the dashboard beside the others, but it is NOT an OSL
+  /// fund: no invoice may be drawn on it, because there is no WBS element to
+  /// quote and nothing for OSL to reimburse. The invoice action's own enum is
+  /// SEED | INCOME, which is what enforces that.
+  UNOFFICIAL
 }
 
 /// The four independent running-number series defined by the OSL labelling
@@ -134,6 +149,10 @@ enum RegisterSection {
   SEED_FUND
   INCOME
   DONATION
+  /// The exco's own register of money held outside the OSL accounts. Not a
+  /// section OSL ever sees — it is kept here so the club's whole ledger is in
+  /// one place and the unofficial balance is explicable rather than asserted.
+  UNOFFICIAL
 }
 
 enum RegisterSyncStatus {

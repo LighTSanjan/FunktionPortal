@@ -2,49 +2,31 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
-/**
- * Explicit static-asset prefix allowlist.
- * Never match on the presence of a dot — that's a vulnerability.
- */
 const STATIC_PREFIXES = ['/_next/', '/favicon.ico', '/robots.txt', '/sitemap.xml']
 
-/**
- * Unauthenticated entry points. A signed-in visitor is bounced away from these.
- */
-const AUTH_PAGES = ['/sign-in', '/sign-up']
+const AUTH_PAGES = ['/sign-in', '/sign-up', '/forgot-password']
 
-/**
- * Auth protocol endpoints. Reachable signed-in or signed-out, and NEVER
- * redirected — the email-confirmation and OAuth exchanges land here already
- * holding a session, so bouncing them breaks the flow before the handler runs.
- */
 const AUTH_FLOW_PATHS = [
   '/auth/callback',
   '/auth/confirm',
   '/api/auth/sign-out',
-  // Vercel Cron invocations carry no Supabase session, so cron routes have to
-  // gate themselves. Nothing is registered under this prefix yet, and the
-  // CRON_SECRET check that is supposed to guard it is not written — the first
-  // route added here has to bring its own bearer-token check with it.
-  '/api/cron',
-  // Reserved for token-authenticated feeds polled with no cookies, where the
-  // unguessable token in the path is the credential. Nothing serves this
-  // prefix today; it carried the HR product's ICS calendar feed.
-  '/api/calendar',
 ]
 
 function matches(pathname: string, paths: string[]): boolean {
   return paths.some((p) => pathname === p || pathname.startsWith(`${p}/`))
 }
 
+// Only root-level files bypass auth. Matching any dot would also exempt paths
+// such as /funktion/settings.svg.
+const PUBLIC_FILE = /^\/[A-Za-z0-9._-]+\.(?:svg|png|jpe?g|webp|avif|gif|ico|txt|xml|webmanifest|woff2?)$/
+
 function isStaticAsset(pathname: string): boolean {
-  return STATIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  return STATIC_PREFIXES.some((prefix) => pathname.startsWith(prefix)) || PUBLIC_FILE.test(pathname)
 }
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Static assets bypass entirely — matched by explicit prefix, never by dot.
   if (isStaticAsset(pathname)) {
     return NextResponse.next()
   }
@@ -52,10 +34,6 @@ export async function proxy(request: NextRequest) {
   return await updateSession(request)
 }
 
-/**
- * Refreshes the Supabase session via cookie handling.
- * Redirects to /sign-in for protected routes when no session exists.
- */
 async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
   let supabaseResponse = NextResponse.next({
@@ -89,19 +67,16 @@ async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Auth protocol endpoints pass through untouched in both directions.
   if (matches(pathname, AUTH_FLOW_PATHS)) {
     return supabaseResponse
   }
 
-  // No session on a protected route → sign in, remembering where they were.
   if (!user && !matches(pathname, AUTH_PAGES)) {
     const signInUrl = new URL('/sign-in', request.url)
     signInUrl.searchParams.set('callbackUrl', pathname)
     return NextResponse.redirect(signInUrl)
   }
 
-  // Already signed in and asking for sign-in/sign-up → send them onward.
   if (user && matches(pathname, AUTH_PAGES)) {
     return NextResponse.redirect(new URL('/', request.url))
   }

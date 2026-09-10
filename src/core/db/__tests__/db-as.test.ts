@@ -1,11 +1,3 @@
-/**
- * dbAs tests.
- *
- * dbAs is the boundary that keeps tenant isolation honest, so these tests care
- * about three things: the claims are installed before any caller query runs,
- * the user id is carried into them, and a failed role switch aborts rather than
- * silently running with RLS bypassed.
- */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const callOrder: string[] = []

@@ -1,31 +1,24 @@
 // @vitest-environment node
-/**
- * Tested against a real submission: FUNKtion's May 2026 pack for KS.
- *
- * That month ran four sessions — 18, 21, 26 and 28 May. The coach attended
- * two of them, so the invoice billed two at 1.5 hours and $90/hr for $270.00,
- * and the other two were self-practice. Reproducing that arithmetic is the
- * point of most of what follows.
- *
- * Names and bank details here are invented. The real ones live in the
- * database, not the repository — a coach's account number is not something a
- * public checkout should hand out.
- */
 import { describe, it, expect } from 'vitest'
 import JSZip from 'jszip'
+import { formatCents, formatSgd, formatHours, sessionAmountCents } from '../money'
 import {
-  formatCents, formatSgd, formatHours, sessionAmountCents,
-  buildClaim, invoiceDateFor, toInvoiceData, toAttendanceSheetData,
-  renderInvoice, renderAttendanceSheet, instructorDocumentNo, NoBillableSessionsError,
-  type ClaimInput, type InstructorDetails, type RosterMember, type BillTo, type Branding,
-} from '..'
+  buildClaim,
+  invoiceDateFor,
+  toInvoiceData,
+  toAttendanceSheetData,
+  NoBillableSessionsError,
+  type ClaimInput,
+} from '../claim'
+import { renderInvoice, instructorDocumentNo } from '../invoice'
+import { renderAttendanceSheet } from '../attendance-sheet'
+import type {
+  InstructorDetails,
+  RosterMember,
+  BillTo,
+  Branding,
+} from '../types'
 
-/**
- * Nothing that identifies a club is written into the module, so the tests
- * supply their own. A rebrand or a handover to a differently-named committee
- * changes rows, not code — and these fixtures prove it by using neither the
- * real club's name nor its colours.
- */
 const BILL_TO: BillTo = {
   name: 'Test University',
   addressLines: ['1 Campus Way', 'Testville 000000'],

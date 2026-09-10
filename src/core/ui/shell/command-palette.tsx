@@ -2,9 +2,9 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import { cn } from '@/lib/utils'
 import { Search } from 'lucide-react'
-import type { NavEntry } from '@/core/modules'
+import type { NavEntry } from '@/core/navigation'
+import { cn } from '@/lib/utils'
 
 interface CommandPaletteProps {
   orgSlug: string
@@ -13,12 +13,7 @@ interface CommandPaletteProps {
   onClose: () => void
 }
 
-/**
- * Command palette — ⌘K / Ctrl+K. Navigate to any permitted page.
- * Fuzzy match, keyboard-only operable.
- * Uses key-based remount so state resets each time it opens.
- */
-function CommandPalette({ orgSlug, navEntries, open, onClose }: CommandPaletteProps) {
+export function CommandPalette({ orgSlug, navEntries, open, onClose }: CommandPaletteProps) {
   if (!open) return null
   return (
     <CommandPaletteInner
@@ -39,62 +34,42 @@ function CommandPaletteInner({
   const [query, setQuery] = React.useState('')
   const [selectedIndex, setSelectedIndex] = React.useState(0)
   const inputRef = React.useRef<HTMLInputElement>(null)
-
-  // Flatten nav entries (include children as searchable entries)
-  const flatEntries = React.useMemo(() => {
-    const result: NavEntry[] = []
-    for (const entry of navEntries) {
-      result.push(entry)
-      if (entry.children) {
-        for (const child of entry.children) {
-          result.push(child)
-        }
-      }
-    }
-    return result
-  }, [navEntries])
-
   const filtered = React.useMemo(() => {
-    if (!query.trim()) return flatEntries
-    const lower = query.toLowerCase()
-    return flatEntries.filter((e) =>
-      e.label.toLowerCase().includes(lower)
-    )
-  }, [query, flatEntries])
+    const search = query.trim().toLowerCase()
+    return search
+      ? navEntries.filter((entry) => entry.label.toLowerCase().includes(search))
+      : navEntries
+  }, [navEntries, query])
 
-  // Focus input on mount
   React.useEffect(() => {
     const timeout = setTimeout(() => inputRef.current?.focus(), 50)
     return () => clearTimeout(timeout)
   }, [])
 
-  // Close on Escape
   React.useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        onClose()
-      }
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
     }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
   }, [onClose])
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1))
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setSelectedIndex((i) => Math.max(i - 1, 0))
-    } else if (e.key === 'Enter' && filtered[selectedIndex]) {
-      e.preventDefault()
-      navigate(filtered[selectedIndex])
-    }
-  }
 
   function navigate(entry: NavEntry) {
     router.push(`/${orgSlug}${entry.href}`)
     onClose()
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setSelectedIndex((index) => Math.min(index + 1, filtered.length - 1))
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setSelectedIndex((index) => Math.max(index - 1, 0))
+    } else if (event.key === 'Enter' && filtered[selectedIndex]) {
+      event.preventDefault()
+      navigate(filtered[selectedIndex])
+    }
   }
 
   return (
@@ -103,28 +78,24 @@ function CommandPaletteInner({
       onClick={onClose}
       role="presentation"
     >
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-bg/80 backdrop-blur-sm" aria-hidden="true" />
-
-      {/* Dialog */}
       <div
         className="relative w-full max-w-lg rounded-[var(--radius-lg)] border border-border bg-surface shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
       >
-        {/* Input */}
         <div className="flex items-center border-b border-border px-3">
-          <Search className="h-4 w-4 text-text-subtle shrink-0" aria-hidden="true" />
+          <Search className="h-4 w-4 shrink-0 text-text-subtle" aria-hidden="true" />
           <input
             ref={inputRef}
             type="text"
-            className="flex-1 bg-transparent py-3 px-2 text-[14px] text-text placeholder:text-text-subtle outline-none"
+            className="flex-1 bg-transparent px-2 py-3 text-[14px] text-text outline-none placeholder:text-text-subtle"
             placeholder="Search pages..."
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value)
+            onChange={(event) => {
+              setQuery(event.target.value)
               setSelectedIndex(0)
             }}
             onKeyDown={handleKeyDown}
@@ -136,31 +107,26 @@ function CommandPaletteInner({
           />
         </div>
 
-        {/* Results */}
-        <ul
-          id="cmd-list"
-          role="listbox"
-          className="max-h-[300px] overflow-y-auto p-1"
-        >
+        <ul id="cmd-list" role="listbox" className="max-h-[300px] overflow-y-auto p-1">
           {filtered.length === 0 && (
             <li className="px-3 py-6 text-center text-[13px] text-text-muted">
               No results found.
             </li>
           )}
-          {filtered.map((entry, i) => (
+          {filtered.map((entry, index) => (
             <li
               key={entry.href}
-              id={`cmd-${i}`}
+              id={`cmd-${index}`}
               role="option"
-              aria-selected={i === selectedIndex}
+              aria-selected={index === selectedIndex}
               className={cn(
-                'flex items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2 text-[13px] cursor-pointer transition-colors',
-                i === selectedIndex
+                'flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2 text-[13px] transition-colors',
+                index === selectedIndex
                   ? 'bg-accent-50 text-accent-700'
                   : 'text-text-muted hover:bg-surface-hover'
               )}
               onClick={() => navigate(entry)}
-              onMouseEnter={() => setSelectedIndex(i)}
+              onMouseEnter={() => setSelectedIndex(index)}
             >
               <span className="font-medium">{entry.label}</span>
               <span className="ml-auto text-[11px] text-text-subtle">{entry.href}</span>
@@ -168,7 +134,6 @@ function CommandPaletteInner({
           ))}
         </ul>
 
-        {/* Footer hint */}
         <div className="flex items-center gap-4 border-t border-border px-3 py-2 text-[11px] text-text-subtle">
           <span><kbd className="font-mono">↑↓</kbd> navigate</span>
           <span><kbd className="font-mono">↵</kbd> select</span>
@@ -178,5 +143,3 @@ function CommandPaletteInner({
     </div>
   )
 }
-
-export { CommandPalette }

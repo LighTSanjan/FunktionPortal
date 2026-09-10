@@ -1,18 +1,19 @@
 // @vitest-environment node
-/**
- * Guest instructors.
- *
- * The club books a guest for the occasional workshop. They raise an invoice
- * like anyone else, but nothing about them was checked in advance — there is
- * no contract on file — so the details are typed on the day the invoice is
- * due, which is exactly when a missing bank account gets missed.
- */
 import { describe, it, expect } from 'vitest'
 import {
-  assertInvoiceable, deriveShortCode, shortCodeFor,
-  IncompleteInstructorError, buildClaim, toInvoiceData, toAttendanceSheetData,
-  renderInvoice, type InstructorDetails, type ClaimInput,
-} from '..'
+  assertInvoiceable,
+  deriveShortCode,
+  shortCodeFor,
+  IncompleteInstructorError,
+} from '../instructor'
+import {
+  buildClaim,
+  toInvoiceData,
+  toAttendanceSheetData,
+  type ClaimInput,
+} from '../claim'
+import { renderInvoice } from '../invoice'
+import type { InstructorDetails } from '../types'
 
 const GUEST: InstructorDetails = {
   fullName: 'Ada Lim',

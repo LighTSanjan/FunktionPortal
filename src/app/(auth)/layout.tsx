@@ -1,30 +1,99 @@
-/**
- * Auth shell — background only.
- *
- * Deliberately imposes no width and renders no logo. Sign-in and sign-up are
- * narrow centred cards; the setup wizard is a full-page flow with its own
- * header. Constraining both here clamped the wizard to 380px and made it show
- * two headers, so width and chrome are each page's own decision.
- */
-export default function AuthLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+import { Wordmark } from '@/core/ui/logo'
+import { StagePhoto } from './_components/stage-photo'
+
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      {/* Brand bloom. One of the few surfaces where the gradient is prominent. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute left-1/2 top-1/2 h-[620px] w-[820px] -translate-x-1/2 -translate-y-1/2 opacity-25 blur-[110px] dark:opacity-30"
-        style={{
-          background:
-            'radial-gradient(60% 60% at 30% 30%, var(--brand-vermilion) 0%, transparent 70%),' +
-            'radial-gradient(60% 60% at 70% 45%, var(--brand-marigold) 0%, transparent 70%),' +
-            'radial-gradient(55% 55% at 55% 80%, var(--brand-sky) 0%, transparent 70%)',
-        }}
-      />
-      <div className="relative z-10 min-h-screen">{children}</div>
+    <div
+      className="flex min-h-screen flex-col"
+      style={
+        {
+          '--bg': '#FFFFFF',
+          '--bg-subtle': '#FBF8F3',
+          '--surface': '#FFFFFF',
+          '--surface-hover': '#F5F1E9',
+          '--border': '#E8E0D2',
+          '--border-strong': '#D3CABA',
+          '--text': '#17192B',
+          '--text-muted': '#5A5F72',
+          '--text-subtle': '#8A8E9E',
+          '--paper': '#FBF8F3',
+          '--paper-deep': '#F4EFE6',
+          '--paper-line': '#E8E0D2',
+          '--brand-ink': '#111114',
+          colorScheme: 'light',
+          background: '#FBF8F3',
+          color: '#17192B',
+        } as React.CSSProperties
+      }
+    >
+      <div aria-hidden="true" className="lapis-band h-[7px] shrink-0" />
+
+      <div className="grid flex-1 lg:grid-cols-[1.05fr_1fr]">
+        <aside className="relative h-[190px] overflow-hidden sm:h-[240px] lg:h-auto">
+          <div
+            aria-hidden="true"
+            className="absolute inset-0"
+            style={{
+              background:
+                'linear-gradient(330deg, #F05B23 0%, #FBAE3A 34%, #5BC5EF 68%, #344D90 100%)',
+            }}
+          />
+
+          <StagePhoto />
+
+          <div
+            aria-hidden="true"
+            className="absolute inset-0"
+            style={{
+              background:
+                'linear-gradient(to top, rgba(10,11,20,.86) 0%, rgba(10,11,20,.46) 34%, rgba(10,11,20,.06) 62%),' +
+                'radial-gradient(110% 80% at 0% 0%, rgba(10,11,20,.62) 0%, rgba(10,11,20,.18) 45%, transparent 74%)',
+            }}
+          />
+
+          <Wordmark
+            priority
+            className="fade-in absolute left-6 top-5 h-12 lg:left-10 lg:top-9 lg:h-20 xl:left-14 xl:top-11"
+          />
+
+          <div className="rise-in absolute inset-x-0 bottom-0 p-6 lg:p-10 xl:p-14" style={{ '--delay': '90ms' } as React.CSSProperties}>
+            <h2 className="text-[26px] font-semibold leading-[1.05] tracking-[-0.025em] text-white lg:text-[42px] xl:text-[52px]">
+              FUNKtion Portal
+            </h2>
+            <p className="mt-2 text-[13.5px] text-white/80 lg:mt-3 lg:text-[16px] xl:text-[17px]">
+              SUTD&rsquo;s Ultimate Popping &amp; Locking Dance Club!
+            </p>
+          </div>
+
+          <div
+            aria-hidden="true"
+            className="lapis-band absolute inset-y-0 right-0 hidden w-[5px] lg:block"
+            style={{
+              background:
+                'linear-gradient(to bottom, var(--brand-vermilion) 0 25%, var(--brand-marigold) 25% 50%, var(--brand-sky) 50% 75%, var(--brand-indigo) 75% 100%)',
+            }}
+          />
+        </aside>
+
+        <main className="relative flex items-center justify-center overflow-hidden bg-paper px-5 py-10 sm:px-10 sm:py-14">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-24 -right-24 h-[420px] w-[420px] rotate-[-24deg] opacity-[0.14]"
+            style={{
+              background:
+                'repeating-linear-gradient(180deg,' +
+                'var(--brand-vermilion) 0 14px, transparent 14px 34px,' +
+                'var(--brand-marigold) 34px 48px, transparent 48px 68px,' +
+                'var(--brand-sky) 68px 82px, transparent 82px 102px,' +
+                'var(--brand-indigo) 102px 116px, transparent 116px 136px)',
+            }}
+          />
+
+          <div className="rise-in relative w-full max-w-[420px]" style={{ '--delay': '60ms' } as React.CSSProperties}>
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   )
 }

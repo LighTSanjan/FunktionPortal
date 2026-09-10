@@ -1,23 +1,4 @@
-/**
- * Document styling.
- *
- * Restraint is the point. These go to the Office of Finance alongside
- * documents from every other student organisation, and a claim that looks
- * designed reads as less credible, not more. Calibri at sensible sizes with
- * one accent rule is what a real invoice looks like.
- *
- * The attendance sheet is the club's own document and carries the logo and
- * the banded rule; the invoice is the instructor's and carries neither.
- *
- * Nothing club-specific lives here. Brand colours, the wordmark and the
- * tagline all arrive as data.
- */
-
-/**
- * Fallback for the banded rule when settings carry no brand colours. Greys,
- * deliberately: a document that has lost its branding should look plain
- * rather than wear somebody else's palette.
- */
+/** Neutral fallback when organisation branding is absent. */
 export const FALLBACK_BAND_COLORS = ['BFBFBF', 'CFCFCF', 'DFDFDF', 'EFEFEF']
 
 export const INK = '1A1A1A'

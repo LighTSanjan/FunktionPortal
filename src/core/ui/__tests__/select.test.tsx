@@ -46,14 +46,17 @@ describe('Select', () => {
     expect(onChange).toHaveBeenCalled()
   })
 
-  it('applies focus-visible ring classes', () => {
+  // The rule this guards is "a select shows where focus is", not "a select
+  // uses Tailwind's ring". Focus moved to the kueh lapis stack, which is a
+  // box-shadow, and Tailwind's ring is also a box-shadow — keeping both meant
+  // whichever rule won the cascade decided the design. The class carries the
+  // whole treatment, including its reduced-motion behaviour.
+  it('carries a focus treatment', () => {
     render(
       <Select aria-label="Focus test">
         <option>X</option>
       </Select>
     )
-    const el = screen.getByLabelText('Focus test')
-    expect(el.className).toContain('focus-visible:ring-2')
-    expect(el.className).toContain('focus-visible:ring-accent-500')
+    expect(screen.getByLabelText('Focus test').className).toContain('lapis-field')
   })
 })

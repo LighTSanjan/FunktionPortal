@@ -2,15 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import { proxy } from './proxy'
 
-/**
- * Regression coverage for the exact bug fixed in da80eb1: the proxy ran its
- * auth redirect BEFORE checking whether a path opts out (cron, auth-protocol
- * endpoints), so those routes got 307'd to /sign-in and their own
- * bearer-token/session checks never ran. This file pins the exemption list
- * and the redirect behavior around it so a future edit can't silently drop
- * an entry the way /api/cron was originally missing.
- */
-
 let mockUser: { id: string } | null = null
 
 vi.mock('@supabase/ssr', () => ({
@@ -30,11 +21,6 @@ describe('proxy', () => {
     mockUser = null
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co'
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'test-key'
-  })
-
-  it('passes /api/cron/* through with no redirect, session or not', async () => {
-    const res = await proxy(makeRequest('/api/cron/reminders'))
-    expect(res.headers.get('location')).toBeNull()
   })
 
   it('passes auth-protocol endpoints through with no redirect', async () => {
@@ -75,5 +61,28 @@ describe('proxy', () => {
     mockUser = { id: 'user-1' }
     const res = await proxy(makeRequest('/acme/dashboard'))
     expect(res.headers.get('location')).toBeNull()
+  })
+})
+
+describe('public files', () => {
+  beforeEach(() => {
+    mockUser = null
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co'
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'test-key'
+  })
+
+  it('serves root-level assets without redirecting to sign-in', async () => {
+    for (const path of ['/funktion-mark.svg', '/favicon.svg', '/og.png', '/club-photo.jpg']) {
+      const res = await proxy(makeRequest(path))
+      expect(res.headers.get('location'), `${path} should pass through`).toBeNull()
+    }
+  })
+
+  it('does not let an extension smuggle a real page past the session check', async () => {
+    for (const path of ['/funktion/settings.svg', '/a/b.png', '/funktion/dashboard.js']) {
+      const res = await proxy(makeRequest(path))
+      expect(res.status, `${path} must not bypass`).toBe(307)
+      expect(res.headers.get('location'), `${path} must not bypass`).toContain('/sign-in')
+    }
   })
 })

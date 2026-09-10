@@ -1,17 +1,46 @@
-/**
- * Registration barrel.
- *
- * defineModule() and registerPermissions() run as import-time side effects, so
- * something must import this file for the registry to be populated. Server
- * components, client components and the proxy are separate module graphs in
- * Next.js — a context that never reaches this barrel sees an empty registry,
- * which surfaces as an empty sidebar rather than as an error.
- *
- * src/modules/__tests__/registration.test.ts pins that contract.
- */
+import type { OrgRole } from '@prisma/client'
+import type { NavEntry } from '@/core/navigation'
+import { hasPermission } from '@/core/permissions'
 
-// Kernel permissions first. Organisation admin, notifications and audit belong
-// to the platform, not to any module, and must resolve even when every optional
-// module is disabled.
-import '@/core/permissions/kernel'
+const NAV_ENTRIES: readonly NavEntry[] = [
+  {
+    label: 'Your access',
+    href: '/access',
+    icon: 'ClipboardCheck',
+    permission: 'access.request',
+  },
+  {
+    label: 'Register',
+    href: '/register',
+    icon: 'ClipboardList',
+    permission: 'references.view',
+  },
+  {
+    label: 'Instructors',
+    href: '/instructors',
+    icon: 'Users',
+    permission: 'instructor.view',
+  },
+  {
+    label: 'Classes',
+    href: '/sessions',
+    icon: 'CalendarDays',
+    permission: 'session.view',
+  },
+  {
+    label: 'Attendance import',
+    href: '/attendance',
+    icon: 'FileSpreadsheet',
+    permission: 'session.manage',
+  },
+  {
+    label: 'Monthly run',
+    href: '/monthly-run',
+    icon: 'Receipt',
+    permission: 'claim.generate',
+  },
+]
 
+export function resolveNav(role: OrgRole): NavEntry[] {
+  return NAV_ENTRIES.filter((entry) => hasPermission(role, entry.permission))
+}

@@ -33,6 +33,8 @@ model User {
   setupProgresses  OrgSetupProgress[]
   dashboardLayouts DashboardLayout[]
 
+  accessRequests        AccessRequest[]   @relation("AccessRequestUser")
+  accessRequestsReviewed AccessRequest[]  @relation("AccessRequestReviewer")
   member                Member?
   declaredPayments      FeePayment[]      @relation("PaymentDeclaredBy")
   confirmedPayments     FeePayment[]      @relation("PaymentConfirmedBy")
@@ -83,4 +85,49 @@ model Invitation {
   @@index([orgId])
   @@index([token])
   @@map("invitations")
+}
+
+/// A member asking for their access to be widened.
+///
+/// The inverse of Invitation: there, the club decides first; here, the person
+/// asks and the club decides second. Both exist because the club needs both —
+/// at handover the incoming exco can ask rather than wait to be found.
+///
+/// The role is the access; the office is a label that routes notifications and
+/// prints under signatures and confers nothing. They are requested together
+/// because that is how a person thinks about it ("I'm the new treasurer"), but
+/// they are granted as two separate fields, so assigning an office later stays
+/// a dropdown rather than a security decision.
+model AccessRequest {
+  id     String @id @default(cuid())
+  orgId  String @map("org_id")
+  userId String @map("user_id")
+
+  requestedRole   OrgRole     @default(EXCO) @map("requested_role")
+  requestedOffice ExcoOffice? @map("requested_office")
+  /// Why they should have it, in their own words. Required: an approver
+  /// deciding from a name alone is an approver clicking yes.
+  reason String
+
+  status AccessRequestStatus @default(PENDING)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  /// Stale requests are refused rather than approved. An approval acting on a
+  /// six-month-old request is approving a decision nobody is still thinking of.
+  expiresAt DateTime @map("expires_at")
+
+  /// Never the requester. Enforced in the action and by a CHECK constraint,
+  /// because a request somebody can approve for themselves is not an approval.
+  reviewedByUserId String?   @map("reviewed_by_user_id")
+  reviewedAt       DateTime? @map("reviewed_at")
+  /// Shown to the requester, so a refusal is answerable rather than silent.
+  decisionNote String? @map("decision_note")
+
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User         @relation("AccessRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy   User?        @relation("AccessRequestReviewer", fields: [reviewedByUserId], references: [id])
+
+  @@index([orgId, status])
+  @@index([userId])
+  @@map("access_requests")
 }

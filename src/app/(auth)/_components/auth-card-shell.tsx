@@ -1,24 +1,32 @@
-import { Logo } from '@/core/ui/logo'
-
-/**
- * The narrow centred column used by sign-in and sign-up.
- *
- * Lives here rather than in the auth layout because the setup wizard shares
- * that layout but is a full-width flow with its own header — putting the width
- * clamp and the logo in the layout applied them to the wizard too.
- */
-export function AuthCardShell({ children }: { children: React.ReactNode }) {
+export function AuthCardShell({
+  title,
+  subtitle,
+  children,
+  footer,
+}: {
+  title: string
+  subtitle?: string
+  children: React.ReactNode
+  footer?: React.ReactNode
+}) {
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="w-full max-w-[380px]">
-        <div className="mb-7 flex justify-center">
-          <Logo size={30} showText className="text-text" />
-        </div>
-        {children}
-        <p className="mt-6 text-center text-[11px] text-text-subtle">
-          Treasury portal for FUNKtion
-        </p>
+    <div className="lapis-plate rounded-[var(--radius-lg)] border border-brand-ink bg-surface p-6 sm:p-8">
+      <div className="mb-7">
+        <h1 className="text-[27px] font-semibold leading-tight tracking-[-0.02em] text-text">
+          {title}
+        </h1>
+        {subtitle && (
+          <p className="mt-2 text-[14px] leading-relaxed text-text-muted">{subtitle}</p>
+        )}
       </div>
+
+      {children}
+
+      {footer && (
+        <div className="mt-7 border-t border-border pt-5 text-[13.5px] text-text-muted">
+          {footer}
+        </div>
+      )}
     </div>
   )
 }

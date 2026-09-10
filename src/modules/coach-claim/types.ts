@@ -1,13 +1,4 @@
-/**
- * The two documents that leave the club every month.
- *
- * Modelled on the real May 2026 submission, not on the blank templates. The
- * attendance sheet is a member-by-date matrix of YES and NO, with the
- * instructor as the first row: a date where the instructor row says NO is a
- * self-practice session, which the club still records and OSL still sees but
- * which nobody bills for. That single row is where "was there a coach" lives,
- * so the invoice is derived from it rather than maintained beside it.
- */
+/** Data shared by the monthly invoice and attendance document. */
 
 export interface InstructorDetails {
   /** As it should print, stage name and all. */

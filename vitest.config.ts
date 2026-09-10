@@ -8,7 +8,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // Register control-total tests under prisma/data must run in CI too.
+    include: ['src/**/*.{test,spec}.{ts,tsx}', 'prisma/**/*.{test,spec}.{ts,tsx}'],
     coverage: {
       reporter: ['text', 'json', 'html'],
       include: ['src/**/*.{ts,tsx}'],
@@ -18,9 +19,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      // `server-only` throws outside a React Server Component, which would make
-      // every server module untestable. Stubbed here so the guard still holds
-      // in the real build while unit tests can import the module directly.
+      // Keep the production guard while allowing direct server-module tests.
       'server-only': path.resolve(__dirname, './src/test/server-only-stub.ts'),
     },
   },

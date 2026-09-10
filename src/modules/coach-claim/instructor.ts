@@ -1,17 +1,4 @@
-/**
- * Preparing an instructor for an invoice.
- *
- * Two contracted coaches teach the standing weekdays, and the club also books
- * guests for the occasional workshop. The document code never knew the
- * difference — it takes plain details — but the guest path needs guarding,
- * because a contracted coach's details were checked once when the contract
- * was filed and a guest's are typed fresh under time pressure on the day the
- * invoice is due.
- *
- * Pure functions. Nothing here imports Prisma: the caller maps its record
- * into InstructorDetails, which keeps document rendering testable without a
- * database and without a schema.
- */
+/** Validate and normalise instructor details used on invoices. */
 import type { InstructorDetails } from './types'
 
 /** A field the invoice cannot be raised without, and why. */
@@ -37,13 +24,6 @@ function blank(value: unknown): boolean {
   return typeof value !== 'string' || value.trim() === ''
 }
 
-/**
- * Refuses to build an invoice that cannot achieve its purpose.
- *
- * An address is not required — plenty of guests bill from an email alone —
- * but a payee name and a bank account are, because an invoice missing either
- * is a document that looks complete and pays nobody.
- */
 export function assertInvoiceable(instructor: InstructorDetails): void {
   const missing = REQUIRED.filter(({ key }) => blank(instructor[key])).map((f) => f.label)
 
@@ -52,16 +32,7 @@ export function assertInvoiceable(instructor: InstructorDetails): void {
   }
 }
 
-/**
- * A short code for the issuer's own document number, when the instructor has
- * none on file.
- *
- * A fallback, never an override. The contracted coaches' codes are what they
- * have always written on their own invoices and are not derivable — one is a
- * stage name, not initials — so a stored code always wins. This exists so a
- * guest booked the same afternoon still gets a sensible number instead of a
- * blank one.
- */
+/** Derive a fallback document code when an instructor has none stored. */
 export function deriveShortCode(fullName: string): string {
   const initials = fullName
     // Drop anything parenthesised: "Ada Lim (Sparky)" is one person, not two.

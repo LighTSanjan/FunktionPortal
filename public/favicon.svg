@@ -1,8 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="FUNKtion">
-  <!-- Kueh lapis: one shape stacked four times, each offset down and right.
-       Layer order is fixed front to back — vermilion, marigold, sky, indigo. -->
-  <rect x="10" y="19" width="36" height="36" rx="9" fill="#304890"/>
-  <rect x="13" y="16" width="36" height="36" rx="9" fill="#58C0E8"/>
-  <rect x="16" y="13" width="36" height="36" rx="9" fill="#F8A838"/>
-  <rect x="19" y="10" width="36" height="36" rx="9" fill="#F05820"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="FUNKtion">
+  <!--
+    The F from the club logo, reduced to something that survives 16px.
+
+    The wordmark itself is in funktion-logo.svg and is used wherever there is
+    room for it. Cropping that file down to the F was tried first and turns to
+    mush below about 32px: the drawn logo carries hairline highlights that
+    disappear before the letter does. So this is redrawn rather than derived,
+    but in the same language — one letterform stacked four times, each layer
+    offset down and to the right in the fixed kueh lapis order, every layer
+    carrying the ink outline the original has.
+
+    The shape is one open polygon per layer, thickened by stroke rather than
+    drawn as an outline, which is what rounds the inner corners of the F the
+    way the logo's do without hand-writing ten arcs.
+  -->
+  <defs>
+    <path id="fk-f" d="M18 12h28v10H30v11h11v10H30v9H18z"/>
+  </defs>
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <g transform="translate(9 9)"><use href="#fk-f" fill="#111114" stroke="#111114" stroke-width="8.5"/><use href="#fk-f" fill="#344D90" stroke="#344D90" stroke-width="4.5"/></g>
+    <g transform="translate(6 6)"><use href="#fk-f" fill="#111114" stroke="#111114" stroke-width="8.5"/><use href="#fk-f" fill="#5BC5EF" stroke="#5BC5EF" stroke-width="4.5"/></g>
+    <g transform="translate(3 3)"><use href="#fk-f" fill="#111114" stroke="#111114" stroke-width="8.5"/><use href="#fk-f" fill="#FBAE3A" stroke="#FBAE3A" stroke-width="4.5"/></g>
+    <g><use href="#fk-f" fill="#111114" stroke="#111114" stroke-width="8.5"/><use href="#fk-f" fill="#F05B23" stroke="#F05B23" stroke-width="4.5"/></g>
+  </g>
 </svg>

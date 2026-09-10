@@ -6,30 +6,20 @@ import { cn } from '@/lib/utils'
 
 interface SettingsNavProps {
   orgSlug: string
-  enabledModules: string[]
 }
 
-/**
- * Kernel-owned settings only. A tab gated on `requiresModule` disappears when
- * that module is disabled, so the HR modules this kernel forked from left
- * eight tabs here that could never resolve — silent, because the filter below
- * hid them rather than failing. Finance module tabs get added as those
- * modules land, alongside the module that owns them.
- */
-const TABS: Array<{ slug: string; label: string; requiresModule?: string }> = [
+const TABS = [
   { slug: 'profile', label: 'Profile' },
+  { slug: 'access', label: 'Access requests' },
   { slug: 'audit-log', label: 'Audit Log' },
 ]
 
-export function SettingsNav({ orgSlug, enabledModules }: SettingsNavProps) {
+export function SettingsNav({ orgSlug }: SettingsNavProps) {
   const pathname = usePathname()
-  const visibleTabs = TABS.filter(
-    (tab) => !tab.requiresModule || enabledModules.includes(tab.requiresModule)
-  )
 
   return (
     <nav className="flex gap-1 border-b border-border" aria-label="Settings sections">
-      {visibleTabs.map((tab) => {
+      {TABS.map((tab) => {
         const href = `/${orgSlug}/settings/${tab.slug}`
         const active = pathname === href
         return (

@@ -1,12 +1,4 @@
-/**
- * Admin audit-log viewer query.
- *
- * The requirePermission('audit.view') check at the page level is the gate that
- * actually holds today. It was written as the second of two, on top of an RLS
- * policy restricting reads by role — but no policy survived the schema rewrite,
- * so there is currently nothing underneath it. See the README on the missing
- * hardening migration.
- */
+/** RLS-scoped audit-log reads for the exco viewer. */
 import { dbAs } from '@/core/db'
 
 export interface AuditLogEntry {

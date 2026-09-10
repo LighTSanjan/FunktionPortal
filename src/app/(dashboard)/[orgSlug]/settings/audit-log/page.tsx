@@ -1,7 +1,6 @@
 import { verifySession, getOrgContext, requirePermission } from '@/core/auth'
 import { Card, CardContent, CardHeader, CardTitle, PageHeader, EmptyState } from '@/core/ui'
 import { getAuditLog, listAuditActors } from '@/core/audit/queries'
-import { SettingsNav } from '../_components/settings-nav'
 import { AuditLogTable } from './_components/audit-log-table'
 import { AuditLogFilterBar } from './_components/audit-log-filter-bar'
 import { ScrollText } from 'lucide-react'
@@ -25,7 +24,7 @@ export default async function AuditLogPage({
   // kernel permission. It was guarded on the `employees` module inherited
   // from the HR fork, which is never registered here — so the page 404'd for
   // everyone, including an exco with the permission.
-  const { org, enabledModules } = await getOrgContext(orgSlug)
+  const { org } = await getOrgContext(orgSlug)
   await requirePermission(org.id, 'audit.view')
 
   const page = Math.max(1, Number(rawSearch.page) || 1)
@@ -52,7 +51,6 @@ export default async function AuditLogPage({
         subtitle="Every recorded data change and authentication event for this organisation."
       />
 
-      <SettingsNav orgSlug={orgSlug} enabledModules={enabledModules} />
 
       <Card>
         <CardHeader>

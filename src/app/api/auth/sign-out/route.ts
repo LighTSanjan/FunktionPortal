@@ -3,17 +3,7 @@ import type { NextRequest } from 'next/server'
 import { createSupabaseServer } from '@/core/auth/supabase-server'
 import { logAuthEvent } from '@/core/audit/auth-events'
 
-/**
- * Sign out.
- *
- * A route handler rather than a server action because the shell submits a real
- * form, which keeps sign-out working without JavaScript. POST only — signing
- * out is a state change, and a GET endpoint would let any <img> tag on any page
- * log the user out.
- *
- * Clearing Supabase's cookies is the whole job; the redirect afterwards is just
- * where the person lands.
- */
+// POST prevents third-party GET resources from logging a user out.
 export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServer()
   const {

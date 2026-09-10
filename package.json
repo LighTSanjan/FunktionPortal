@@ -14,10 +14,10 @@
     "db:migrate": "set -a && . ./.env && set +a && DATABASE_URL=\"$DIRECT_URL\" prisma migrate dev",
     "db:push": "set -a && . ./.env && set +a && DATABASE_URL=\"$DIRECT_URL\" prisma db push",
     "db:studio": "prisma studio",
-    "test:db": "set -a && . ./.env && set +a && RUN_DB_TESTS=1 vitest run",
     "db:deploy": "set -a && . ./.env && set +a && DATABASE_URL=\"$DIRECT_URL\" prisma migrate deploy",
     "postinstall": "prisma generate",
-    "db:seed": "npx tsx prisma/seed.ts"
+    "db:seed": "npx tsx prisma/seed.ts",
+    "db:verify-rls": "npx tsx scripts/db/verify-rls.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",
@@ -36,8 +36,6 @@
     "prisma": "^7.9.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "recharts": "^3.10.0",
-    "resend": "^4.5.1",
     "server-only": "^0.0.1",
     "tailwind-merge": "^3.6.0",
     "zod": "^4.4.3"

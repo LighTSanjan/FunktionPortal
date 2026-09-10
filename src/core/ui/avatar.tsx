@@ -4,8 +4,6 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 export interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
-  src?: string | null
-  alt?: string
   fallback: string
   size?: 'sm' | 'md' | 'lg'
 }
@@ -16,9 +14,7 @@ const sizeClasses = {
   lg: 'h-10 w-10 text-[14px]',
 }
 
-function Avatar({ src, alt, fallback, size = 'md', className, ...props }: AvatarProps) {
-  const [imgError, setImgError] = React.useState(false)
-
+function Avatar({ fallback, size = 'md', className, ...props }: AvatarProps) {
   const initials = fallback
     .split(' ')
     .map((n) => n[0])
@@ -34,19 +30,10 @@ function Avatar({ src, alt, fallback, size = 'md', className, ...props }: Avatar
         className
       )}
       role="img"
-      aria-label={alt || fallback}
+      aria-label={fallback}
       {...props}
     >
-      {src && !imgError ? (
-        <img
-          src={src}
-          alt={alt || fallback}
-          className="h-full w-full rounded-full object-cover"
-          onError={() => setImgError(true)}
-        />
-      ) : (
-        <span aria-hidden="true">{initials}</span>
-      )}
+      <span aria-hidden="true">{initials}</span>
     </div>
   )
 }

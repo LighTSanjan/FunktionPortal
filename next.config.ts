@@ -1,23 +1,19 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next'
 
 // Supabase project origin, needed in connect-src for auth/storage calls made
 // directly from the browser. Falls back to allowing any *.supabase.co so a
-// missing env var at build time doesn't silently produce a CSP that blocks
-// the app outright — the app still fails closed on everything else.
-const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://*.supabase.co';
+// missing env var at build time does not block Supabase entirely.
+const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://*.supabase.co'
+
+// React's development build uses eval() to rebuild stack traces across the
+// server/client boundary. Production keeps the stricter policy.
+const devEval = process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''
 
 const csp = [
   "default-src 'self'",
-  // Next.js's own bootstrap/hydration scripts are inline; a nonce-based CSP
-  // is a larger follow-up, not attempted in this pass.
-  "script-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline'${devEval}`,
   "style-src 'self' 'unsafe-inline'",
-  // Org logos and stored documents render as signed Supabase Storage
-  // URLs directly in <img>/<Image> tags — without the storage origin here,
-  // the browser silently blocks the request as a CSP violation and the
-  // image falls back to a broken-image icon, with nothing in server logs
-  // to explain why (the signed URL itself generates successfully; it's the
-  // browser's own fetch that's blocked).
+  // Organisation logos render from signed Supabase Storage URLs.
   `img-src 'self' data: blob: ${supabaseOrigin}`,
   "font-src 'self' data:",
   `connect-src 'self' ${supabaseOrigin}`,
@@ -25,19 +21,10 @@ const csp = [
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
-].join('; ');
+].join('; ')
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@prisma/adapter-pg", "pg"],
-  experimental: {
-    serverActions: {
-      // This is currently the only upload cap. It used to sit above an app-level
-      // 25MB check that was meant to be the real limit; that module is gone, so
-      // anything added here needs its own size validation rather than assuming
-      // one exists upstream.
-      bodySizeLimit: '26mb',
-    },
-  },
   async headers() {
     return [
       {
@@ -53,6 +40,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-};
+}
 
-export default nextConfig;
+export default nextConfig

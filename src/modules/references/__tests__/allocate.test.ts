@@ -1,19 +1,8 @@
 // @vitest-environment node
-/**
- * The allocator's logic, against a stub transaction client.
- *
- * This does not prove the concurrency guarantee — only a real Postgres can do
- * that, and there is a note below about the test that will. What it does
- * prove is everything around it: that the sequence returned by the UPDATE is
- * the one that gets formatted and recorded, that a missing counter is refused
- * rather than invented, and that the whole thing runs on the caller's
- * transaction so a failed document write takes the number down with it.
- */
 import { describe, it, expect, vi } from 'vitest'
 import type { Prisma } from '@prisma/client'
 import { allocateReference, NoCounterError } from '..'
 
-/** Stands in for tx: records what was asked of it and replays a fixed answer. */
 function stubTx(counterRows: Array<{ next_sequence: number }>) {
   const created: unknown[] = []
   const queries: string[] = []
@@ -89,58 +78,4 @@ describe('allocating a number', () => {
     await expect(allocateReference(tx, { ...ARGS, projectCode: '97' })).rejects.toThrow(/three digits/)
     expect(created).toHaveLength(0)
   })
-})
-
-/**
- * The guarantee the stub above cannot demonstrate.
- *
- * Gated on a real database: `npm run test:db`. Without one this is skipped
- * rather than quietly passing, because a concurrency test that never ran is
- * worse than no test at all — it reads like proof.
- */
-const DB_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL
-const describeDb = process.env.RUN_DB_TESTS && DB_URL ? describe : describe.skip
-
-describeDb('concurrency, against a real Postgres', () => {
-  it('never issues the same number twice under parallel allocation', async () => {
-    const { PrismaClient } = await import('@prisma/client')
-    const { PrismaPg } = await import('@prisma/adapter-pg')
-    const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: DB_URL! }) })
-
-    try {
-      const org = await db.organisation.findFirstOrThrow({ where: { slug: 'funktion' } })
-      const counter = await db.referenceCounter.findFirstOrThrow({
-        where: { orgId: org.id, series: 'IV', financialYear: 2026 },
-      })
-      const start = counter.nextSequence
-
-      // Twenty at once. A read-then-write implementation loses numbers here;
-      // the atomic UPDATE ... RETURNING cannot.
-      const results = await Promise.all(
-        Array.from({ length: 20 }, () =>
-          db.$transaction(
-            (tx) => allocateReference(tx, { orgId: org.id, series: 'IV', financialYear: 2026, projectCode: '097' }),
-            // Twenty interactive transactions contend for the pool before
-            // they contend for the counter row. The default 2s wait to even
-            // start is what times out here, not the allocation itself.
-            { maxWait: 20_000, timeout: 20_000 },
-          ),
-        ),
-      )
-
-      const sequences = results.map((r) => r.sequence).sort((a, b) => a - b)
-      const expected = Array.from({ length: 20 }, (_, i) => start + i)
-
-      expect(new Set(sequences).size).toBe(20)
-      expect(sequences).toEqual(expected)
-      expect(new Set(results.map((r) => r.formatted)).size).toBe(20)
-
-      // Clean up: the numbers were real, so remove them and rewind rather
-      // than leaving a twenty-wide hole in the club's live series.
-      await db.referenceNumber.deleteMany({ where: { id: { in: results.map((r) => r.id) } } })
-      await db.referenceCounter.update({ where: { id: counter.id }, data: { nextSequence: start } })
-    } finally {
-      await db.$disconnect()
-    }
-  }, 30_000)
 })

@@ -171,11 +171,6 @@ describe('Logo', () => {
     expect(screen.getByText('FUNKtion')).toBeInTheDocument()
   })
 
-  it('renders version when provided', () => {
-    render(<Logo showText version="0.1.0" />)
-    expect(screen.getByText('0.1.0')).toBeInTheDocument()
-  })
-
   it('hides text when showText is false', () => {
     render(<Logo showText={false} />)
     expect(screen.queryByText('FUNKtion')).not.toBeInTheDocument()

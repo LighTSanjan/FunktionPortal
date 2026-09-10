@@ -83,6 +83,27 @@ model FundAccount {
   /// Revenue-side WBS, used on Income Deposit Forms only.
   wbsElementRevenue String? @map("wbs_element_revenue")
   openingBalanceCents Int   @default(0) @map("opening_balance_cents")
+  /// What was already drawn against this fund BEFORE the portal existed.
+  ///
+  /// Without it the dashboard reports the full grant as still available: the
+  /// club opened FY2026 with $2,600.00 of seed fund and had spent most of it
+  /// on coach fees months before any of this was written, and none of those
+  /// payments have invoice rows here. Remaining is opening minus this minus
+  /// what the portal itself has committed.
+  ///
+  /// It shrinks rather than grows: every expense recorded properly from now
+  /// on lands in `invoices` or `purchase_requests`, and this stays as the
+  /// single opening adjustment it is.
+  priorSpendCents Int      @default(0) @map("prior_spend_cents")
+  /// What was already RECEIVED into this fund before the portal existed.
+  ///
+  /// The income fund is not a grant that only shrinks: subscriptions and
+  /// donations are paid into it during the year. FY2026 opened with the
+  /// $2,620.44 carried forward from Income 2025 and had taken $1,669.72 more
+  /// by the time the portal was written, so a model with only an opening
+  /// balance and a spend column cannot express the $3,615.16 actually
+  /// standing in it. Seed carries zero here — a grant is a grant.
+  priorIncomeCents Int     @default(0) @map("prior_income_cents")
   rollsOver     Boolean    @default(true) @map("rolls_over")
   /// Cut-off after which no further invoices may be drawn on this fund.
   submissionDeadline DateTime? @map("submission_deadline")

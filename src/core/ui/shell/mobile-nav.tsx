@@ -3,9 +3,9 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu, X, Settings } from 'lucide-react'
+import { Menu, Settings, X } from 'lucide-react'
+import type { NavEntry } from '@/core/navigation'
 import { cn } from '@/lib/utils'
-import type { NavEntry } from '@/core/modules'
 
 interface MobileNavProps {
   orgSlug: string
@@ -14,25 +14,9 @@ interface MobileNavProps {
   canManageSettings?: boolean
 }
 
-/**
- * Mobile navigation: hamburger + slide-over sheet.
- * Shown below md breakpoint.
- * Uses key-based remount to close on route change.
- */
-function MobileNav({ orgSlug, orgName, navEntries, canManageSettings }: MobileNavProps) {
+export function MobileNav(props: MobileNavProps) {
   const pathname = usePathname()
-
-  // Remount inner state on path change by using pathname as key
-  return (
-    <MobileNavInner
-      key={pathname}
-      orgSlug={orgSlug}
-      orgName={orgName}
-      navEntries={navEntries}
-      canManageSettings={canManageSettings}
-      pathname={pathname}
-    />
-  )
+  return <MobileNavInner key={pathname} {...props} pathname={pathname} />
 }
 
 function MobileNavInner({
@@ -46,7 +30,6 @@ function MobileNavInner({
 
   return (
     <>
-      {/* Hamburger button — rendered in header on mobile */}
       <button
         onClick={() => setOpen(true)}
         className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] text-text-muted hover:bg-surface-hover md:hidden"
@@ -55,18 +38,14 @@ function MobileNavInner({
         <Menu className="h-5 w-5" aria-hidden="true" />
       </button>
 
-      {/* Slide-over sheet */}
       {open && (
         <div className="fixed inset-0 z-50 md:hidden" role="presentation">
-          {/* Backdrop */}
           <div
             className="absolute inset-0 bg-bg/80 backdrop-blur-sm"
             onClick={() => setOpen(false)}
             aria-hidden="true"
           />
-          {/* Sheet */}
-          <div className="absolute inset-y-0 left-0 w-[280px] bg-bg border-r border-border flex flex-col">
-            {/* Header */}
+          <div className="absolute inset-y-0 left-0 flex w-[280px] flex-col border-r border-border bg-bg">
             <div className="flex h-14 items-center justify-between border-b border-border px-4">
               <span className="text-[14px] font-semibold text-text">{orgName}</span>
               <button
@@ -78,59 +57,26 @@ function MobileNavInner({
               </button>
             </div>
 
-            {/* Nav */}
             <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Mobile navigation">
               <ul className="space-y-0.5">
                 {navEntries.map((entry) => {
                   const href = `/${orgSlug}${entry.href}`
-                  const sectionActive = pathname === href || pathname.startsWith(`${href}/`)
-                  const childActive = entry.children?.some((child) => {
-                    const childHref = `/${orgSlug}${child.href}`
-                    return pathname === childHref || pathname.startsWith(`${childHref}/`)
-                  }) ?? false
-                  const parentIsLeaf = sectionActive && !childActive
-                  const expanded = sectionActive && !!entry.children?.length
+                  const active = pathname === href || pathname.startsWith(`${href}/`)
 
                   return (
                     <li key={entry.href}>
                       <Link
                         href={href}
                         className={cn(
-                          'flex items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2 text-[14px] font-medium transition-colors min-h-[44px]',
-                          parentIsLeaf
+                          'flex min-h-[44px] items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2 text-[14px] font-medium transition-colors',
+                          active
                             ? 'bg-accent-50 text-accent-700'
-                            : childActive
-                              ? 'font-semibold text-text'
-                              : 'text-text-muted hover:bg-surface-hover hover:text-text'
+                            : 'text-text-muted hover:bg-surface-hover hover:text-text'
                         )}
-                        aria-current={parentIsLeaf ? 'page' : undefined}
+                        aria-current={active ? 'page' : undefined}
                       >
                         {entry.label}
                       </Link>
-                      {expanded && entry.children && (
-                        <ul className="ml-5 mt-0.5 space-y-0.5 border-l border-border pl-3">
-                          {entry.children.map((child) => {
-                            const childHref = `/${orgSlug}${child.href}`
-                            const active = pathname === childHref || pathname.startsWith(`${childHref}/`)
-                            return (
-                              <li key={child.href}>
-                                <Link
-                                  href={childHref}
-                                  className={cn(
-                                    'flex items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-1.5 text-[13px] font-medium transition-colors min-h-[40px]',
-                                    active
-                                      ? 'bg-accent-50 text-accent-700 font-semibold'
-                                      : 'text-text-muted hover:bg-surface-hover hover:text-text'
-                                  )}
-                                  aria-current={active ? 'page' : undefined}
-                                >
-                                  {child.label}
-                                </Link>
-                              </li>
-                            )
-                          })}
-                        </ul>
-                      )}
                     </li>
                   )
                 })}
@@ -139,7 +85,7 @@ function MobileNavInner({
                     <Link
                       href={`/${orgSlug}/settings`}
                       className={cn(
-                        'flex items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2 text-[14px] font-medium transition-colors min-h-[44px]',
+                        'flex min-h-[44px] items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2 text-[14px] font-medium transition-colors',
                         pathname.startsWith(`/${orgSlug}/settings`)
                           ? 'bg-accent-50 text-accent-700'
                           : 'text-text-muted hover:bg-surface-hover hover:text-text'
@@ -159,5 +105,3 @@ function MobileNavInner({
     </>
   )
 }
-
-export { MobileNav }

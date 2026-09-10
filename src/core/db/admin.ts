@@ -1,23 +1,5 @@
-/**
- * Service-role Prisma client. Bypasses RLS.
- *
- * Import restricted to src/core/** by an ESLint boundary rule. Legitimate uses
- * are exactly four:
- *   1. The signup transaction before a membership exists.
- *   2. Background jobs (cron handlers, async event processors).
- *   3. Migrations / seed scripts.
- *   4. Token-authenticated public endpoints where there is no user session —
- *      the unguessable URL token IS the credential, analogous to a signed URL.
- *      Nothing uses this today; cases 2 and 4 are both reserved rather than
- *      live, so every current caller is case 1 or 3.
- *
- * Everything else goes through dbAs().
- *
- * Constructed lazily. Prisma 7 requires a driver adapter, and building the
- * client eagerly at import time makes this module throw in any context that has
- * no DATABASE_URL — which took the module registry down with it, since the
- * kernel imports from here.
- */
+// RLS-bypassing access for core bootstrap and trusted infrastructure only.
+// Feature code is blocked from importing this module by ESLint.
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 

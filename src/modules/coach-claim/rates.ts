@@ -1,15 +1,4 @@
-/**
- * Which rate applied when.
- *
- * The rate rises at term and year boundaries and guests are booked at
- * whatever was agreed for that workshop, so "the instructor's rate" is only
- * ever meaningful with a date attached. Resolving it per session rather than
- * per invoice also means a month that straddles a rise bills correctly
- * without anyone noticing it straddled one.
- *
- * Pure. Takes plain rows, so the caller maps from the database and this stays
- * testable without one.
- */
+/** Resolve the rate in effect on each session date. */
 
 import { isoDate } from './theme'
 
@@ -36,13 +25,7 @@ function atMidnight(d: Date): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
 }
 
-/**
- * The rate in force on a date: the latest one starting on or before it.
- *
- * Throws rather than defaulting. A missing rate is somebody not having agreed
- * a price yet, and inventing one produces an invoice that looks authoritative
- * and is wrong.
- */
+/** Return the latest rate starting on or before the date. */
 export function rateForDate(rates: RateSchedule[], on: Date, instructorName = 'this instructor'): number {
   const when = atMidnight(on)
 
@@ -54,10 +37,4 @@ export function rateForDate(rates: RateSchedule[], on: Date, instructorName = 't
     throw new NoRateError(instructorName, on)
   }
   return applicable[0].hourlyRateCents
-}
-
-/** The distinct rates a set of dates bills at, ascending. */
-export function distinctRates(rates: RateSchedule[], dates: Date[], instructorName?: string): number[] {
-  const seen = new Set(dates.map((d) => rateForDate(rates, d, instructorName)))
-  return [...seen].sort((a, b) => a - b)
 }

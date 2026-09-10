@@ -1,0 +1,216 @@
+'use client'
+
+import * as React from 'react'
+import Link from 'next/link'
+import { useActionState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Download, FileText, Send } from 'lucide-react'
+import { Button } from '@/core/ui/button'
+import { Badge } from '@/core/ui/badge'
+import { Select } from '@/core/ui/select'
+import { formatSgd, formatHours } from '@/modules/coach-claim/money'
+import { generateMonthlyDocuments, markSubmitted } from '@/modules/coach-claim/run-actions'
+import type { ActionState } from '@/modules/coach-claim/actions'
+import type { RunEntry } from '@/modules/coach-claim/monthly-run'
+
+const STATUS: Record<RunEntry['status'], { label: string; variant: 'success' | 'warning' | 'danger' | 'neutral' | 'info' }> = {
+  READY: { label: 'Ready to raise', variant: 'info' },
+  BLOCKED: { label: 'Blocked', variant: 'danger' },
+  NO_SESSIONS: { label: 'No classes', variant: 'neutral' },
+  GENERATED: { label: 'Raised', variant: 'warning' },
+  SUBMITTED: { label: 'With OSL', variant: 'success' },
+  PAID: { label: 'Paid', variant: 'success' },
+  VOID: { label: 'Void', variant: 'neutral' },
+}
+
+export function RunCard({
+  orgSlug,
+  period,
+  entry,
+  funds,
+  delayMs = 0,
+}: {
+  orgSlug: string
+  period: string
+  entry: RunEntry
+  funds: { source: string; openingBalanceCents: number }[]
+  delayMs?: number
+}) {
+  const router = useRouter()
+  const [state, formAction, pending] = useActionState<ActionState, FormData>(
+    generateMonthlyDocuments.bind(null, orgSlug),
+    { error: null }
+  )
+  const [submitting, startSubmit] = React.useTransition()
+  const [submitError, setSubmitError] = React.useState<string | null>(null)
+
+  const raised = entry.status === 'GENERATED' || entry.status === 'SUBMITTED' || entry.status === 'PAID'
+  const invoiceId = entry.invoiceId ?? ''
+  const status = STATUS[entry.status]
+
+  const overdue =
+    entry.status === 'GENERATED' &&
+    entry.submissionDueAt !== null &&
+    entry.submissionDueAt < new Date()
+
+  return (
+    <article
+      className="rise-in overflow-hidden rounded-[var(--radius-lg)] border border-brand-ink bg-surface"
+      style={{ '--delay': `${delayMs}ms` } as React.CSSProperties}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-4">
+        <div className="min-w-0">
+          <p className="text-[15px] font-semibold text-text">{entry.fullName}</p>
+          <p className="mt-0.5 text-[12.5px] text-text-muted">
+            {entry.sessionCount} {entry.sessionCount === 1 ? 'class' : 'classes'} ·{' '}
+            {formatHours(entry.totalMinutes)} hr
+            {entry.subtotalCents > 0 && ` · ${formatSgd(entry.subtotalCents)}`}
+          </p>
+        </div>
+        <Badge variant={status.variant}>{status.label}</Badge>
+      </div>
+
+      <div className="px-5 py-4">
+        {entry.status === 'BLOCKED' && (
+          <div className="space-y-2">
+            <p className="text-[13.5px] text-danger">
+              Cannot be raised — no {entry.blockers.join(', ')}.
+            </p>
+            <Link
+              href={`/${orgSlug}/instructors/${entry.instructorId}`}
+              className="inline-block text-[13px] font-medium text-accent-600 underline-offset-4 hover:underline"
+            >
+              Open {entry.fullName.split(/\s+/)[0]}&rsquo;s record
+            </Link>
+          </div>
+        )}
+
+        {entry.status === 'READY' && (
+          <form action={formAction} className="space-y-4">
+            <input type="hidden" name="instructorId" value={entry.instructorId} />
+            <input type="hidden" name="period" value={period} />
+
+            {state.error && (
+              <div
+                className="rounded-[var(--radius-sm)] border border-danger/20 bg-danger/8 p-3 text-[13px] text-danger"
+                role="alert"
+              >
+                {state.error}
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="min-w-[220px] flex-1">
+                <span className="mb-1.5 block text-[12.5px] font-medium text-text">
+                  Which fund it draws on
+                </span>
+                {/* Seed first: it does not roll over and it stops accepting
+                    submissions in February, so spending it before the income
+                    fund is the only ordering that never loses money. */}
+                <Select name="fundSource" defaultValue="SEED">
+                  {funds.map((fund) => (
+                    <option key={fund.source} value={fund.source}>
+                      {fund.source === 'SEED' ? 'OSL Seed Fund' : 'Income'} —{' '}
+                      {formatSgd(fund.openingBalanceCents)} opening
+                    </option>
+                  ))}
+                </Select>
+              </label>
+
+              <Button type="submit" loading={pending}>
+                <FileText className="h-4 w-4" aria-hidden="true" />
+                Raise the month
+              </Button>
+            </div>
+
+            <p className="text-[12px] leading-relaxed text-text-subtle">
+              This allocates the next IV reference number. The number is issued once and kept
+              even if the invoice is later voided, so a gap in the series stays answerable.
+            </p>
+          </form>
+        )}
+
+        {raised && invoiceId && (
+          <div className="space-y-3">
+            <dl className="flex flex-wrap gap-x-6 gap-y-1.5 text-[12.5px]">
+              <div>
+                <dt className="text-text-subtle">Reference</dt>
+                <dd className="font-mono text-[13px] text-text">{entry.referenceNumber}</dd>
+              </div>
+              <div>
+                <dt className="text-text-subtle">Invoice no.</dt>
+                <dd className="font-mono text-[13px] text-text">{entry.documentNo}</dd>
+              </div>
+              <div>
+                <dt className="text-text-subtle">Fund</dt>
+                <dd className="text-[13px] text-text">
+                  {entry.fundSource === 'SEED' ? 'OSL Seed Fund' : 'Income'}
+                </dd>
+              </div>
+              {entry.submissionDueAt && !entry.submittedToOslAt && (
+                <div>
+                  <dt className="text-text-subtle">Due at OSL</dt>
+                  <dd className={`text-[13px] ${overdue ? 'font-semibold text-danger' : 'text-text'}`}>
+                    {entry.submissionDueAt.toLocaleDateString('en-SG', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                    {overdue && ' — passed'}
+                  </dd>
+                </div>
+              )}
+            </dl>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <DownloadLink href={`/${orgSlug}/monthly-run/${invoiceId}/invoice.docx`}>
+                Invoice
+              </DownloadLink>
+              <DownloadLink
+                href={`/${orgSlug}/monthly-run/${invoiceId}/attendance-sheet.docx`}
+              >
+                Attendance sheet
+              </DownloadLink>
+
+              {entry.status === 'GENERATED' && (
+                <Button
+                  variant="secondary"
+                  loading={submitting}
+                  onClick={() =>
+                    startSubmit(async () => {
+                      const result = await markSubmitted(orgSlug, invoiceId)
+                      if (result.error) setSubmitError(result.error)
+                      else router.refresh()
+                    })
+                  }
+                >
+                  <Send className="h-3.5 w-3.5" aria-hidden="true" />
+                  Mark sent to OSL
+                </Button>
+              )}
+            </div>
+
+            {submitError && (
+              <p className="text-[12.5px] text-danger" role="alert">
+                {submitError}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </article>
+  )
+}
+
+function DownloadLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a
+      href={href}
+      download
+      className="lapis-press lapis-tap inline-flex h-9 items-center gap-2 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-4 text-[13px] font-medium text-text hover:bg-surface-hover"
+    >
+      <Download className="h-3.5 w-3.5" aria-hidden="true" />
+      {children}
+    </a>
+  )
+}
