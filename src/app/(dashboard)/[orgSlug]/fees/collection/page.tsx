@@ -380,11 +380,13 @@ export default async function CollectionPage({
               <p className="mt-1 max-w-[68ch] text-[13px] leading-relaxed text-text-muted">
                 Download it filled in. This is OSL&rsquo;s own workbook with these figures written
                 into its blanks &mdash; their layout, their GL account codes and their GST
-                formulas, untouched. The breakdown goes by tier rather than by member, which is
-                what the form asks for and keeps forty-five names off a document that leaves the
-                club. Only money on the official route is counted: anything held outside OSL was
-                never banked, and putting it here would make the form disagree with the statement
-                it gets checked against.
+                formulas, untouched. The spreadsheet is the working copy, the one OSL can reopen
+                and correct; the PDF is the same form fixed, for filing. A test holds the two to
+                the same text, so they cannot come to say different things. The breakdown goes
+                by tier rather than by member, which is what the form asks for and keeps
+                forty-five names off a document that leaves the club. Only money on the official
+                route is counted: anything held outside OSL was never banked, and putting it here
+                would make the form disagree with the statement it gets checked against.
               </p>
             </div>
             <dl className="grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-[auto_1fr]">
@@ -405,8 +407,14 @@ export default async function CollectionPage({
                 href={`/${orgSlug}/fees/collection/deposit-form?term=${term.id}`}
                 className="inline-flex items-center rounded-[var(--radius-sm)] bg-accent-600 px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-accent-700"
               >
-                Download the deposit form
+                Download the spreadsheet
               </a>
+              <Link
+                href={`/${orgSlug}/fees/collection/deposit-form/print?term=${term.id}`}
+                className="text-[13px] font-medium text-accent-600 underline-offset-4 hover:underline"
+              >
+                Print it as a PDF
+              </Link>
               <Link
                 href={`/${orgSlug}/fees/collection/summary?term=${term.id}`}
                 className="text-[13px] font-medium text-accent-600 underline-offset-4 hover:underline"

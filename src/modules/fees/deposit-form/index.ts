@@ -14,8 +14,11 @@
 import JSZip from 'jszip'
 import { Sheet } from './sheet'
 import { depositFormTemplate, DEPOSIT_FORM_REVISION } from './template'
+import { depositFormModel, type DepositFormModel } from './model'
 
 export { DEPOSIT_FORM_REVISION }
+export { depositFormModel, money, FORM_LABELS } from './model'
+export type { DepositFormModel, DepositLineView } from './model'
 
 /** One row of the form's Breakdown table. */
 export interface DepositLine {
@@ -54,6 +57,11 @@ export interface DepositFormResult {
   filename: string
   /** Things the treasurer should look at before sending it. */
   warnings: string[]
+  /**
+   * What the workbook says, as data. The print view renders this, so the PDF
+   * and the .xlsx cannot drift apart — a test compares them.
+   */
+  model: DepositFormModel
 }
 
 /** The rate OSL's own formulas hard-code: gross/109*9. */
@@ -97,6 +105,8 @@ export async function buildDepositForm(
   if (!input.submittedBy.studentId) {
     warnings.push('No student ID on your profile, so section H leaves it blank for you to write in.')
   }
+
+  const model = depositFormModel(input)
 
   const zip = await JSZip.loadAsync(depositFormTemplate())
   const sheetFile = zip.file('xl/worksheets/sheet1.xml')
@@ -154,7 +164,7 @@ export async function buildDepositForm(
 
   const bytes = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
 
-  return { bytes, filename: filenameFor(input), warnings }
+  return { bytes, filename: filenameFor(input), warnings, model }
 }
 
 function filenameFor(input: DepositFormInput): string {
