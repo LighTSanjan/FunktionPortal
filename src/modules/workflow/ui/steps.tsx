@@ -1,4 +1,4 @@
-import { Check, Minus } from 'lucide-react'
+import { AlertTriangle, Check, Minus } from 'lucide-react'
 import type { WorkflowStep } from '../types'
 
 /**
@@ -28,8 +28,8 @@ export function Steps({ steps, compact }: { steps: WorkflowStep[]; compact?: boo
                 between them — inline, they render as "Signed1 of 2". */}
             <span className="flex items-baseline gap-1.5">
               <span
-                className={`text-[12.5px] ${
-                  step.state === 'current'
+                  className={`text-[12.5px] ${
+                  step.state === 'current' || step.state === 'blocked'
                     ? 'font-semibold text-text'
                     : step.state === 'done'
                       ? 'text-text-muted'
@@ -70,6 +70,16 @@ function Marker({ state }: { state: WorkflowStep['state'] }) {
         className="mt-px inline-flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full bg-surface-hover text-text-subtle"
       >
         <Minus className="h-2.5 w-2.5" strokeWidth={3} aria-hidden="true" />
+      </span>
+    )
+  }
+  if (state === 'blocked') {
+    return (
+      <span
+        aria-label="blocked"
+        className="mt-px inline-flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full bg-danger/12 text-danger"
+      >
+        <AlertTriangle className="h-2.5 w-2.5" strokeWidth={3} aria-hidden="true" />
       </span>
     )
   }

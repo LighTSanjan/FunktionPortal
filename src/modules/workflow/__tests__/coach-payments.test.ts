@@ -15,6 +15,7 @@ function month(overrides: Partial<MonthState> = {}): MonthState {
     paid: 0,
     sessions: 9,
     dueAt: null,
+    blocked: [],
     ...overrides,
   }
 }
@@ -94,6 +95,34 @@ describe('a month nobody was paid to teach', () => {
     const workflow = describeMonth(row, 'acme', NOW)
     expect(workflow.settled).toBe(false)
     expect(workflow.next?.label).toContain('Record')
+  })
+})
+
+describe('a coach who cannot be invoiced', () => {
+  it('says whose details are missing rather than offering a button that refuses', () => {
+    // No bank details means no invoice, ever, until somebody fills them in.
+    // Without this the workflow says "raise the rest" for the rest of the
+    // financial year and the button it offers fails every time.
+    const workflow = describeMonth(
+      month({ raised: 1, blocked: [{ name: 'Jin Tan', missing: ['bank'] }] }),
+      'acme',
+      NOW
+    )
+    expect(stateOf(workflow, 'raise')).toBe('blocked')
+    expect(workflow.next?.label).toBe('Fill in Jin’s details')
+    expect(workflow.next?.href).toBe('/acme/instructors')
+    expect(workflow.steps.find((s) => s.key === 'raise')?.note).toContain('Jin Tan has no bank')
+  })
+
+  it('still says raise when somebody raisable is left', () => {
+    // Three taught, one raised, one blocked — the third can be raised now.
+    const workflow = describeMonth(
+      month({ taught: 3, raised: 1, blocked: [{ name: 'Jin Tan', missing: ['rate'] }] }),
+      'acme',
+      NOW
+    )
+    expect(stateOf(workflow, 'raise')).toBe('current')
+    expect(workflow.next?.label).toBe('Raise the rest')
   })
 })
 

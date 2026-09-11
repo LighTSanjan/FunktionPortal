@@ -27,6 +27,12 @@ export interface MonthState {
   sessions: number
   /** The earliest submission deadline among raised, unsent documents. */
   dueAt: Date | null
+  /**
+   * Coaches who taught this month and cannot be invoiced — no bank details,
+   * or no rate covering the month. Without this the workflow says "raise the
+   * rest" forever and the button it offers refuses every time.
+   */
+  blocked: { name: string; missing: string[] }[]
 }
 
 /**
@@ -44,7 +50,17 @@ export async function coachPaymentsWorkflow(
 ): Promise<Workflow> {
   const earliest = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - MONTHS_CONSIDERED, 1))
 
-  const { sessions, invoices } = await dbAs(userId, async (tx) => ({
+  const { sessions, invoices, instructors } = await dbAs(userId, async (tx) => ({
+    instructors: await tx.instructor.findMany({
+      where: { orgId },
+      select: {
+        id: true,
+        fullName: true,
+        bankName: true,
+        bankAccountNo: true,
+        rates: { select: { id: true }, take: 1 },
+      },
+    }),
     sessions: await tx.classSession.findMany({
       where: { orgId, heldOn: { gte: earliest } },
       select: { heldOn: true, instructorId: true },
@@ -84,6 +100,7 @@ export async function coachPaymentsWorkflow(
         paid: 0,
         sessions: 0,
         dueAt: null,
+        blocked: [],
       }
       states.set(key, found)
     }
@@ -103,9 +120,24 @@ export async function coachPaymentsWorkflow(
     set.add(session.instructorId)
     coaches.set(key, set)
   }
+  const blockersFor = new Map(
+    instructors.map((row) => {
+      const missing: string[] = []
+      if (!row.bankName?.trim()) missing.push('bank')
+      if (!row.bankAccountNo?.trim()) missing.push('account number')
+      if (row.rates.length === 0) missing.push('rate')
+      return [row.id, { name: row.fullName, missing }]
+    })
+  )
+
   for (const [key, set] of coaches) {
     const [year, month] = key.split('-').map(Number)
-    state(year, month).taught = set.size
+    const row = state(year, month)
+    row.taught = set.size
+    row.blocked = [...set]
+      .map((id) => blockersFor.get(id))
+      .filter((entry): entry is { name: string; missing: string[] } => Boolean(entry))
+      .filter((entry) => entry.missing.length > 0)
   }
 
   for (const invoice of invoices) {
@@ -140,6 +172,7 @@ export async function coachPaymentsWorkflow(
     paid: 0,
     sessions: 0,
     dueAt: null,
+    blocked: [],
   }
 
   return describeMonth(chosen, orgSlug, now)
@@ -211,19 +244,33 @@ export function describeMonth(row: MonthState, orgSlug: string, now: Date): Work
     }
   }
 
-  const raiseState = stateOf(row.raised, row.taught, row.sessions > 0)
+  // A coach missing bank details or a rate cannot be invoiced at all, so the
+  // step is blocked rather than merely unfinished and the action points at
+  // the record that has to be fixed — not at a button that will refuse.
+  const stillBlocked = row.blocked.length > 0 && row.raised + row.blocked.length >= row.taught
   steps.push({
     key: 'raise',
     label: 'Documents raised',
-    state: raiseState,
+    state: stillBlocked ? 'blocked' : stateOf(row.raised, row.taught, row.sessions > 0),
     detail: count(row.raised, row.taught),
+    note: row.blocked.length
+      ? row.blocked.map((entry) => `${entry.name} has no ${entry.missing.join(', ')}`).join(' · ')
+      : undefined,
     href: runHref,
   })
   if (!next && row.raised < row.taught) {
-    next = {
-      label: row.raised === 0 ? `Raise ${subject}’s documents` : 'Raise the rest',
-      href: runHref,
-    }
+    next = stillBlocked
+      ? {
+          label:
+            row.blocked.length === 1
+              ? `Fill in ${firstName(row.blocked[0].name)}’s details`
+              : `Fill in ${row.blocked.length} coaches’ details`,
+          href: `/${orgSlug}/instructors`,
+        }
+      : {
+          label: row.raised === 0 ? `Raise ${subject}’s documents` : 'Raise the rest',
+          href: runHref,
+        }
   }
 
   steps.push({
@@ -294,6 +341,10 @@ function stateOf(done: number, total: number, reachable: boolean) {
   if (total > 0 && done >= total) return 'done' as const
   if (!reachable) return 'todo' as const
   return 'current' as const
+}
+
+function firstName(name: string): string {
+  return name.split(/\s+/)[0] ?? name
 }
 
 function previousMonth(now: Date): { year: number; month: number } {
