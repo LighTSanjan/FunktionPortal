@@ -111,7 +111,7 @@ export async function subscriptionWorkflow(
       key: 'declared',
       label: 'Members declared',
       complete: owing.length > 0 && declared.length >= owing.length,
-      detail: count(declared.length, owing.length),
+      detail: owing.length > 0 ? count(declared.length, owing.length) : undefined,
       // Deliberately no action. Chasing forty-five people is not a button,
       // and the step below it is the one the treasurer can actually move.
     },
@@ -119,7 +119,7 @@ export async function subscriptionWorkflow(
       key: 'check',
       label: 'Checked against the statement',
       complete: declared.length > 0 && decided.length >= declared.length,
-      detail: count(decided.length, declared.length),
+      detail: declared.length > 0 ? count(decided.length, declared.length) : undefined,
       note: toCheck.length > 0 ? 'Nobody decides their own.' : undefined,
       action:
         toCheck.length > 0

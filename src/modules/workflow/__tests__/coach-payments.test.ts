@@ -155,7 +155,12 @@ describe('a month whose documents were voided', () => {
 
     expect(isFinished(row)).toBe(false)
     expect(stateOf(workflow, 'raise')).toBe('blocked')
-    expect(workflow.steps.find((s) => s.key === 'raise')?.note).toContain('voided')
+    expect(workflow.steps.find((s) => s.key === 'raise')?.note).toContain(
+      'A document for this month was voided'
+    )
+    // Nothing has been raised, so there is nothing for the later steps to
+    // count. "Signed 0" there reads as a tally rather than an absence.
+    expect(workflow.steps.find((s) => s.key === 'sign')?.detail).toBeUndefined()
     expect(workflow.next?.label).not.toContain('Raise')
   })
 

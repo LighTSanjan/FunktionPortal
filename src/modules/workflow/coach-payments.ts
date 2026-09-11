@@ -301,7 +301,7 @@ export function describeMonth(row: MonthState, orgSlug: string, now: Date): Work
   const blockedByVoid = row.voided > 0 && row.raised < row.taught
 
   const raiseNote = blockedByVoid
-    ? `${row.voided === 1 ? 'A document' : `${row.voided} documents`} for this month were voided. Re-raising a voided month is not built yet — the reference is spent and the replacement needs a fresh one.`
+    ? `${row.voided === 1 ? 'A document for this month was' : `${row.voided} documents for this month were`} voided. Re-raising a voided month is not built yet — the reference is spent and the replacement needs a fresh one.`
     : row.blocked.length
       ? row.blocked.map((entry) => `${entry.name} has no ${entry.missing.join(', ')}`).join(' · ')
       : undefined
@@ -383,7 +383,10 @@ export function describeMonth(row: MonthState, orgSlug: string, now: Date): Work
       key: step.key,
       label: step.label,
       state: complete ? 'done' : isCurrent ? (step.blocked ? 'blocked' : 'current') : 'todo',
-      detail: count(step.done, step.total),
+      // Nothing to count is not the same as nothing done: "Signed 0" beside a
+      // month where no document has been raised reads like a tally rather
+      // than an absence.
+      detail: step.total > 0 ? count(step.done, step.total) : undefined,
       note: step.note,
       href: runHref,
     })
