@@ -15,6 +15,7 @@ import { NO_OFFICE } from '@/modules/coach-claim/documents'
 import { OFFICE_LABELS } from '@/core/access'
 import { SignPanel } from './_components/sign-panel'
 import { SendPanel } from './_components/send-panel'
+import { PaidToggle } from '../_components/paid-toggle'
 
 export const dynamic = 'force-dynamic'
 
@@ -88,6 +89,9 @@ export default async function MonthDocumentsPage({
   const period = `${MONTHS[summary.periodMonth - 1]} ${summary.periodYear}`
   const signed = Boolean(summary.verifiedAt)
   const submitted = Boolean(summary.submittedToOslAt)
+  // The last thing that happens to a month, and the only part of it the
+  // portal cannot observe: the money moves in OSL's accounts.
+  const paid = summary.status === 'PAID'
 
   const subject = `${summary.referenceNumber} — Coach invoice and attendance sheet, ${period} — ${org.name}`
   const body =
@@ -106,7 +110,7 @@ export default async function MonthDocumentsPage({
         breadcrumbItems={[
           { label: org.name, href: `/${orgSlug}/dashboard` },
           {
-            label: 'Monthly run',
+            label: 'Coach payments',
             href: `/${orgSlug}/monthly-run?month=${summary.periodYear}-${String(summary.periodMonth).padStart(2, '0')}`,
           },
           { label: `${summary.instructorName}, ${period}` },
@@ -205,6 +209,28 @@ export default async function MonthDocumentsPage({
         ) : (
           <p className="max-w-[68ch] text-[13.5px] leading-relaxed text-text-muted">
             Available once the month is signed.
+          </p>
+        )}
+      </Step>
+
+      <Step n={4} title={paid ? 'Paid' : 'Paid by OSL'} muted={!submitted}>
+        {submitted ? (
+          <>
+            <p className="max-w-[68ch] text-[13.5px] leading-relaxed text-text-muted">
+              {paid
+                ? `Recorded as paid. If that turns out to be wrong, take it back — nothing else depends on it.`
+                : `OSL pay on their own schedule and the portal cannot see their accounts, so this is yours to say. Until it is said, the month stays on the board as still owed.`}
+            </p>
+            <PaidToggle
+              orgSlug={orgSlug}
+              invoiceId={invoiceId}
+              coachName={summary.instructorName}
+              paid={paid}
+            />
+          </>
+        ) : (
+          <p className="max-w-[68ch] text-[13.5px] leading-relaxed text-text-muted">
+            Nothing to record until the month has gone to OSL.
           </p>
         )}
       </Step>
