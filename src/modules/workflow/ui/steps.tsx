@@ -24,20 +24,24 @@ export function Steps({ steps, compact }: { steps: WorkflowStep[]; compact?: boo
           )}
           <Marker state={step.state} />
           <div className={compact ? 'flex items-baseline gap-1.5' : 'min-w-0 flex-1 pt-px'}>
-            <span
-              className={`text-[12.5px] ${
-                step.state === 'current'
-                  ? 'font-semibold text-text'
-                  : step.state === 'done'
-                    ? 'text-text-muted'
-                    : 'text-text-subtle'
-              }`}
-            >
-              {step.label}
+            {/* Label and count are separate elements, so they need a gap put
+                between them — inline, they render as "Signed1 of 2". */}
+            <span className="flex items-baseline gap-1.5">
+              <span
+                className={`text-[12.5px] ${
+                  step.state === 'current'
+                    ? 'font-semibold text-text'
+                    : step.state === 'done'
+                      ? 'text-text-muted'
+                      : 'text-text-subtle'
+                }`}
+              >
+                {step.label}
+              </span>
+              {step.detail && (
+                <span className="text-[12px] tabular-nums text-text-subtle">{step.detail}</span>
+              )}
             </span>
-            {step.detail && (
-              <span className="text-[12px] tabular-nums text-text-subtle">{step.detail}</span>
-            )}
             {!compact && step.note && (
               <p className="mt-0.5 text-[12px] leading-relaxed text-text-subtle">{step.note}</p>
             )}

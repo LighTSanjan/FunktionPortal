@@ -56,10 +56,15 @@ export async function subscriptionWorkflow(
 
   // Waiting on the members. Shown as progress, never as the treasurer's
   // next action — chasing forty-five people is not a button.
+  //
+  // Only live once members can actually act. Marked current while the rates
+  // or the QR are still missing, the card showed two steps in progress at
+  // once, which is a spine that has stopped saying where the work is.
+  const open = ratesSet && term.hasPaynowQr
   steps.push({
     key: 'declared',
     label: 'Members declared',
-    state: owing.length > 0 && declared.length >= owing.length ? 'done' : 'current',
+    state: !open ? 'todo' : declared.length >= owing.length && owing.length > 0 ? 'done' : 'current',
     detail: count(declared.length, owing.length),
     href,
   })

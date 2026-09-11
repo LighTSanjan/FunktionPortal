@@ -13,7 +13,7 @@ import { deadline, count, type Workflow, type WorkflowStep } from './types'
 /** How far back to look for a month that still needs something doing. */
 const MONTHS_CONSIDERED = 4
 
-interface MonthState {
+export interface MonthState {
   year: number
   /** 1-12. */
   month: number
@@ -142,16 +142,21 @@ export async function coachPaymentsWorkflow(
     dueAt: null,
   }
 
-  return describe(chosen, orgSlug, now)
+  return describeMonth(chosen, orgSlug, now)
 }
 
-function isFinished(row: MonthState): boolean {
+export function isFinished(row: MonthState): boolean {
   // Nobody was paid to teach: there is nothing to claim and nothing to chase.
   if (row.taught === 0) return true
   return row.raised === row.taught && row.paid === row.raised
 }
 
-function describe(row: MonthState, orgSlug: string, now: Date): Workflow {
+/**
+ * One month's state as a workflow. Pure, and exported so the states that are
+ * awkward to reach through the database — a month of self-practice, a coach
+ * raised but never signed, everything paid — can be tested directly.
+ */
+export function describeMonth(row: MonthState, orgSlug: string, now: Date): Workflow {
   const period = `${row.year}-${String(row.month).padStart(2, '0')}`
   const runHref = `/${orgSlug}/monthly-run?month=${period}`
   const subject = new Date(Date.UTC(row.year, row.month - 1, 1)).toLocaleDateString('en-SG', {
