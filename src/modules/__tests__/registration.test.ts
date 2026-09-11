@@ -13,6 +13,10 @@ describe('navigation', () => {
     ])
   })
 
+  it('does not file a member’s three items under three headings', () => {
+    expect(resolveNavGroups('MEMBER').map((group) => group.label)).toEqual([null])
+  })
+
   it('shows members only sections they may open', () => {
     // Their own subscription and their own access request. Everything else in
     // the portal reads the roster, the fund balances or the register.

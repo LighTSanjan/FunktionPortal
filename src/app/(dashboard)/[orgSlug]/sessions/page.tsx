@@ -41,7 +41,7 @@ export default async function SessionsPage({
       <PageHeader
         breadcrumbItems={[{ label: org.name, href: `/${orgSlug}/dashboard` }, { label: 'Classes' }]}
         title="Classes"
-        subtitle="Every class the club ran. The invoice and the attendance sheet are both derived from these, so this is the only place a date or a duration is entered."
+        subtitle="Every class the club ran, however it got here — entered below, or read in from a trimester attendance sheet under Settings. The invoice and the attendance sheet are both derived from these rows, so this is where a date or a duration is corrected."
         actions={
           canManage && instructors.length > 0 ? (
             <Link href={`/${orgSlug}/sessions/new?month=${monthKey(year, monthIndex)}`}>

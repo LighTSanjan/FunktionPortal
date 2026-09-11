@@ -106,14 +106,27 @@ function suppressDuplicate(role: OrgRole, entries: NavEntry[]): NavEntry[] {
   return entries.filter((entry) => entry.href !== '/fees')
 }
 
+/**
+ * Below this, headings cost more than they give: an ordinary member sees
+ * Home, their subscription and their access request, and three headings over
+ * three items is a filing system for a drawer with three things in it.
+ */
+const GROUPING_WORTHWHILE = 4
+
 export function resolveNavGroups(role: OrgRole): NavGroup[] {
-  return GROUPS.map((group) => ({
+  const groups = GROUPS.map((group) => ({
     label: group.label,
     entries: suppressDuplicate(
       role,
       group.entries.filter((entry) => hasPermission(role, entry.permission))
     ),
   })).filter((group) => group.entries.length > 0)
+
+  const total = groups.reduce((sum, group) => sum + group.entries.length, 0)
+  if (total < GROUPING_WORTHWHILE) {
+    return [{ label: null, entries: groups.flatMap((group) => group.entries) }]
+  }
+  return groups
 }
 
 /** Flat, for anything that just needs the reachable destinations. */
