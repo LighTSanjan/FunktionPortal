@@ -1,6 +1,6 @@
 /** What the portal will accept as a signature specimen. */
 import { describe, it, expect } from 'vitest'
-import { validateSignature, SignatureRejected, MAX_BYTES, MIN_WIDTH } from '../validate'
+import { validateSignature, SignatureRejected, MAX_BYTES } from '../validate'
 
 function png(width: number, height: number, type = 'IHDR'): Uint8Array {
   const bytes = new Uint8Array(24)
@@ -14,6 +14,20 @@ function png(width: number, height: number, type = 'IHDR'): Uint8Array {
 }
 
 describe('validateSignature', () => {
+  // The six specimens the club actually uploaded. The first rule written here
+  // asked for 200 pixels of width and refused the 160×162 one outright, which
+  // is how a plausible-sounding threshold gets caught by real data.
+  it.each([
+    ['a compact, near-square signature', 160, 162],
+    ['a small scanned one', 226, 142],
+    ['a phone photograph', 532, 240],
+    ['a wide digital capture', 516, 284],
+    ['a drawn one', 466, 266],
+    ['a stylus capture', 410, 198],
+  ])('accepts %s (%i×%i)', (_what, width, height) => {
+    expect(() => validateSignature(png(width, height))).not.toThrow()
+  })
+
   it('accepts a photograph of a signature', () => {
     expect(validateSignature(png(900, 260))).toEqual({ format: 'png', width: 900, height: 260 })
   })
@@ -32,7 +46,10 @@ describe('validateSignature', () => {
   })
 
   it('rejects a specimen too small to read once it is on the line', () => {
-    expect(() => validateSignature(png(MIN_WIDTH - 1, 200))).toThrow(SignatureRejected)
+    // Small in both dimensions: the box has to enlarge it, and it arrives
+    // on the page as mush.
+    expect(() => validateSignature(png(140, 40))).toThrow(SignatureRejected)
+    // Plenty of pixels per inch, not a signature.
     expect(() => validateSignature(png(900, 3))).toThrow(SignatureRejected)
   })
 
