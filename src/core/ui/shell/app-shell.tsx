@@ -5,7 +5,7 @@ import { AppSidebar } from './app-sidebar'
 import { AppHeader } from './app-header'
 import { CommandPalette } from './command-palette'
 import { MobileNav } from './mobile-nav'
-import type { NavEntry } from '@/core/navigation'
+import type { NavEntry, NavGroup } from '@/core/navigation'
 
 interface AppShellProps {
   orgSlug: string
@@ -13,6 +13,7 @@ interface AppShellProps {
   orgLogo?: string | null
   userName: string
   userEmail: string
+  navGroups: NavGroup[]
   navEntries: NavEntry[]
   canManageSettings?: boolean
   children: React.ReactNode
@@ -24,6 +25,7 @@ function AppShell({
   orgLogo,
   userName,
   userEmail,
+  navGroups,
   navEntries,
   canManageSettings,
   children,
@@ -45,7 +47,7 @@ function AppShell({
           orgSlug={orgSlug}
           orgName={orgName}
           orgLogo={orgLogo}
-          navEntries={navEntries}
+          navGroups={navGroups}
           canManageSettings={canManageSettings}
         />
       </div>

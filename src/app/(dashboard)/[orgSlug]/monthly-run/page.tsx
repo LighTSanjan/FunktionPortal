@@ -5,6 +5,8 @@ import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
 import { getMonthlyRun } from '@/modules/coach-claim/monthly-run'
 import { formatSgd } from '@/modules/coach-claim/money'
+import { coachPaymentsWorkflow } from '@/modules/workflow/coach-payments'
+import { WorkflowStrip } from '@/modules/workflow/ui'
 import { MonthNav } from '../sessions/_components/month-nav'
 import { RunCard } from './_components/run-card'
 
@@ -26,6 +28,11 @@ export default async function MonthlyRunPage({
   // Claims cover completed months, so the default is last month.
   const { year, monthIndex } = parseMonth(month)
   const run = await getMonthlyRun(userId, org.id, year, monthIndex + 1)
+
+  // The same progress the home screen shows, on the screen that advances it.
+  // Arriving here from a bookmark or the back button should still answer
+  // where in the sequence you are.
+  const workflow = await coachPaymentsWorkflow(userId, org.id, orgSlug, new Date())
 
   const funds = await dbAs(userId, (tx) =>
     tx.fundAccount.findMany({
@@ -53,11 +60,13 @@ export default async function MonthlyRunPage({
       <PageHeader
         breadcrumbItems={[
           { label: org.name, href: `/${orgSlug}/dashboard` },
-          { label: 'Monthly run' },
+          { label: 'Coach payments' },
         ]}
-        title="Monthly run"
+        title="Coach payments"
         subtitle="One invoice and one attendance sheet per coach, both due at OSL by the 15th of the following month. Both are built from the classes recorded for the month, so they cannot disagree."
       />
+
+      <WorkflowStrip workflow={workflow} />
 
       <MonthNav orgSlug={orgSlug} year={year} monthIndex={monthIndex} basePath="monthly-run" />
 

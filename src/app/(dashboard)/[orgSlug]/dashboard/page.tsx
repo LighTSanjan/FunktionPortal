@@ -7,6 +7,9 @@ import { listLedger, countLedger, SECTION_FUND, SECTION_LABEL } from '@/core/reg
 import { rateForDate } from '@/modules/coach-claim/rates'
 import { financialYearOf } from '@/modules/references/format'
 import { formatSgd } from '@/modules/coach-claim/money'
+import { coachPaymentsWorkflow } from '@/modules/workflow/coach-payments'
+import { subscriptionWorkflow } from '@/modules/workflow/subscription'
+import { WorkflowCard } from '@/modules/workflow/ui'
 import { Hero } from './_components/hero'
 import { FundCard, type FundView } from './_components/fund-card'
 import { FundsOverview } from './_components/funds-overview'
@@ -62,10 +65,6 @@ export default async function DashboardPage({
       where: { orgId: org.id, financialYear },
       orderBy: { source: 'asc' },
     }),
-    counters: await tx.referenceCounter.findMany({
-      where: { orgId: org.id, financialYear },
-      orderBy: { series: 'asc' },
-    }),
     instructors: await tx.instructor.findMany({
       where: { orgId: org.id },
       orderBy: [{ isActive: 'desc' }, { fullName: 'asc' }],
@@ -96,8 +95,17 @@ export default async function DashboardPage({
     sessionsThisMonth: await tx.classSession.count({
       where: { orgId: org.id, heldOn: { gte: monthStart, lt: monthEnd } },
     }),
-    referencesIssued: await tx.referenceNumber.count({
-      where: { orgId: org.id, financialYear, voidedAt: null },
+    // Claims OSL have been sent and have not yet paid. The one number on this
+    // page that is money the club is owed rather than money it has.
+    awaitingPayment: await tx.invoice.aggregate({
+      where: {
+        orgId: org.id,
+        status: { not: 'VOID' },
+        submittedToOslAt: { not: null },
+        paidAt: null,
+      },
+      _count: true,
+      _sum: { totalCents: true },
     }),
     declaredPayments: await tx.feePayment.count({
       where: { orgId: org.id, status: 'DECLARED' },
@@ -106,24 +114,20 @@ export default async function DashboardPage({
       where: { orgId: org.id, startDate: { lte: now }, endDate: { gte: now } },
       select: { name: true },
     }),
-    // The project code lives in settings, so a different student organisation
-    // reads its own numbers back rather than this club's.
-    projectCode:
-      (
-        await tx.organisationSettings.findUnique({
-          where: { orgId: org.id },
-          select: { projectCode: true },
-        })
-      )?.projectCode ?? null,
     }
   })
 
-  const [pendingRequests, ownMembership, ledger, ledgerCount] = await Promise.all([
-    isExco ? countPendingRequests(org.id) : Promise.resolve(0),
-    getMembership(org.id, userId),
-    isExco ? listLedger(userId, org.id, { take: 6 }) : Promise.resolve([]),
-    isExco ? countLedger(userId, org.id) : Promise.resolve(0),
-  ])
+  const [pendingRequests, ownMembership, ledger, ledgerCount, coachRun, collection] =
+    await Promise.all([
+      isExco ? countPendingRequests(org.id) : Promise.resolve(0),
+      getMembership(org.id, userId),
+      isExco ? listLedger(userId, org.id, { take: 6 }) : Promise.resolve([]),
+      isExco ? countLedger(userId, org.id) : Promise.resolve(0),
+      // The two jobs, resumable. Built from the same rows the screens read,
+      // so a step cannot claim to be done when it is not.
+      isExco ? coachPaymentsWorkflow(userId, org.id, orgSlug, now) : Promise.resolve(null),
+      isExco ? subscriptionWorkflow(userId, org.id, orgSlug, now) : Promise.resolve(null),
+    ])
 
   const committedFor = (source: FundView['source']) =>
     (data.invoiceTotals.find((row) => row.fundSource === source)?._sum.totalCents ?? 0) +
@@ -229,6 +233,7 @@ export default async function DashboardPage({
       title: `${data.declaredPayments} subscription payment${data.declaredPayments === 1 ? '' : 's'} to confirm`,
       detail:
         'Members have declared payment and attached their PayNow confirmation. Confirming is an exco act.',
+      href: `/${orgSlug}/fees/collection`,
     })
   }
 
@@ -271,7 +276,44 @@ export default async function DashboardPage({
         today={now}
       />
 
-      {isExco && <Alerts alerts={alerts} delayMs={40} />}
+      {isExco && (coachRun || collection) && (
+        <section className="space-y-3" aria-labelledby="dash-work">
+          <h2
+            id="dash-work"
+            className="px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-subtle"
+          >
+            Your work
+          </h2>
+          <div className="grid items-stretch gap-4 lg:grid-cols-2">
+            {coachRun && <WorkflowCard workflow={coachRun} delayMs={40} />}
+            {collection && <WorkflowCard workflow={collection} delayMs={80} />}
+          </div>
+        </section>
+      )}
+
+      {isExco && !collection && (
+        // No term at all. Both the collection screen and the attendance
+        // import are read against one, so this is the first thing a new club
+        // needs and nothing used to say so.
+        <section
+          className="rise-in rounded-[var(--radius-lg)] border border-dashed border-border-strong bg-surface px-5 py-5"
+          style={{ '--delay': '80ms' } as React.CSSProperties}
+        >
+          <p className="text-[14px] font-medium text-text">No term has been opened yet</p>
+          <p className="mt-1.5 max-w-[64ch] text-[13px] leading-relaxed text-text-muted">
+            Subscriptions are collected per term, and the attendance import reads a sheet against
+            one — its date headers carry no year. Neither can run until there is a term.
+          </p>
+          <Link
+            href={`/${orgSlug}/fees/collection`}
+            className="mt-3 inline-block text-[13px] font-medium text-accent-600 underline-offset-4 hover:underline"
+          >
+            Open a term
+          </Link>
+        </section>
+      )}
+
+      {isExco && <Alerts alerts={alerts} delayMs={120} />}
 
       {isExco && funds.length > 0 && (
         <>
@@ -317,8 +359,14 @@ export default async function DashboardPage({
           delayMs={280}
         />
         <StatTile
-          label={`Reference numbers issued FY${data.financialYear % 100}`}
-          value={data.referencesIssued}
+          label="Claims waiting on OSL"
+          value={data.awaitingPayment._count}
+          suffix={
+            data.awaitingPayment._sum.totalCents
+              ? formatSgd(data.awaitingPayment._sum.totalCents)
+              : undefined
+          }
+          href={`/${orgSlug}/monthly-run`}
           accent="indigo"
           delayMs={320}
         />
@@ -373,40 +421,6 @@ export default async function DashboardPage({
               </li>
             ))}
           </ul>
-        </section>
-      )}
-
-      {isExco && data.counters.length > 0 && (
-        <section
-          className="rise-in rounded-[var(--radius-lg)] border border-border bg-surface px-5 py-4"
-          style={{ '--delay': '440ms' } as React.CSSProperties}
-        >
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-subtle">
-            Next reference number
-          </h2>
-          <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {data.counters.map((counter, i) => (
-              <div
-                key={counter.id}
-                className="rounded-[var(--radius-sm)] border-l-[3px] bg-paper px-3 py-2"
-                style={{
-                  borderLeftColor: `var(--brand-${
-                    (['vermilion', 'marigold', 'sky', 'indigo'] as const)[i % 4]
-                  })`,
-                }}
-              >
-                <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-text-subtle">
-                  {counter.series}
-                </dt>
-                <dd className="font-mono text-[14px] tabular-nums text-text">
-                  {counter.series}
-                  {String(data.financialYear % 100).padStart(2, '0')}
-                  {data.projectCode ? `-${data.projectCode}-` : '-'}
-                  {String(counter.nextSequence).padStart(4, '0')}
-                </dd>
-              </div>
-            ))}
-          </dl>
         </section>
       )}
 

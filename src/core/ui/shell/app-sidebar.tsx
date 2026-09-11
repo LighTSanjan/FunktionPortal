@@ -8,6 +8,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   FileSpreadsheet,
+  Home,
   PanelLeftClose,
   PanelLeftOpen,
   Receipt,
@@ -16,7 +17,7 @@ import {
   Wallet,
   type LucideIcon,
 } from 'lucide-react'
-import type { NavEntry } from '@/core/navigation'
+import type { NavGroup } from '@/core/navigation'
 import { Logo } from '@/core/ui/logo'
 import { cn } from '@/lib/utils'
 
@@ -25,6 +26,7 @@ const ICONS: Record<string, LucideIcon> = {
   ClipboardCheck,
   ClipboardList,
   FileSpreadsheet,
+  Home,
   Receipt,
   Users,
   Wallet,
@@ -36,7 +38,7 @@ interface AppSidebarProps {
   orgSlug: string
   orgName: string
   orgLogo?: string | null
-  navEntries: NavEntry[]
+  navGroups: NavGroup[]
   canManageSettings?: boolean
 }
 
@@ -49,6 +51,16 @@ function subscribe(callback: () => void): () => void {
   return () => window.removeEventListener('storage', callback)
 }
 
+/**
+ * Prefix matching, with one exception: "Your subscription" is /fees and the
+ * exco's "Subscriptions" is /fees/collection, so a plain prefix test lights
+ * both when you are on the collection screen.
+ */
+function isActive(pathname: string, href: string, orgSlug: string): boolean {
+  if (href === `/${orgSlug}/fees`) return pathname === href
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
+
 function NavIcon({ name }: { name: string }) {
   const Icon = ICONS[name]
   return Icon ? <Icon className="h-4 w-4 shrink-0" aria-hidden="true" /> : null
@@ -58,7 +70,7 @@ export function AppSidebar({
   orgSlug,
   orgName,
   orgLogo,
-  navEntries,
+  navGroups,
   canManageSettings,
 }: AppSidebarProps) {
   const pathname = usePathname()
@@ -116,38 +128,61 @@ export function AppSidebar({
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2 py-2" aria-label="Main navigation">
-        <ul className="space-y-0.5">
-          {navEntries.map((entry) => {
-            const href = `/${orgSlug}${entry.href}`
-            const active = pathname === href || pathname.startsWith(`${href}/`)
+        {navGroups.map((group, groupIndex) => (
+          <div key={group.label ?? 'top'} className={groupIndex > 0 ? 'mt-3' : undefined}>
+            {group.label && !collapsed && (
+              <h2 className="px-2.5 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-subtle">
+                {group.label}
+              </h2>
+            )}
+            {group.label && collapsed && (
+              // Collapsed, a heading has nowhere to go, but the grouping is
+              // still information — a rule keeps it.
+              <div className="mx-2 mb-1.5 mt-1 border-t border-border" aria-hidden="true" />
+            )}
+            <ul className="space-y-0.5">
+              {group.entries.map((entry) => {
+                const href = `/${orgSlug}${entry.href}`
+                const active = isActive(pathname, href, orgSlug)
 
-            return (
-              <li key={entry.href}>
-                <Link
-                  href={href}
-                  className={cn(
-                    'relative flex min-h-[36px] items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[13px] font-medium transition-colors touch-target',
-                    active
-                      ? 'bg-accent-50 font-semibold text-accent-700'
-                      : 'text-text-muted hover:bg-surface-hover hover:text-text',
-                    collapsed && 'justify-center px-0'
-                  )}
-                  title={collapsed ? entry.label : undefined}
-                  aria-current={active ? 'page' : undefined}
-                >
-                  {active && (
-                    <span
-                      className="absolute bottom-1 left-0 top-1 w-[3px] rounded-full bg-accent-500"
-                      aria-hidden="true"
-                    />
-                  )}
-                  <NavIcon name={entry.icon} />
-                  {!collapsed && <span className="truncate">{entry.label}</span>}
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
+                return (
+                  <li key={entry.href}>
+                    <Link
+                      href={href}
+                      className={cn(
+                        'relative flex min-h-[36px] items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[13px] font-medium transition-colors touch-target',
+                        active
+                          ? 'bg-accent-50 font-semibold text-accent-700'
+                          : 'text-text-muted hover:bg-surface-hover hover:text-text',
+                        collapsed && 'justify-center px-0'
+                      )}
+                      title={collapsed ? entry.label : undefined}
+                      aria-current={active ? 'page' : undefined}
+                    >
+                      {active && (
+                        <span
+                          className="absolute bottom-1 left-0 top-1 w-[3px] rounded-full bg-accent-500"
+                          aria-hidden="true"
+                        />
+                      )}
+                      <NavIcon name={entry.icon} />
+                      {!collapsed && (
+                        <span className="min-w-0 flex-1 truncate">
+                          {entry.label}
+                          {entry.hint && (
+                            <span className="block truncate text-[10.5px] font-normal text-text-subtle">
+                              {entry.hint}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ))}
       </nav>
 
       <div className="space-y-0.5 border-t border-border px-2 py-2">

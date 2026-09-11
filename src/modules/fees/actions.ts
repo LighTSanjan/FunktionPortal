@@ -457,6 +457,148 @@ export async function rejectPayment(
   return { error: null, ok: true }
 }
 
+
+/**
+ * Record that the deposit form has gone to OSL.
+ *
+ * Closing a collection, filing the form and the money landing are three
+ * events, and the portal used to collapse them into one: the moment you
+ * closed, the screen said "Banked in". It cannot see OSL's inbox or the
+ * club's statement, so this is somebody reporting what they did — and
+ * reversible, because the usual way it goes wrong is clicking it before
+ * actually sending the email.
+ */
+export async function markDepositSubmitted(
+  orgSlug: string,
+  termId: string,
+  submitted: boolean
+): Promise<FeeState> {
+  const { org } = await getOrgContext(orgSlug)
+  const { userId } = await requirePermission(org.id, 'fee.manage')
+
+  const problem = await dbAs(userId, async (tx) => {
+    const deposit = await tx.incomeDeposit.findFirst({
+      where: { termId, orgId: org.id },
+      select: { id: true, submittedToOslAt: true },
+    })
+    if (!deposit) return 'That collection has not been closed yet.'
+    if (submitted === (deposit.submittedToOslAt !== null)) return null
+
+    await tx.incomeDeposit.update({
+      where: { id: deposit.id },
+      data: { submittedToOslAt: submitted ? new Date() : null },
+    })
+    await writeAudit(
+      {
+        orgId: org.id,
+        actorId: userId,
+        action: submitted ? 'fee.deposit_submitted' : 'fee.deposit_unsubmitted',
+        targetType: 'IncomeDeposit',
+        targetId: deposit.id,
+        before: { submittedToOslAt: deposit.submittedToOslAt },
+        after: { submittedToOslAt: submitted ? new Date() : null },
+      },
+      tx
+    )
+    return null
+  })
+
+  if (problem) return { error: problem }
+
+  revalidatePath(`/${orgSlug}/fees/collection`)
+  revalidatePath(`/${orgSlug}/dashboard`)
+  return { error: null, ok: true }
+}
+
+const createTermSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Give the term a name').max(60, 'That name is very long'),
+    startDate: z.string().trim().min(1, 'When does the term start?'),
+    endDate: z.string().trim().min(1, 'When does the term end?'),
+    fullFee: z.coerce.number().min(0, 'A fee cannot be negative'),
+    halfFee: z.coerce.number().min(0, 'A fee cannot be negative'),
+  })
+  .refine((value) => value.endDate > value.startDate, {
+    message: 'The term has to end after it starts',
+  })
+
+/**
+ * Open a term.
+ *
+ * There was no way to do this at all. Terms came from the seed script, which
+ * meant a club that had not been seeded — which is every club but this one —
+ * could never reach subscription collection or the attendance import, because
+ * both are read against a term and both simply refused to load without one.
+ *
+ * Rates are asked for here rather than left to a second screen: a term with no
+ * rates is a term that charges nothing, and a collection that quietly collects
+ * nothing is worse than one that has not been set up.
+ */
+export async function createTerm(
+  orgSlug: string,
+  _prev: FeeState,
+  formData: FormData
+): Promise<FeeState> {
+  const { org } = await getOrgContext(orgSlug)
+  const { userId } = await requirePermission(org.id, 'fee.manage')
+
+  const parsed = createTermSchema.safeParse({
+    name: formData.get('name') ?? '',
+    startDate: formData.get('startDate') ?? '',
+    endDate: formData.get('endDate') ?? '',
+    fullFee: formData.get('fullFee') ?? '0',
+    halfFee: formData.get('halfFee') ?? '0',
+  })
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'That term is not valid' }
+  }
+
+  const { name, startDate, endDate, fullFee, halfFee } = parsed.data
+
+  const from = parseDate(startDate)
+  const to = parseDate(endDate)
+  if (!from || !to) return { error: 'Those dates are not valid.' }
+
+  const problem = await dbAs(userId, async (tx) => {
+    const clash = await tx.term.findFirst({
+      where: { orgId: org.id, name },
+      select: { id: true },
+    })
+    if (clash) return `There is already a term called ${name}.`
+
+    const term = await tx.term.create({
+      data: {
+        orgId: org.id,
+        name,
+        startDate: from,
+        endDate: to,
+        fullFeeCents: Math.round(fullFee * 100),
+        halfFeeCents: Math.round(halfFee * 100),
+      },
+      select: { id: true, name: true },
+    })
+
+    await writeAudit(
+      {
+        orgId: org.id,
+        actorId: userId,
+        action: 'fee.term_created',
+        targetType: 'Term',
+        targetId: term.id,
+        after: { name: term.name, startDate, endDate },
+      },
+      tx
+    )
+    return null
+  })
+
+  if (problem) return { error: problem }
+
+  revalidatePath(`/${orgSlug}/fees/collection`)
+  revalidatePath(`/${orgSlug}/settings/attendance`)
+  return { error: null, ok: true }
+}
+
 const termSchema = z.object({
   termId: z.string().min(1),
   fullFee: z.coerce.number().min(0, 'A fee cannot be negative'),

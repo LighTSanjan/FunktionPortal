@@ -437,3 +437,63 @@ export async function markSubmitted(orgSlug: string, invoiceId: string): Promise
   revalidatePath(`/${orgSlug}/dashboard`)
   return { error: null, ok: true }
 }
+
+/**
+ * Record that OSL have paid the coach.
+ *
+ * The last step, and the one the portal cannot observe: the money moves in
+ * OSL's accounts, so somebody has to say so. `PAID` and `paidAt` have existed
+ * since the schema was written with nothing that ever set them, which left
+ * every submitted month sitting at "with OSL" forever and the run board
+ * unable to tell a month that is finished from one that has been ignored.
+ *
+ * Reversible, because this is a human report about somebody else's ledger and
+ * the usual way it goes wrong is marking the wrong coach.
+ */
+export async function markPaid(
+  orgSlug: string,
+  invoiceId: string,
+  paid: boolean
+): Promise<ActionState> {
+  const { org } = await getOrgContext(orgSlug)
+  const { userId } = await requirePermission(org.id, 'claim.generate')
+
+  const problem = await dbAs(userId, async (tx) => {
+    const invoice = await tx.invoice.findFirst({
+      where: { id: invoiceId, orgId: org.id },
+      select: { id: true, status: true, submittedToOslAt: true, paidAt: true },
+    })
+    if (!invoice) return 'That invoice no longer exists'
+    if (invoice.status === 'VOID') return 'That invoice is void'
+    if (paid && !invoice.submittedToOslAt) {
+      return 'OSL cannot have paid a claim that has not been sent to them.'
+    }
+    if (paid === (invoice.paidAt !== null)) return null
+
+    await tx.invoice.update({
+      where: { id: invoice.id },
+      data: paid
+        ? { status: 'PAID', paidAt: new Date() }
+        : { status: 'SUBMITTED', paidAt: null },
+    })
+    await writeAudit(
+      {
+        orgId: org.id,
+        actorId: userId,
+        action: paid ? 'claim.paid' : 'claim.unpaid',
+        targetType: 'Invoice',
+        targetId: invoice.id,
+        before: { status: invoice.status, paidAt: invoice.paidAt },
+        after: { status: paid ? 'PAID' : 'SUBMITTED' },
+      },
+      tx
+    )
+    return null
+  })
+
+  if (problem) return { error: problem }
+
+  revalidatePath(`/${orgSlug}/monthly-run`)
+  revalidatePath(`/${orgSlug}/dashboard`)
+  return { error: null, ok: true }
+}

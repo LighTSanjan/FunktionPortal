@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
 import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
 import { dbAs } from '@/core/db'
 import { PageHeader } from '@/core/ui/page-header'
@@ -19,6 +18,10 @@ import { formatSgd } from '@/modules/coach-claim/money'
 import { longDate } from '@/modules/coach-claim/theme'
 import { TermForm } from './_components/term-form'
 import { QrForm } from './_components/qr-form'
+import { NewTermForm } from './_components/new-term-form'
+import { FiledToggle } from './_components/filed-toggle'
+import { subscriptionWorkflow } from '@/modules/workflow/subscription'
+import { WorkflowStrip } from '@/modules/workflow/ui'
 import { DecideButtons } from './_components/decide-buttons'
 import { CloseButton } from './_components/close-button'
 import { LinkForm } from './_components/link-form'
@@ -44,7 +47,30 @@ export default async function CollectionPage({
   const { userId } = await verifySession()
 
   const terms = await listTerms(userId, org.id)
-  if (terms.length === 0) notFound()
+
+  // No terms is a first use, not a missing page. notFound() here was a
+  // treasurer being told the screen does not exist, with no way to make it
+  // exist — terms could only be created by the seed script, so a club that
+  // had not been seeded could never reach subscription collection at all.
+  if (terms.length === 0) {
+    return (
+      <div className="mx-auto max-w-[720px] space-y-5">
+        <PageHeader
+          breadcrumbItems={[
+            { label: org.name, href: `/${orgSlug}/dashboard` },
+            { label: 'Subscriptions' },
+          ]}
+          title="Open your first term"
+          subtitle="Subscriptions are collected per term, and everything below hangs off one: what each tier pays, who has declared, and the deposit form at the end."
+        />
+        <Card>
+          <CardContent className="py-6">
+            <NewTermForm orgSlug={orgSlug} suggestion={suggestTerm(new Date())} />
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   const fallback = await currentTerm(userId, org.id)
   const term = terms.find((row) => row.id === termParam) ?? fallback ?? terms[0]
@@ -61,6 +87,8 @@ export default async function CollectionPage({
     ),
   ])
 
+  const workflow = await subscriptionWorkflow(userId, org.id, orgSlug, new Date(), term.id)
+
   const split = splitGst(totals.bankableCents, settings?.gstBasisPoints ?? DEFAULT_GST_BASIS_POINTS)
   const queue = rows.filter((row) => row.status === 'DECLARED')
   const uncertain = rows.filter((row) => row.tierUncertain)
@@ -70,13 +98,27 @@ export default async function CollectionPage({
       <PageHeader
         breadcrumbItems={[
           { label: org.name, href: `/${orgSlug}/dashboard` },
-          { label: 'Subscription', href: `/${orgSlug}/fees` },
+          { label: 'Subscriptions', href: `/${orgSlug}/fees/collection` },
           { label: term.name },
         ]}
         title={`${term.name} collection`}
         subtitle="Who owes what, who says they have paid, and who the club has actually recorded as having paid. Those last two are separate on purpose."
-        actions={term.closed ? <Badge variant="success">Banked in</Badge> : undefined}
+        actions={
+          // Closing the collection and the money reaching the club's account
+          // are different events. This used to say "Banked in" the moment the
+          // collection closed, which is the portal asserting something only
+          // the bank statement can.
+          term.closed ? (
+            deposit?.submittedToOslAt ? (
+              <Badge variant="success">Filed with OSL</Badge>
+            ) : (
+              <Badge variant="warning">Closed, not yet filed</Badge>
+            )
+          ) : undefined
+        }
       />
+
+      {workflow && <WorkflowStrip workflow={workflow} />}
 
       {terms.length > 1 && (
         <div className="flex flex-wrap items-center gap-2">
@@ -372,6 +414,12 @@ export default async function CollectionPage({
                 The club&rsquo;s own record of who paid
               </Link>
             </div>
+
+            <FiledToggle
+              orgSlug={orgSlug}
+              termId={term.id}
+              filed={deposit.submittedToOslAt !== null}
+            />
           </CardContent>
         </Card>
       )}
@@ -407,4 +455,43 @@ function RowStatus({ row }: { row: PaymentRow }) {
   if (row.status === 'DECLARED') return <Badge variant="warning">Declared</Badge>
   if (row.status === 'REJECTED') return <Badge variant="danger">Refused</Badge>
   return <span className="text-[12.5px] text-text-subtle">Not paid</span>
+}
+
+/**
+ * A plausible term to open, from today's date.
+ *
+ * SUTD runs three trimesters a year, starting in September, January and May.
+ * Guessing is not the point — every field is editable — but a form that opens
+ * with the term somebody is almost certainly creating is two clicks instead
+ * of eight, and this screen is reached exactly once per term.
+ */
+function suggestTerm(now: Date): { name: string; startDate: string; endDate: string } {
+  const TRIMESTERS = [
+    { index: 1, startMonth: 8, endMonth: 11 },
+    { index: 2, startMonth: 0, endMonth: 3 },
+    { index: 3, startMonth: 4, endMonth: 7 },
+  ]
+  const month = now.getMonth()
+  const current =
+    TRIMESTERS.find((t) =>
+      t.startMonth <= t.endMonth
+        ? month >= t.startMonth && month <= t.endMonth
+        : month >= t.startMonth || month <= t.endMonth
+    ) ?? TRIMESTERS[0]
+
+  const year = now.getFullYear()
+  const start = new Date(year, current.startMonth, 1)
+  if (start > now) start.setFullYear(year - 1)
+  const end = new Date(start.getFullYear(), current.endMonth + 1, 0)
+  if (end < start) end.setFullYear(end.getFullYear() + 1)
+
+  return {
+    name: `Trimester ${current.index} ${start.getFullYear()}`,
+    startDate: iso(start),
+    endDate: iso(end),
+  }
+}
+
+function iso(value: Date): string {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
 }

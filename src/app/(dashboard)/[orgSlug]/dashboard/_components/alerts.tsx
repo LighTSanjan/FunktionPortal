@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { AlertTriangle, Clock, Inbox, CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, Clock, Inbox } from 'lucide-react'
 
 export type AlertTone = 'urgent' | 'soon' | 'todo'
 
@@ -33,20 +33,18 @@ const TONE = {
   },
 } as const
 
+/**
+ * Things that need attention and are not part of either job.
+ *
+ * It used to say "Nothing needs you right now. Everything with a deadline on
+ * it is clear" whenever it had no alerts — while only ever looking at
+ * invoices that had already been raised. A month whose classes were recorded
+ * and whose documents had never been raised produced no alert at all, so the
+ * screen said everything was clear on the 14th. The two workflow cards above
+ * carry that state now, and this says nothing when it has nothing to say.
+ */
 export function Alerts({ alerts, delayMs = 0 }: { alerts: DashboardAlert[]; delayMs?: number }) {
-  if (alerts.length === 0) {
-    return (
-      <section
-        className="rise-in flex items-center gap-3 rounded-[var(--radius-lg)] border border-border bg-surface px-5 py-4"
-        style={{ '--delay': `${delayMs}ms` } as React.CSSProperties}
-      >
-        <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-success" aria-hidden="true" />
-        <p className="text-[13.5px] text-text-muted">
-          Nothing needs you right now. Everything with a deadline on it is clear.
-        </p>
-      </section>
-    )
-  }
+  if (alerts.length === 0) return null
 
   return (
     <section

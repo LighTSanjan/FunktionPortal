@@ -41,7 +41,7 @@ export default async function ImportReviewPage({
       <PageHeader
         breadcrumbItems={[
           { label: org.name, href: `/${orgSlug}/dashboard` },
-          { label: 'Attendance import', href: `/${orgSlug}/attendance` },
+          { label: 'Attendance import', href: `/${orgSlug}/settings/attendance` },
           { label: detail.sourceTitle ?? 'Sheet' },
         ]}
         title={detail.sourceTitle ?? 'Attendance sheet'}

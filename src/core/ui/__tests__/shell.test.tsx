@@ -29,11 +29,19 @@ vi.mock('next/link', () => ({
 import { AppSidebar } from '../shell/app-sidebar'
 import { AppHeader } from '../shell/app-header'
 import { CommandPalette } from '../shell/command-palette'
-import type { NavEntry } from '@/core/navigation'
+import type { NavEntry, NavGroup } from '@/core/navigation'
 
 const mockNav: NavEntry[] = [
   { label: 'Classes', href: '/sessions', icon: 'CalendarDays', permission: 'session.view' },
-  { label: 'Instructors', href: '/instructors', icon: 'Users', permission: 'instructor.view' },
+  { label: 'Coaches', href: '/instructors', icon: 'Users', permission: 'instructor.view' },
+]
+
+const mockGroups: NavGroup[] = [
+  {
+    label: null,
+    entries: [{ label: 'Home', href: '/dashboard', icon: 'Home', permission: 'access.request' }],
+  },
+  { label: 'Records', entries: mockNav },
 ]
 
 describe('AppSidebar', () => {
@@ -43,34 +51,39 @@ describe('AppSidebar', () => {
   })
 
   it('renders org name', () => {
-    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navEntries={mockNav} />)
+    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navGroups={mockGroups} />)
     expect(screen.getByText('Acme Inc')).toBeInTheDocument()
   })
 
+  it('groups the nav by what somebody came to do', () => {
+    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navGroups={mockGroups} />)
+    expect(screen.getByText('Records')).toBeInTheDocument()
+  })
+
   it('renders nav entries', () => {
-    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navEntries={mockNav} />)
+    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navGroups={mockGroups} />)
     expect(screen.getByText('Classes')).toBeInTheDocument()
-    expect(screen.getByText('Instructors')).toBeInTheDocument()
+    expect(screen.getByText('Coaches')).toBeInTheDocument()
   })
 
   it('renders Settings in footer', () => {
-    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navEntries={mockNav} canManageSettings />)
+    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navGroups={mockGroups} canManageSettings />)
     expect(screen.getByText('Settings')).toBeInTheDocument()
   })
 
   it('renders the FUNKtion wordmark', () => {
-    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navEntries={mockNav} />)
+    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navGroups={mockGroups} />)
     expect(screen.getByText('FUNKtion')).toBeInTheDocument()
   })
 
   it('has collapse button', () => {
-    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navEntries={mockNav} />)
+    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navGroups={mockGroups} />)
     expect(screen.getByLabelText('Collapse sidebar')).toBeInTheDocument()
   })
 
   it('marks active nav item', () => {
     pathname = '/acme/sessions'
-    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navEntries={mockNav} />)
+    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navGroups={mockGroups} />)
     expect(screen.getByRole('link', { name: /Classes/i })).toHaveAttribute('aria-current', 'page')
   })
 })
@@ -121,7 +134,7 @@ describe('CommandPalette', () => {
       <CommandPalette orgSlug="acme" navEntries={mockNav} open={true} onClose={() => {}} />
     )
     expect(screen.getByText('Classes')).toBeInTheDocument()
-    expect(screen.getByText('Instructors')).toBeInTheDocument()
+    expect(screen.getByText('Coaches')).toBeInTheDocument()
   })
 
   it('filters results by query', () => {
@@ -129,8 +142,8 @@ describe('CommandPalette', () => {
       <CommandPalette orgSlug="acme" navEntries={mockNav} open={true} onClose={() => {}} />
     )
     const input = screen.getByPlaceholderText('Search pages...')
-    fireEvent.change(input, { target: { value: 'inst' } })
-    expect(screen.getByText('Instructors')).toBeInTheDocument()
+    fireEvent.change(input, { target: { value: 'coach' } })
+    expect(screen.getByText('Coaches')).toBeInTheDocument()
     expect(screen.queryByText('Classes')).not.toBeInTheDocument()
   })
 })

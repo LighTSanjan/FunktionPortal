@@ -11,6 +11,7 @@ import { formatSgd, formatHours } from '@/modules/coach-claim/money'
 import { generateMonthlyDocuments } from '@/modules/coach-claim/run-actions'
 import type { ActionState } from '@/modules/coach-claim/actions'
 import type { RunEntry } from '@/modules/coach-claim/monthly-run'
+import { PaidToggle } from './paid-toggle'
 
 const STATUS: Record<RunEntry['status'], { label: string; variant: 'success' | 'warning' | 'danger' | 'neutral' | 'info' }> = {
   READY: { label: 'Ready to raise', variant: 'info' },
@@ -189,6 +190,17 @@ export function RunCard({
                 Attendance sheet
               </DownloadLink>
             </div>
+
+            {/* The last step, and the only one the portal cannot observe for
+                itself: the money moves in OSL's accounts. */}
+            {(entry.status === 'SUBMITTED' || entry.status === 'PAID') && (
+              <PaidToggle
+                orgSlug={orgSlug}
+                invoiceId={invoiceId}
+                coachName={entry.fullName}
+                paid={entry.status === 'PAID'}
+              />
+            )}
           </div>
         )}
       </div>

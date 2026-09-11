@@ -18,6 +18,9 @@ export default async function SettingsLayout({
   const tabs = [
     { slug: 'profile', label: 'Profile', permission: null },
     { slug: 'organisation', label: 'Organisation', permission: 'org.manage_settings' },
+    // Done once or twice a trimester, and one of two ways into the same
+    // records. It was a top-level sidebar entry, level with the month's work.
+    { slug: 'attendance', label: 'Attendance import', permission: 'session.manage' },
     { slug: 'access', label: 'Access requests', permission: 'org.manage_members' },
     { slug: 'audit-log', label: 'Audit Log', permission: 'audit.view' },
   ].filter((tab) => tab.permission === null || hasPermission(membership.role, tab.permission))

@@ -29,14 +29,17 @@ export function Hero({
       <div aria-hidden="true" className="lapis-band h-[6px]" />
 
       <div className="relative grid sm:grid-cols-[1.15fr_1fr] lg:grid-cols-[1.35fr_1fr]">
-        <div className="relative z-10 px-5 py-7 sm:px-8 sm:py-10">
+        {/* Shorter than it was. The greeting is orientation, not work, and at
+            its old height it pushed both jobs below the fold on a laptop —
+            which is the whole of what somebody signs in to do. */}
+        <div className="relative z-10 px-5 py-5 sm:px-8 sm:py-6">
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-subtle">
             {orgName} · {roleLabel}
           </p>
-          <h1 className="mt-2 text-[30px] font-semibold leading-[1.08] tracking-[-0.03em] text-text sm:text-[38px]">
+          <h1 className="mt-1.5 text-[22px] font-semibold leading-[1.1] tracking-[-0.03em] text-text sm:text-[26px]">
             {partOfDay}, {greetingName}.
           </h1>
-          <p className="mt-2.5 max-w-[46ch] text-[14px] leading-relaxed text-text-muted">
+          <p className="mt-1.5 max-w-[46ch] text-[13px] leading-relaxed text-text-muted">
             {termName ? (
               <>
                 <span className="font-medium text-text">{termName}</span> is running.{' '}
@@ -54,7 +57,7 @@ export function Hero({
 
         {/* The club itself. Hidden below sm, where it would push the greeting
             off the top of a phone for no information. */}
-        <div className="relative hidden min-h-[190px] sm:block">
+        <div className="relative hidden min-h-[130px] sm:block">
           <Image
             src="/eu-gene-battle.jpg"
             alt=""
@@ -77,7 +80,7 @@ export function Hero({
           />
           <Wordmark
             aria-hidden="true"
-            className="absolute bottom-4 right-5 h-[52px] drop-shadow-[0_2px_10px_rgba(0,0,0,.35)] lg:h-[64px]"
+            className="absolute bottom-3 right-4 h-[38px] drop-shadow-[0_2px_10px_rgba(0,0,0,.35)] lg:h-[46px]"
           />
         </div>
       </div>

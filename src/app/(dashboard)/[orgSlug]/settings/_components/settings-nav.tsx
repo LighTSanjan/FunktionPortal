@@ -17,7 +17,10 @@ export function SettingsNav({ orgSlug, tabs }: SettingsNavProps) {
     <nav className="flex gap-1 border-b border-border" aria-label="Settings sections">
       {tabs.map((tab) => {
         const href = `/${orgSlug}/settings/${tab.slug}`
-        const active = pathname === href
+        // Prefix, not equality: the attendance import has a detail page under
+        // it, and a tab that unlights when you open what it links to reads as
+        // having navigated away from settings altogether.
+        const active = pathname === href || pathname.startsWith(`${href}/`)
         return (
           <Link
             key={tab.slug}

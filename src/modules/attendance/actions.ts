@@ -100,8 +100,8 @@ export async function uploadSheet(
     throw error
   }
 
-  revalidatePath(`/${orgSlug}/attendance`)
-  redirect(`/${orgSlug}/attendance/${importId}`)
+  revalidatePath(`/${orgSlug}/settings/attendance`)
+  redirect(`/${orgSlug}/settings/attendance/${importId}`)
 }
 
 const mapSchema = z.object({
@@ -156,7 +156,7 @@ export async function mapDate(
     })
   })
 
-  revalidatePath(`/${orgSlug}/attendance/${importId}`)
+  revalidatePath(`/${orgSlug}/settings/attendance/${importId}`)
   return { error: null, ok: true }
 }
 
@@ -228,7 +228,7 @@ export async function applyImport(
     return { error: message }
   }
 
-  revalidatePath(`/${orgSlug}/attendance/${importId}`)
+  revalidatePath(`/${orgSlug}/settings/attendance/${importId}`)
   revalidatePath(`/${orgSlug}/sessions`)
   revalidatePath(`/${orgSlug}/dashboard`)
   return { error: null, ok: true }
