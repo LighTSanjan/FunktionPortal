@@ -34,6 +34,12 @@ const NAV_ENTRIES: readonly NavEntry[] = [
     permission: 'session.manage',
   },
   {
+    label: 'Subscription',
+    href: '/fees',
+    icon: 'Wallet',
+    permission: 'fee.declare',
+  },
+  {
     label: 'Monthly run',
     href: '/monthly-run',
     icon: 'Receipt',

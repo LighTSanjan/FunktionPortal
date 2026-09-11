@@ -598,7 +598,7 @@ flowchart LR
 
   <div class="note flag">
     <span class="note-label">Drive is authoritative per trimester, never continuously</span>
-    <p>Each trimester gets a fresh spreadsheet, and the roster is carried across by hand. There is no single roster in Drive &mdash; there are three snapshots that have already drifted. Student <code>1007794</code> appears in the Tri&nbsp;2 active roster as one name and in the exit tab of the same file as a different name, with identical ID, email, phone and birthday. Whether that is a rename or a paste that missed a cell, matching on <em>name</em> would have created two people out of one.</p>
+    <p>Each trimester gets a fresh spreadsheet, and the roster is carried across by hand. There is no single roster in Drive &mdash; there are three snapshots that have already drifted. Student <code>1000789</code> appears in the Tri&nbsp;2 active roster as one name and in the exit tab of the same file as a different name, with identical ID, email, phone and birthday. Whether that is a rename or a paste that missed a cell, matching on <em>name</em> would have created two people out of one.</p>
     <p>This is the argument for the portal owning identity even while Drive owns the roster: continuity across trimesters is a fact no single sheet holds.</p>
   </div>
 
@@ -813,7 +813,7 @@ flowchart TD
   <p>There is a second reason to build this rather than adding exco by hand in the database: the approval is the handover record. &ldquo;Who let this person into the club's finances, and when&rdquo; is a question the audit log should be able to answer in March, and a row inserted straight into Postgres answers it with silence.</p>
 
   <h3>Stored signatures</h3>
-  <p>Signing the same three documents by hand every month is the kind of friction that ends with a stack of pre-signed blanks. Instead each signatory uploads their signature once and the portal stamps it while composing the document.</p>
+  <p>Signing the same three documents by hand every month is the kind of friction that ends with a stack of pre-signed blanks. Instead each signatory uploads their signature once, on their own profile page, and the portal stamps it while composing the document. Built; see <em>Reading, signing and sending</em> below for how it behaves in the monthly run.</p>
   <ul>
     <li><strong>The stamp follows the authorisation, never replaces it.</strong> A signature is applied at the moment its owner presses the button that authorises the document, in the same request. It is never applied on anyone else's behalf, and never on a schedule.</li>
     <li><strong>The instructor's signature has to come from the instructor.</strong> The invoice is their document billed to the university. The club stamping a coach's signature onto a claim the club prepared would forge the one attestation OSL is relying on, so the specimen is supplied by the instructor and used only on their own invoices.</li>
@@ -851,17 +851,17 @@ flowchart TD
     <li class="phase">
       <div class="phase-n">02</div>
       <div>
-        <div class="when">Not started</div>
+        <div class="when">Built; not yet run for real</div>
         <h4>Fee collection</h4>
-        <p>Member sign-in, PayNow QR, declaration with screenshot, exco reconciliation, Income Deposit Form with derived GST. Built early on purpose: only one or two collections fall before handover, and the flow needs at least one real run.</p>
+        <p>Member sign-in, PayNow QR, declaration with screenshot, exco reconciliation and the deposit figures with derived GST are all live. Built early on purpose: only one or two collections fall before handover, and the flow needs at least one real run. OSL&rsquo;s own deposit form is still filled by hand &mdash; the portal derives every figure it asks for.</p>
       </div>
     </li>
     <li class="phase">
       <div class="phase-n">02b</div>
       <div>
-        <div class="when">Attendance import complete; signatures not started</div>
+        <div class="when">Complete</div>
         <h4>Attendance import and signatures</h4>
-        <p>CSV upload, member matching, date-to-instructor review and applying sessions are live. Signature storage remains. The implemented import uses a treasurer-exported CSV rather than standing Google Drive credentials.</p>
+        <p>CSV upload, member matching, date-to-instructor review and applying sessions are live, as is signature upload and the read&ndash;sign&ndash;send flow over the monthly documents. The implemented import uses a treasurer-exported CSV rather than standing Google Drive credentials. Instructor photographs remain, on the same private-bucket pattern.</p>
       </div>
     </li>
     <li class="phase">
@@ -1036,15 +1036,167 @@ flowchart TD
 </section>
 
 <section>
+  <h2>Reading, signing and sending</h2>
+  <p>The month&rsquo;s two documents can now be read on screen at <code>/:org/monthly-run/:invoice</code>, signed there, and sent from there. It is three steps in that order, on one page, because they are three steps in that order.</p>
+
+  <div class="note rule">
+    <span class="note-label">The preview is the document</span>
+    <p>Showing somebody a document before they sign it is only worth anything if the thing they looked at is the thing that gets sent. Two renderers over one data model &mdash; a <code>.docx</code> builder and a web page &mdash; can drift apart silently, and the failure is invisible precisely because the preview still looks right.</p>
+    <p>So both are reduced to their text and compared, character for character, by a test. Layout may differ; content may not. Add a line to one renderer and the suite fails until it is in the other. The comparison strips the <code>.docx</code> core properties first, because a file&rsquo;s title and build timestamps are the wrapper, not the document.</p>
+  </div>
+
+  <h3>One PDF, from the browser</h3>
+  <p>&sect;3.1.2 wants the pack as a single PDF. The club has no document converter and no licence for one, but every browser can print to PDF &mdash; so <code>/:org/monthly-run/:invoice/print</code> is the same two previews laid out to print, invoice first, attendance sheet second, one per page. The portal&rsquo;s chrome is marked <code>data-print="hide"</code> rather than matched on class names, since &ldquo;this is chrome, not document&rdquo; is a fact about the element while a class name is a styling decision that will change.</p>
+
+  <h3>Signing is one act, not two</h3>
+  <p>&sect;3.3 has the Treasurer verify the attendance sheet; &sect;3.1.2 has the club countersign the coach&rsquo;s invoice. That is one person making one statement, so it is one button. Signing them separately would let the two documents disagree about who stood behind the month.</p>
+  <ul>
+    <li><strong>The office is captured at signing, not read at render.</strong> A treasurer who hands over in March signed as treasurer in February, and the document has to keep saying so.</li>
+    <li><strong>The specimen used is recorded on the sheet.</strong> Documents are rebuilt from their rows on every download; without this, replacing a signature would silently restamp every document already sent to the Office of Finance. For the same reason a specimen that has been stamped on something survives its owner replacing it &mdash; one that was never stamped is just a file, and goes.</li>
+    <li><strong>Only the club&rsquo;s half is ever stamped.</strong> The coach signs their own invoice. There is no code path that puts a coach&rsquo;s signature on a claim the club prepared.</li>
+    <li><strong>Signing without a specimen is allowed.</strong> It records who verified and prints an empty rule to sign by hand, which is what the club did before this existed. Refusing would make an uploaded image a precondition for doing the paperwork at all.</li>
+    <li><strong>A signature can be withdrawn until it is sent.</strong> After that, correcting a month means voiding it: the signed document exists outside the portal by then, and un-signing the copy here would only make the two disagree.</li>
+  </ul>
+
+  <h3>Sending is still a person writing an email</h3>
+  <p>The portal composes the message &mdash; recipient, subject carrying the reference, a body quoting the invoice number, date, amount and fund &mdash; and opens the treasurer&rsquo;s mail client. It sends nothing itself. The pack goes from the club&rsquo;s own address, which is the address the Office of Finance already replies to, and a portal that sent on the treasurer&rsquo;s behalf would be one more place a submission could go missing with no sent-items folder to check.</p>
+  <p>Recording a month as sent now requires it to have been signed. Marking something sent that was never verified puts the portal&rsquo;s own record out of step with the document OSL received, and the run card no longer offers a route to it that skips reading the documents.</p>
+
+  <div class="note flag">
+    <span class="note-label">Storage policies are still a dashboard job</span>
+    <p>The private bucket did not exist on the hosted project and now does. Row-level security on <code>storage.objects</code> is on and the bucket carries no policies, so the signed-in user&rsquo;s own token can reach nothing in it &mdash; and the migration role cannot add policies, because that table belongs to <code>supabase_storage_admin</code>.</p>
+    <p>So signature reads and writes go through the service role, with authorisation done in the action and object keys derived from the session rather than accepted from the caller. That is sound, but it is one layer where there should be two. The policies want adding from the Supabase SQL editor as a hardening pass.</p>
+  </div>
+</section>
+
+<section>
+  <h2>What a signed month is made of</h2>
+  <p>A second pass over the signing work &mdash; a review by a separate model, run against the diff &mdash; found that the two documents were still being rebuilt on every download from live class, rate, roster and instructor rows, while the invoice row kept the total it was issued with. The guards stop a class in a raised month being edited. Nothing stopped a rate being backdated, a member joining the roster, a coach changing bank account, or attendance being re-marked, and each of those silently changes a document already sitting with the Office of Finance.</p>
+
+  <div class="note rule">
+    <span class="note-label">A raised month is frozen</span>
+    <p>Raising a month now captures it: the coach&rsquo;s details, the roster, and every class with who was in it, stored as a snapshot beside the invoice. Every later rendering &mdash; preview, print sheet, both <code>.docx</code> downloads &mdash; reads that snapshot and the invoice&rsquo;s own lines, and touches no live row at all. Each line carries the date it bills as a field rather than as a substring of its description.</p>
+    <p>A month raised before this existed cannot be reproduced as it was issued, so the portal says so and refuses rather than rendering today&rsquo;s rows in its place. There are none; the check is there so there never are.</p>
+  </div>
+
+  <h3>What else that pass turned up</h3>
+  <ul>
+    <li><strong>The signatory&rsquo;s name was not frozen either.</strong> Only the user id was stored, and rendering dereferenced that account&rsquo;s current name &mdash; which its owner can edit, and has to be able to, because Google hands over whatever the account is called. One rename would have re-attributed every document already submitted. The name is now captured at signing.</li>
+    <li><strong>The office was invented.</strong> An exco member with no named post was recorded as <code>TREASURER</code>. That is the portal making a claim nobody made, on the one line the Office of Finance reads to know who stood behind the month. It now records no office and prints &ldquo;Exco member&rdquo;, and the signing screen says so before you press the button rather than after.</li>
+    <li><strong>Two people could sign the same month.</strong> Both would read it as unsigned, both would write, and the second would quietly replace the first&rsquo;s name, post, specimen and timestamp while both were told it worked. Signing is now conditional on the sheet still being unsigned and checks that it claimed exactly one row.</li>
+    <li><strong>A raised month was still reachable three other ways.</strong> Creating a class in one was unchecked; editing one checked only the month it was leaving, not the one it was joining; marking attendance was unchecked; and the attendance import rewrote classes and marks for any month at all. All four are closed, and the import now reports the dates it left alone rather than skipping them silently.</li>
+    <li><strong>Deleting an unreferenced specimen was wrong twice over.</strong> The reference count raced a concurrent signing, and it ran under row-level security, so references in an organisation the user had since left were invisible to it. Specimens are no longer deleted at all: replacing one stops the account pointing at it, and the object stays for the documents that were stamped with it.</li>
+    <li><strong>A fake PNG passed validation.</strong> Eight magic bytes and two plausible integers are easy to produce by accident &mdash; a truncated download manages it &mdash; and the file would validate on upload and fail months later while composing a document somebody was waiting to sign. The image header is now checked for real, and a zero dimension is refused at the point of reading it.</li>
+  </ul>
+
+  <div class="note flag">
+    <span class="note-label">Signing without a stamp stays allowed</span>
+    <p>Verifying with no specimen on file records who stood behind the month and prints an empty rule to sign by hand, which is what the club did before any of this existed. Refusing would make uploading an image a precondition for doing the paperwork at all.</p>
+    <p>What it must not do is go out looking finished. The send step now says plainly that the printout has to be signed by hand before it is attached.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Self-practice</h2>
+  <p>A class session no longer needs a coach. The column was <code>NOT NULL</code>, which meant the portal could only record the weeks somebody was paid for, and the 2026 import put a number on what that cost: five dates across two trimesters could not be recorded at all &mdash; 26 May among them, with twenty-five people present. A week with no coach is not a broken week. It is a normal week in a dance club.</p>
+
+  <p>Those five dates are now in the database, with the <strong>133 attendance marks</strong> that were being discarded with them. They were recovered without the original spreadsheets: every import keeps the sheet it read, so <code>scripts/db/reapply-import.ts</code> re-runs a stored parse under the new rules. Coached hours are unchanged by it &mdash; Trimester 1 still gives Jin 16.5 and KS 19.5, Trimester 2 Jin 10.5 and KS 12, which is what the treasurer&rsquo;s own Total Hours block says.</p>
+
+  <div class="note rule">
+    <span class="note-label">Three answers about a date, not two</span>
+    <p>&ldquo;Nobody taught it&rdquo; and &ldquo;we cannot work out who taught it&rdquo; used to collapse into the same blank, and that is exactly how five real dates ended up recorded nowhere. They are now separate outcomes:</p>
+    <ul>
+      <li><strong>A coach</strong> &mdash; the sheet names somebody the portal knows. Billable.</li>
+      <li><strong>Self-practice</strong> &mdash; people attended and no coach is marked. The sheet is not being vague; it is saying the club met on its own. Written as a class with no instructor.</li>
+      <li><strong>Left out</strong> &mdash; nobody attended, or the sheet names a coach the portal does not have. A question for a human, and it stays a question rather than quietly becoming self-practice.</li>
+    </ul>
+  </div>
+
+  <h3>What it does to the documents</h3>
+  <p>A self-practice date appears on <em>every</em> coach&rsquo;s attendance sheet for that month with the instructor row reading <code>NO</code>, and on no invoice. That is what the club&rsquo;s own trimester sheets already do, and it is the line that explains to OSL why the grid shows more dates than the invoice bills.</p>
+  <p>It follows that a self-practice date is locked by any coach&rsquo;s raised month, not just its own &mdash; it is printed on a sheet that has already been submitted, and the sheet is the evidence the invoice rests on. Moving it would change a document the Office of Finance is holding.</p>
+  <p>Two smaller consequences worth writing down. Postgres counts <code>NULL</code>s as distinct, so the unique key on (org, coach, date) stopped constraining anything the moment the coach became optional; a partial unique index covers self-practice separately. And the map that links an invoice line back to the class it bills is built from coach-led sessions only, since a self-practice date sharing a day with a real class would otherwise overwrite the entry and point the line at the wrong session.</p>
+</section>
+
+<section>
+  <h2>Fee collection, built</h2>
+  <p>Phase 02. The flow runs end to end at <code>/:org/fees</code> for a member and <code>/:org/fees/collection</code> for the exco: rates and dates per term, a member&rsquo;s own amount due with the PayNow QR, a declaration with its screenshot, a reconciliation queue, and closing the collection into an Income Deposit Form.</p>
+
+  <div class="note rule">
+    <span class="note-label">Declaring and confirming are different acts by different people</span>
+    <p>They are separate permissions. <code>fee.declare</code> belongs to every member and can only ever write <code>DECLARED</code>; <code>fee.manage</code> is exco-only and is the only way to reach <code>CONFIRMED</code>. The confirming action refuses a payment the same person declared, which is the same reasoning as an access request nobody else approves: a decision somebody can make for themselves is not a control, it is a formality.</p>
+    <p>A declaration without a screenshot is refused rather than queued. That screenshot is the entire evidence base for the confirmation that follows, so a declaration without one is incomplete, not pending.</p>
+  </div>
+
+  <h3>The browser never posts a figure</h3>
+  <p>The amount comes from the term&rsquo;s configured tier, and the tier is read off the roster label the club already keeps. Those labels are free text typed into a spreadsheet by four years of secretaries &mdash; the live roster carries &ldquo;Confirmed&rdquo;, &ldquo;1/2 term&rdquo;, &ldquo;Confirmed; Exchange&rdquo;, &ldquo;May come back?&rdquo; and one that reads &ldquo;Confirmed; praying for swift recovery&rdquo; &mdash; so the reader is generous with them and says how sure it is.</p>
+  <p>Three of the 46 chargeable rows come back uncertain, all of them the hedged ones, and they are listed on the collection screen before a figure is charged to anybody. A question mark in a status column is not somebody agreeing to pay seventy dollars.</p>
+  <p>The eight graduated rows are charged nothing at all rather than appearing on the board as debts nobody will collect. On the roster as it stands that is <strong>42 full, 3 half, 1 exchange &mdash; $3,080.00</strong>, which derives to $2,825.69 net and $254.31 of GST.</p>
+
+  <h3>GST is derived, and adds back up</h3>
+  <p>The gross is what members actually transferred, so the split divides rather than multiplies: net = gross &times; 10000 / (10000 + rate), and the tax is the remainder rather than a second rounding. That is what guarantees net + GST = gross for every input, including the ones where rounding each part honestly and separately would come to a cent out. The register reconciles against a bank statement, not against arithmetic.</p>
+  <p>The rate is a settings row in basis points, not a constant. A GST change is a form.</p>
+
+  <h3>What the portal does not do</h3>
+  <p>It does not fill OSL&rsquo;s Income Deposit Form. There has never been a copy of that template here, and authoring one from scratch would produce a document OSL may simply reject &mdash; the opposite of the rule that Class B output stays byte-identical to what has been accepted for years. Closing a collection instead derives every figure the form asks for &mdash; reference, WBS revenue element, gross, net, GST, the one-working-day deadline &mdash; and leaves the typing to a person.</p>
+  <p>What it does author is the club&rsquo;s own record: a per-term summary of who paid, at which tier, how much, and confirmed when. That is the one artefact the current process has no equivalent of. Fees have been banked as a lump sum once a term with no record of who they came from, so &ldquo;did I pay last term&rdquo; has only ever been answerable by whoever was treasurer at the time, and only until they graduated.</p>
+
+  <h3>Screenshots never leave the portal</h3>
+  <p>A PayNow confirmation carries the payer&rsquo;s name and often part of an account number. Drive permissions are granted per folder and there is no folder setting that means &ldquo;the exco, and nobody else, ever&rdquo;, so these stay in private storage and are opened through a redirect to a URL minted per request, good for two minutes, that never appears in a page anybody could save or forward. Drive gets the summary; the portal keeps the evidence.</p>
+
+  <h3>Being recognised as yourself</h3>
+  <p>A member opening the portal to pay has to be matched to their roster row. Signing in does it by email, which is the only key both sides hold &mdash; and only where exactly one unlinked row carries that address, so a shared or duplicated one links nobody.</p>
+  <p>That covers most people and will not cover somebody who signed up with a personal address. For them the exco links the account to the row by hand, on the collection screen, audited. Asking the member to pick their own row would be asking them to assert an identity, which is a different thing from confirming one.</p>
+</section>
+
+<section>
+  <h2>What the second review found in the fee work</h2>
+  <p>The same separate-model pass, run over fee collection. It reported the arithmetic and the reference allocation clean, and found seven things that were not. All are fixed.</p>
+  <ul>
+    <li><strong>A screenshot could be lifted out of the address bar.</strong> The exco-only route redirected to a two-minute signed URL, and a signed URL is a bearer token: it carries no identity, so copying it into another browser showed the screenshot until it expired. The bytes are streamed through the route instead, which puts the check on every request that fetches them rather than only on the one that minted a link.</li>
+    <li><strong>A slow upload could undo a confirmation.</strong> Declaring checked the status, uploaded the screenshot outside the transaction, then wrote unconditionally. An exco member confirming during that window had their confirmation rolled back into a declaration. The write now re-checks what the read established and is conditional on the payment still being undecided.</li>
+    <li><strong>A confirmed payer who then graduated vanished from the board while their money was still banked.</strong> The board started from the active roster; closing the collection aggregated every confirmed payment. So the screen previewed a smaller figure than the one that would go to OSL. Anybody with a payment against the term stays on the board, marked as having left, and owes nothing further.</li>
+    <li><strong>A departed member was charged the full rate.</strong> <code>tierFor</code> returns null for &ldquo;Graduated&rdquo;, and null means owes nothing &mdash; but two paths read it as <code>?? 'FULL'</code>, which would have shown a graduated exco member a seventy-dollar bill and taken their money. Null is now handled as what it means, and the rule is pinned by a test.</li>
+    <li><strong>An uncertain tier went quiet the moment somebody declared.</strong> The member is never asked which tier they are on, so their declaration carries the same guess &mdash; and the flag was cleared on sight of one, hiding the warning at exactly the moment somebody was about to confirm the guessed amount. It stays until the roster label is settled.</li>
+    <li><strong>Both linking paths could cross organisations.</strong> Sign-in searched every roster in the database, including in the case where the auto-join had declined to pick an organisation because it could not tell which. The manual link scoped the roster row and not the account. Both are scoped now.</li>
+    <li><strong>Two treasurers closing at once got a stack trace.</strong> The unique key on the deposit is what actually serialises them; the loser now gets a sentence.</li>
+  </ul>
+
+  <div class="note rule">
+    <span class="note-label">The control is now in the database, not only in the code</span>
+    <p>The row-level policy on <code>fee_payments</code> grants a member full access to their own row, and its own comment conceded that the confirmed transition was &ldquo;guarded in the application&rdquo;. That is true of the portal and not of the database: the policies are granted to <code>authenticated</code>, which is the role PostgREST runs as, so anybody holding the publishable key and their own session could have updated their own row to CONFIRMED without going near the application. A control one HTTP request bypasses is not a control.</p>
+    <p>It is a trigger now. Moving into CONFIRMED requires an active exco member of the owning organisation who is not the person who declared it; a payment cannot be inserted already confirmed; rejection is held to the same rule. Service-role writes &mdash; the seed, the import scripts &mdash; pass, because they do not run as a person. Proved against the database rather than asserted: a member self-confirming, a member marking their own row rejected, a member inserting a confirmed row and an exco member confirming their own declaration are all refused, and an exco member confirming somebody else&rsquo;s is allowed.</p>
+  </div>
+
+  <h3>And one bug that was already there</h3>
+  <p>Writing that trigger surfaced a latent fault in <code>app_user_id()</code>, the function every row-level policy depends on. Its comment says it &ldquo;returns NULL rather than raising when unset, so a policy on an unauthenticated connection denies rather than errors&rdquo;. That holds only while the setting has never been touched. <code>dbAs</code> installs the claims transaction-locally, so on a pooled connection the value reverts to the empty string once the transaction commits &mdash; not to unset &mdash; and the next caller evaluated <code>''::jsonb</code>, which raises.</p>
+  <p>Nothing had hit it because every policy-relevant read happens inside <code>dbAs</code>. A trigger, a background job or an admin write on the same pooled connection would have. It was found by a probe against the real database rather than by reading the code: the function looks null-safe, and the difference between &ldquo;unset&rdquo; and &ldquo;set to empty&rdquo; is invisible at a glance.</p>
+</section>
+
+<section>
+  <h2>Nothing here is about one club</h2>
+  <p>The documents already read their branding, billing address and project code from organisation settings rather than from constants. Three things had not caught up.</p>
+  <ul>
+    <li><strong>Those settings had no screen.</strong> They do now, at <code>/:org/settings/organisation</code>: name, tagline, institution, submission address, project code, cluster, GST rate, the billing address, and the bands of the rule under the masthead. A rebrand, a change of project code, a campus move or a GST change is a form rather than a deployment.</li>
+    <li><strong>The dashboard&rsquo;s financial year was the literal 2026.</strong> It would have gone on quietly showing FY2026&rsquo;s balances to the exco that took over in April 2027 &mdash; the one moment somebody most needs to see that the new year has nothing in it yet. It is derived from today, and where the new year has no fund accounts the most recent year that does is shown instead, with the hero saying which. The project code printed beside the reference counters was the literal <code>097</code>; it comes from settings.</li>
+    <li><strong>The sign-in page had no organisation in scope,</strong> so its name, tagline and wordmark could not come from the database. They come from one module with environment overrides instead, which is the right lifetime for them: the wordmark on a sign-in page is not something anybody should be able to change at runtime.</li>
+  </ul>
+  <p>A test walks the whole document module &mdash; subdirectories included, since the preview renderers live one down &mdash; and fails if the word FUNKtion or a real coach&rsquo;s name appears anywhere in it.</p>
+</section>
+
+<section>
   <h2>Still open</h2>
   <ul>
     <li>A spend-over-time chart. Now that the registers are imported there is enough dated history to draw one honestly &mdash; it was not worth adding while pre-portal spend was a single undated lump.</li>
     <li>Four coach payments in the FY2026 register (June and July) carry no reference number at all. The numbers were never allocated, so the series has no gap to answer for, but the register rows cannot be tied back to a document.</li>
     <li><code>IV24-097-0024</code> is missing from the FY2024 register entirely. Either a document was voided without being recorded as voided, or a row never got written down; nobody currently knows which, and OSL will ask.</li>
-    <li>Self-practice sessions. <code>ClassSession</code> requires an instructor, so the portal can only record coach-led classes &mdash; and the 2026 import has now put a number on what that costs: five dates across two trimesters are left out, one of them with twenty-five people on it. Worth making the instructor optional, or modelling a self-practice session as its own thing.</li>
     <li>Re-raising a voided month. Voiding is modelled; raising a replacement is refused, because the unique key on (org, coach, month) has to be cleared first and the replacement needs a fresh reference number rather than the voided one.</li>
-    <li>Instructor photographs. The card is already built to take one &mdash; <code>photoUrl</code> is threaded through the component &mdash; but there is no column and no upload yet, so every plate is currently initials. It belongs with the signature upload in phase 02b, since both are the same private-bucket pattern.</li>
-    <li>Production authentication email. Supabase's built-in sender is for development and is too rate-limited for a club-wide signup. Configure a transactional SMTP provider in Supabase before launch; no application email SDK is needed.</li>
+    <li>Instructor photographs. The card is already built to take one &mdash; <code>photoUrl</code> is threaded through the component &mdash; but there is no column and no upload yet, so every plate is currently initials. The signature upload has now laid the private-bucket path it would follow.</li>
+    <li>Storage policies on <code>storage.objects</code>, added from the Supabase SQL editor. Signature access is authorised in the application today and there is nothing a migration here can do about the second layer.</li>
+    <li>Production authentication email. Supabase's built-in sender is for development and is too rate-limited for a club-wide signup. Configure a transactional SMTP provider in Supabase before launch; no application email SDK is needed. Email confirmation on sign-up is still on and has to be turned off from the Supabase dashboard &mdash; the portal holds no management credential for the project and the connector exposes no auth settings.</li>
+    <li>OSL's Income Deposit Form template. The portal derives every figure the form asks for and cannot fill the form itself, because there has never been a copy of it here. One PDF or .docx of the real thing turns that into a generator.</li>
+    <li>A real fee collection. The flow is built and nobody has run one through it. The first term it is used for should be one somebody is watching.</li>
+    <li>Reminders. The deadlines are computed and shown; nothing sends them yet. That is phase 03, and the Telegram half needs a bot token.</li>
   </ul>
 </section>
 

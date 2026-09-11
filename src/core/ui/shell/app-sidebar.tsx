@@ -13,6 +13,7 @@ import {
   Receipt,
   Settings,
   Users,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react'
 import type { NavEntry } from '@/core/navigation'
@@ -26,6 +27,7 @@ const ICONS: Record<string, LucideIcon> = {
   FileSpreadsheet,
   Receipt,
   Users,
+  Wallet,
 }
 
 const STORAGE_KEY = 'funktion-sidebar-collapsed'

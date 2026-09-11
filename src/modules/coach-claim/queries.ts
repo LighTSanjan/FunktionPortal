@@ -117,11 +117,20 @@ export interface SessionRow {
   heldOn: Date
   durationMinutes: number
   notes: string | null
-  instructorId: string
-  instructorName: string
-  instructorShortCode: string
-  /** Null when no rate covers the session date — see rateForDate. */
-  rateCents: number | null
+  /**
+   * Null for self-practice — the club met, nobody was paid.
+   *
+   * Nested rather than three nullable columns so that a screen cannot render
+   * a blank coach name by accident: there is nothing to read until the null
+   * has been dealt with.
+   */
+  instructor: {
+    id: string
+    fullName: string
+    shortCode: string
+    /** Null when no rate covers the session date — see rateForDate. */
+    rateCents: number | null
+  } | null
   presentCount: number
   markedCount: number
   fromImport: boolean
@@ -157,10 +166,7 @@ export async function listSessions(
     heldOn: row.heldOn,
     durationMinutes: row.durationMinutes,
     notes: row.notes,
-    instructorId: row.instructor.id,
-    instructorName: row.instructor.fullName,
-    instructorShortCode: row.instructor.shortCode,
-    rateCents: rateOrNull(row.instructor.rates, row.heldOn),
+    instructor: toInstructorSummary(row.instructor, row.heldOn),
     presentCount: row.attendance.filter((a) => a.present).length,
     markedCount: row.attendance.length,
     fromImport: row.importId !== null,
@@ -204,10 +210,7 @@ export async function getSession(
       heldOn: row.heldOn,
       durationMinutes: row.durationMinutes,
       notes: row.notes,
-      instructorId: row.instructor.id,
-      instructorName: row.instructor.fullName,
-      instructorShortCode: row.instructor.shortCode,
-      rateCents: rateOrNull(row.instructor.rates, row.heldOn),
+      instructor: toInstructorSummary(row.instructor, row.heldOn),
       presentCount: row.attendance.filter((a) => a.present).length,
       markedCount: row.attendance.length,
       fromImport: row.importId !== null,
@@ -233,6 +236,22 @@ export async function listInstructorOptions(
       select: { id: true, fullName: true, danceStyle: true },
     })
   )
+}
+
+
+function toInstructorSummary(
+  instructor:
+    | { id: string; fullName: string; shortCode: string; rates: { hourlyRateCents: number; effectiveFrom: Date }[] }
+    | null,
+  heldOn: Date
+): SessionRow['instructor'] {
+  if (!instructor) return null
+  return {
+    id: instructor.id,
+    fullName: instructor.fullName,
+    shortCode: instructor.shortCode,
+    rateCents: rateOrNull(instructor.rates, heldOn),
+  }
 }
 
 /**

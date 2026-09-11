@@ -46,11 +46,15 @@ export function SessionForm({
         </div>
       )}
 
-      <FormField label="Who taught it" htmlFor="instructorId" required>
-        <Select id="instructorId" name="instructorId" defaultValue={defaults?.instructorId ?? ''} required>
-          <option value="" disabled>
-            Pick a coach
-          </option>
+      <FormField
+        label="Who taught it"
+        htmlFor="instructorId"
+        hint="Self-practice counts towards attendance and reaches no invoice"
+      >
+        {/* Not `required`, and the empty option is not `disabled`: a class
+            with nobody paid to teach it is an answer, not a blank. */}
+        <Select id="instructorId" name="instructorId" defaultValue={defaults?.instructorId ?? ''}>
+          <option value="">Self-practice — no coach</option>
           {instructors.map((instructor) => (
             <option key={instructor.id} value={instructor.id}>
               {instructor.fullName} — {instructor.danceStyle}

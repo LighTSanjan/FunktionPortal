@@ -1,5 +1,5 @@
 /** Import a back-catalogue attendance CSV; dry-run unless `--apply` is passed. */
-import 'dotenv/config'
+import '../load-env'
 import { readFileSync } from 'node:fs'
 import { PrismaClient, type Prisma } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
@@ -52,7 +52,7 @@ async function main() {
   console.log(`  coaches: ${parsed.instructorHours.map((i) => `${i.label} ${i.hours}h`).join(', ')}`)
 
   for (const iso of parsed.unattributedDates) {
-    console.log(`  ${YELLOW}!${OFF} ${iso}: attended, but no coach recorded — left out`)
+    console.log(`  ${YELLOW}!${OFF} ${iso}: attended, no coach recorded — read as self-practice`)
   }
   for (const conflict of parsed.subtotalConflicts) {
     console.log(
@@ -110,6 +110,16 @@ async function main() {
     `\n${BOLD}Imported${OFF} ${result.sessionsCreated} classes created, ${result.sessionsUpdated} updated, ` +
       `${result.membersCreated} members created, ${result.membersUpdated} updated, ${result.marksImported} marks written.`
   )
+  if (result.selfPracticeDates.length > 0) {
+    console.log(
+      `${DIM}Self-practice, nobody billed: ${result.selfPracticeDates.join(', ')}${OFF}`
+    )
+  }
+  if (result.lockedDates.length > 0) {
+    console.log(
+      `${YELLOW}!${OFF} Not written, month already raised: ${result.lockedDates.join(', ')}`
+    )
+  }
   if (result.skippedDates.length > 0) {
     console.log(`${DIM}Left out: ${result.skippedDates.join(', ')}${OFF}`)
   }

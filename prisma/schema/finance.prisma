@@ -264,7 +264,14 @@ model InstructorRate {
 model ClassSession {
   id              String   @id @default(cuid())
   orgId           String   @map("org_id")
-  instructorId    String   @map("instructor_id")
+  /// Null means self-practice: the club met and nobody was paid to teach.
+  ///
+  /// This was required, and the 2026 import measured what that cost — five
+  /// dates across two trimesters could not be recorded at all, one of them
+  /// with twenty-five people on it. A session with no coach is not a broken
+  /// session; it is a normal week in a dance club. It appears on the month's
+  /// attendance sheet with the instructor row reading NO, and on no invoice.
+  instructorId    String?  @map("instructor_id")
   heldOn          DateTime @db.Date @map("held_on")
   durationMinutes Int      @map("duration_minutes")
   notes           String?
@@ -274,11 +281,14 @@ model ClassSession {
   importId String? @map("import_id")
 
   organisation Organisation        @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  instructor   Instructor          @relation(fields: [instructorId], references: [id])
+  instructor   Instructor?         @relation(fields: [instructorId], references: [id])
   import       AttendanceImport?   @relation(fields: [importId], references: [id], onDelete: SetNull)
   attendance   SessionAttendance[]
   invoiceLines InvoiceLine[]
 
+  /// Postgres counts NULLs as distinct, so this stops constraining self-
+  /// practice the moment the coach became optional. A partial unique index in
+  /// the migration covers that case — one self-practice session per date.
   @@unique([orgId, instructorId, heldOn])
   @@index([orgId, heldOn])
   @@map("class_sessions")
@@ -328,14 +338,36 @@ model AttendanceSheet {
   periodMonth  Int       @map("period_month")
 
   totalPresentByDate  Json  @map("total_present_by_date")
+  /// The month as it stood when it was raised: the coach's details, the
+  /// roster, and every class with who was in it.
+  ///
+  /// Both documents are rebuilt from this rather than from the live rows they
+  /// came out of, which is what makes "a document downloaded twice cannot
+  /// differ from itself" true rather than aspirational. Sessions, rates, bank
+  /// details and the roster all keep moving after a month is submitted; the
+  /// copy the Office of Finance is holding does not.
+  snapshot            Json? @map("snapshot")
   coachClaimCents     Int   @map("coach_claim_cents")
   clubFundBalanceCents Int? @map("club_fund_balance_cents")
 
   verifiedByUserId String?     @map("verified_by_user_id")
+  /// The signatory's name as it was printed, captured at signing.
+  ///
+  /// The user row is the account; this is the attestation. A name is editable
+  /// — it has to be, because Google hands over whatever the account is called
+  /// — and dereferencing it at render time would let every document already
+  /// with the Office of Finance be re-attributed by one edit on a profile
+  /// page.
+  verifiedByName   String?     @map("verified_by_name")
   /// Which post the signatory held — printed under the signature, and the
   /// reason the office is recorded at all.
   verifiedAsOffice ExcoOffice? @map("verified_as_office")
   verifiedAt       DateTime?   @map("verified_at")
+  /// The specimen stamped at the moment of verification, not whichever one
+  /// the signatory happens to have on file now. Documents are rebuilt from
+  /// these rows on every download, and one downloaded twice must not differ
+  /// from itself — a replaced signature would otherwise rewrite history.
+  signatureImagePath String?    @map("signature_image_path")
   generatedDocUrl  String?     @map("generated_doc_url")
   /// Drive file id once filed. Refiling overwrites this file rather than
   /// creating a second one, so a regenerated month leaves one document
@@ -405,6 +437,10 @@ model InvoiceLine {
   id          String  @id @default(cuid())
   invoiceId   String  @map("invoice_id")
   sessionId   String? @map("session_id")
+  /// The date this line bills, on the line rather than only inside the
+  /// description. The document is rebuilt from these rows, so the date has to
+  /// be a field somebody can compare and sort by, not a substring.
+  heldOn      DateTime @db.Date @map("held_on")
   description String
   minutes     Int
   rateCents   Int     @map("rate_cents")
@@ -431,6 +467,11 @@ model Term {
 
   fullFeeCents Int @map("full_fee_cents")
   halfFeeCents Int @map("half_fee_cents")
+  /// What an exchange student pays. Null charges them the half-term rate,
+  /// which is the arrangement the half rate exists for — but it is its own
+  /// field so a club charging something else can say so, rather than have the
+  /// figure inferred inside the code that reads roster labels.
+  exchangeFeeCents Int? @map("exchange_fee_cents")
 
   /// OSL must be told at least 2 weeks before this date so they can create
   /// the DBS Max Wallet user account (§2.2).

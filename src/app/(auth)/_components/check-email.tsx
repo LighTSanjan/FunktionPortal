@@ -4,6 +4,7 @@ import { useActionState } from 'react'
 import Link from 'next/link'
 import { resendConfirmation, type AuthState } from '@/actions/auth'
 import { Button } from '@/core/ui/button'
+import { BRAND } from '@/core/brand'
 
 export function CheckEmail({ email }: { email: string }) {
   const [state, formAction, pending] = useActionState<AuthState, FormData>(resendConfirmation, {
@@ -32,7 +33,7 @@ export function CheckEmail({ email }: { email: string }) {
       </p>
 
       <div className="mt-7 rounded-[var(--radius-md)] border border-border bg-surface p-4 text-[13px] leading-relaxed text-text-muted">
-        Nothing after a minute? Check spam — it comes from Supabase, not from a FUNKtion
+        Nothing after a minute? Check spam — it comes from Supabase, not from a {BRAND.name}
         address, so filters sometimes catch it.
       </div>
 

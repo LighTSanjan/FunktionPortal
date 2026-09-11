@@ -472,3 +472,59 @@ body {
     animation: none;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   print
+   ══════════════════════════════════════════════════════════════════
+   The Finance Guidelines want the month's pack as one PDF, and the only PDF
+   writer the club reliably has is the browser's own. So the document previews
+   are the print artefact rather than a picture of one, and printing has to
+   strip the portal away from around them.
+
+   Keyed on data-print rather than on utility classes: a class name is a
+   styling decision that can change, while "this is chrome, not document" is a
+   fact about the element. */
+@media print {
+  [data-print='hide'] {
+    display: none !important;
+  }
+
+  /* The shell holds the page in a fixed-height scroller. Left alone, a print
+     job is one screenful and the rest is silently dropped. */
+  html,
+  body,
+  [data-print='page'],
+  [data-print='page'] * {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  html,
+  body,
+  [data-print='page'] {
+    background: #fff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Each document is a sheet of paper, and two sheets are two pages. */
+  [data-print='sheet'] {
+    break-inside: avoid;
+    break-after: page;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  [data-print='sheet']:last-of-type {
+    break-after: auto;
+  }
+
+  a[href]::after {
+    /* Printing a URL after every link is a browser default that makes a
+       finance document look like a web page. */
+    content: none !important;
+  }
+}

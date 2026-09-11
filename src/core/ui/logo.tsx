@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
+import { BRAND } from '@/core/brand'
 
 interface LogoProps {
   size?: number
@@ -12,15 +13,15 @@ function Logo({ size = 16, className, showText = true }: LogoProps) {
     <div className={cn('inline-flex items-center gap-1.5', className)}>
       {/* eslint-disable-next-line @next/next/no-img-element -- plain img matches sidebar pattern; sizes vary by call site */}
       <img
-        src="/funktion-mark.svg"
+        src={BRAND.assets.mark}
         width={size}
         height={size}
-        alt="FUNKtion"
+        alt={BRAND.name}
         aria-hidden="true"
       />
       {showText && (
         <span className="text-[12px] font-semibold text-text-subtle">
-          FUNKtion
+          {BRAND.name}
         </span>
       )}
     </div>
@@ -36,8 +37,8 @@ function Wordmark({
 }) {
   return (
     <Image
-      src="/funktion-logo.svg"
-      alt="FUNKtion"
+      src={BRAND.assets.wordmark}
+      alt={BRAND.name}
       width={1000}
       height={677}
       unoptimized

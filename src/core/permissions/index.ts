@@ -1,6 +1,12 @@
 import type { OrgRole } from '@prisma/client'
 
-const MEMBER_PERMISSIONS = ['access.request'] as const
+const MEMBER_PERMISSIONS = [
+  'access.request',
+  // Declaring a payment is a claim about your own money, not a decision about
+  // the club's. Confirming one is the decision, and it is exco-only — the two
+  // are deliberately different permissions held by different people.
+  'fee.declare',
+] as const
 
 const EXCO_PERMISSIONS = [
   ...MEMBER_PERMISSIONS,
@@ -13,6 +19,7 @@ const EXCO_PERMISSIONS = [
   'session.manage',
   'claim.generate',
   'references.view',
+  'fee.manage',
 ] as const
 
 const ROLE_PERMISSIONS: Record<OrgRole, ReadonlySet<string>> = {

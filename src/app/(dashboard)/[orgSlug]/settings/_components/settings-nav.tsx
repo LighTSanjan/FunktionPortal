@@ -6,20 +6,16 @@ import { cn } from '@/lib/utils'
 
 interface SettingsNavProps {
   orgSlug: string
+  /** Resolved by the layout, which is where the caller's role is known. */
+  tabs: { slug: string; label: string }[]
 }
 
-const TABS = [
-  { slug: 'profile', label: 'Profile' },
-  { slug: 'access', label: 'Access requests' },
-  { slug: 'audit-log', label: 'Audit Log' },
-]
-
-export function SettingsNav({ orgSlug }: SettingsNavProps) {
+export function SettingsNav({ orgSlug, tabs }: SettingsNavProps) {
   const pathname = usePathname()
 
   return (
     <nav className="flex gap-1 border-b border-border" aria-label="Settings sections">
-      {TABS.map((tab) => {
+      {tabs.map((tab) => {
         const href = `/${orgSlug}/settings/${tab.slug}`
         const active = pathname === href
         return (

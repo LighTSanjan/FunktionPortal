@@ -9,6 +9,7 @@ import { Input } from '@/core/ui/input'
 import { FormField } from '@/core/ui/form-field'
 import { AuthCardShell } from '../_components/auth-card-shell'
 import { GoogleButton } from '../_components/google-button'
+import { emailPlaceholder } from '@/core/brand'
 
 const REDIRECT_ERRORS: Record<string, string> = {
   link_expired: 'That link has expired or was already used. Sign in below, or ask for a new one.',
@@ -79,7 +80,7 @@ function SignInForm({ redirectError }: { redirectError: string | null }) {
             id="email"
             name="email"
             type="email"
-            placeholder="you@mymail.sutd.edu.sg"
+            placeholder={emailPlaceholder()}
             required
             autoComplete="email"
             defaultValue={state.email ?? ''}

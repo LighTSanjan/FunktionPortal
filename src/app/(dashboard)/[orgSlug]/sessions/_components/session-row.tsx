@@ -11,9 +11,10 @@ export function SessionRowCard({
   session: SessionRow
   delayMs?: number
 }) {
+  const coach = session.instructor
   const amount =
-    session.rateCents !== null
-      ? sessionAmountCents(session.durationMinutes, session.rateCents)
+    coach && coach.rateCents !== null
+      ? sessionAmountCents(session.durationMinutes, coach.rateCents)
       : null
 
   return (
@@ -34,10 +35,18 @@ export function SessionRowCard({
           </div>
 
           <div className="min-w-0">
-            <p className="truncate text-[14px] font-medium text-text">{session.instructorName}</p>
+            <p className="truncate text-[14px] font-medium text-text">
+              {coach ? coach.fullName : 'Self-practice'}
+            </p>
             <p className="text-[12.5px] text-text-muted">
               {formatHours(session.durationMinutes)} hr
-              {amount !== null ? ` · ${formatSgd(amount)}` : ' · no rate for this date'}
+              {/* A self-practice class costs nothing, which is a fact about
+                  it rather than a missing rate. */}
+              {!coach
+                ? ' · nobody billed'
+                : amount !== null
+                  ? ` · ${formatSgd(amount)}`
+                  : ' · no rate for this date'}
               {session.fromImport && ' · imported'}
             </p>
           </div>

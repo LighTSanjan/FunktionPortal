@@ -31,7 +31,7 @@ export function normaliseStudentId(value: string | null | undefined): string | n
 
 export function normaliseEmail(value: string | null | undefined): string | null {
   const email = (value ?? '').trim().toLowerCase()
-  // At least one sheet holds "1009254@mymail.sutd.edu sg" — a dot typed as a
+  // At least one sheet holds "1000123@mymail.sutd.edu sg" — a dot typed as a
   // space. Left alone: correcting an address is not this function's job, and a
   // near-miss should fall through to student ID rather than match something.
   return email.includes('@') ? email : null

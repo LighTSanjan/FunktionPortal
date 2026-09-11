@@ -3,13 +3,12 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useActionState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Download, FileText, Send } from 'lucide-react'
+import { Download, FileText } from 'lucide-react'
 import { Button } from '@/core/ui/button'
 import { Badge } from '@/core/ui/badge'
 import { Select } from '@/core/ui/select'
 import { formatSgd, formatHours } from '@/modules/coach-claim/money'
-import { generateMonthlyDocuments, markSubmitted } from '@/modules/coach-claim/run-actions'
+import { generateMonthlyDocuments } from '@/modules/coach-claim/run-actions'
 import type { ActionState } from '@/modules/coach-claim/actions'
 import type { RunEntry } from '@/modules/coach-claim/monthly-run'
 
@@ -17,7 +16,8 @@ const STATUS: Record<RunEntry['status'], { label: string; variant: 'success' | '
   READY: { label: 'Ready to raise', variant: 'info' },
   BLOCKED: { label: 'Blocked', variant: 'danger' },
   NO_SESSIONS: { label: 'No classes', variant: 'neutral' },
-  GENERATED: { label: 'Raised', variant: 'warning' },
+  GENERATED: { label: 'Awaiting signature', variant: 'warning' },
+  SIGNED: { label: 'Signed, not sent', variant: 'info' },
   SUBMITTED: { label: 'With OSL', variant: 'success' },
   PAID: { label: 'Paid', variant: 'success' },
   VOID: { label: 'Void', variant: 'neutral' },
@@ -36,20 +36,21 @@ export function RunCard({
   funds: { source: string; openingBalanceCents: number }[]
   delayMs?: number
 }) {
-  const router = useRouter()
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     generateMonthlyDocuments.bind(null, orgSlug),
     { error: null }
   )
-  const [submitting, startSubmit] = React.useTransition()
-  const [submitError, setSubmitError] = React.useState<string | null>(null)
 
-  const raised = entry.status === 'GENERATED' || entry.status === 'SUBMITTED' || entry.status === 'PAID'
+  const raised =
+    entry.status === 'GENERATED' ||
+    entry.status === 'SIGNED' ||
+    entry.status === 'SUBMITTED' ||
+    entry.status === 'PAID'
   const invoiceId = entry.invoiceId ?? ''
   const status = STATUS[entry.status]
 
   const overdue =
-    entry.status === 'GENERATED' &&
+    (entry.status === 'GENERATED' || entry.status === 'SIGNED') &&
     entry.submissionDueAt !== null &&
     entry.submissionDueAt < new Date()
 
@@ -162,39 +163,32 @@ export function RunCard({
               )}
             </dl>
 
+            {/* One way in. Reading, signing and sending happen on the month's
+                own page, so there is no route to recording a month as sent
+                that skips looking at what is being sent. */}
             <div className="flex flex-wrap items-center gap-2">
-              <DownloadLink href={`/${orgSlug}/monthly-run/${invoiceId}/invoice.docx`}>
+              <Link
+                href={`/${orgSlug}/monthly-run/${invoiceId}`}
+                className="lapis-press lapis-tap inline-flex h-9 items-center gap-2 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-4 text-[13px] font-medium text-text hover:bg-surface-hover"
+              >
+                <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                {entry.status === 'GENERATED'
+                  ? 'Read and sign'
+                  : entry.status === 'SIGNED'
+                    ? 'Send to OSL'
+                    : 'Open the documents'}
+              </Link>
+              <DownloadLink
+                href={`/${orgSlug}/monthly-run/${invoiceId}/download/invoice.docx`}
+              >
                 Invoice
               </DownloadLink>
               <DownloadLink
-                href={`/${orgSlug}/monthly-run/${invoiceId}/attendance-sheet.docx`}
+                href={`/${orgSlug}/monthly-run/${invoiceId}/download/attendance-sheet.docx`}
               >
                 Attendance sheet
               </DownloadLink>
-
-              {entry.status === 'GENERATED' && (
-                <Button
-                  variant="secondary"
-                  loading={submitting}
-                  onClick={() =>
-                    startSubmit(async () => {
-                      const result = await markSubmitted(orgSlug, invoiceId)
-                      if (result.error) setSubmitError(result.error)
-                      else router.refresh()
-                    })
-                  }
-                >
-                  <Send className="h-3.5 w-3.5" aria-hidden="true" />
-                  Mark sent to OSL
-                </Button>
-              )}
             </div>
-
-            {submitError && (
-              <p className="text-[12.5px] text-danger" role="alert">
-                {submitError}
-              </p>
-            )}
           </div>
         )}
       </div>

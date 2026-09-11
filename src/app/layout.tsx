@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
+import { BRAND } from '@/core/brand'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -9,10 +10,10 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'FUNKtion Treasury',
-    template: '%s | FUNKtion Treasury',
+    default: BRAND.productName,
+    template: `%s | ${BRAND.productName}`,
   },
-  description: "Treasury portal for FUNKtion, SUTD's popping and locking dance club",
+  description: BRAND.description,
   icons: {
     icon: '/favicon.svg',
   },

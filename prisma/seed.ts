@@ -10,7 +10,7 @@
  * once through the portal, and until they are, assertInvoiceable() refuses to
  * generate that coach's invoice — which is the behaviour we want anyway.
  */
-import 'dotenv/config'
+import '../scripts/load-env'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 
@@ -41,9 +41,16 @@ async function main() {
     create: { name: 'FUNKtion', slug: 'funktion' },
   })
 
+  // The two institution fields are filled on re-seed as well as on create.
+  // An empty `update` is right for settings a club has since edited; these are
+  // new columns nobody has had the chance to edit, and leaving them null on an
+  // existing database would silently drop "SUTD" off every invoice.
   await db.organisationSettings.upsert({
     where: { orgId: org.id },
-    update: {},
+    update: {
+      institutionShortName: 'SUTD',
+      submissionEmail: 'studentlife@sutd.edu.sg',
+    },
     create: {
       orgId: org.id,
       projectCode: PROJECT_CODE,
@@ -52,6 +59,10 @@ async function main() {
       brandBandColors: ['F05820', 'F8A838', '58C0E8', '304890'],
       billToName: 'Singapore University of Technology and Design',
       billToAddressLines: ['No. 8 Somapah Road, #01-301', 'Building 3, Level 1', 'Singapore 487372'],
+      institutionShortName: 'SUTD',
+      // The address the completed month is emailed to. The portal fills the
+      // mail client's To: field with it and sends nothing itself.
+      submissionEmail: 'studentlife@sutd.edu.sg',
     },
   })
 

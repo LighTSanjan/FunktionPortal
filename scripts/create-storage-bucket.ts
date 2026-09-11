@@ -5,7 +5,7 @@
  * with an empty storage.buckets table. Idempotent, safe to re-run. Requires
  * SUPABASE_SECRET_KEY (service role) and NEXT_PUBLIC_SUPABASE_URL.
  */
-import 'dotenv/config'
+import './load-env'
 import { createClient } from '@supabase/supabase-js'
 import { BUCKET } from '../src/core/storage'
 

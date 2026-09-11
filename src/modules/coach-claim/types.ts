@@ -1,4 +1,5 @@
 /** Data shared by the monthly invoice and attendance document. */
+import type { ImageFormat } from './image-size'
 
 export interface InstructorDetails {
   /** As it should print, stage name and all. */
@@ -41,6 +42,19 @@ export interface ClaimLine {
 export type FundSource = 'SEED' | 'INCOME'
 
 /**
+ * A signature specimen, loaded ready to stamp onto a document.
+ *
+ * Passed as bytes rather than as a storage key so that the document builders
+ * hold no credentials and no knowledge of where signatures live — and so the
+ * only way to get one into a document is for the caller to have already
+ * fetched it, which is the step authorisation is checked at.
+ */
+export interface SignatureImage {
+  data: Buffer
+  format: ImageFormat
+}
+
+/**
  * The sheet is verified by the TREASURER, who is the officer that signs the
  * live submissions and the only one holding the fund balance the sheet
  * quotes. Office is still carried and printed so the document says which
@@ -51,6 +65,13 @@ export interface Verification {
   office?: string
   studentId?: string
   signedOn?: Date
+  /**
+   * Stamped on the rule when present; the rule is left blank when it is not,
+   * so an unsigned sheet still prints for a wet signature. A stamp is applied
+   * in the same request as the act that authorises it and never on anybody
+   * else's behalf.
+   */
+  signatureImage?: SignatureImage
 }
 
 export const DEFAULT_VERIFYING_OFFICE = 'Treasurer'
@@ -97,7 +118,27 @@ export interface InvoiceDocData {
   fundSource: FundSource
   /** Countersignature. The treasurer is not the payee. */
   treasurerName: string
+  /**
+   * The club's countersignature block.
+   *
+   * Only the club's own endorsement is ever stamped here. The coach's
+   * signature belongs to the coach — the invoice is their document, billed to
+   * the university in their name, and a club stamping it would forge the one
+   * attestation the Office of Finance is relying on.
+   */
+  endorsement?: {
+    office?: string
+    signedOn?: Date
+    signatureImage?: SignatureImage
+  }
   organisationName: string
+  /**
+   * The institution the club sits under, in its short form ("SUTD"), printed
+   * beside the club name. Optional because it is settings-derived: another
+   * student organisation running this portal is under some other letterhead,
+   * and a university that renames itself should not be a deployment.
+   */
+  institutionShortName?: string
   billTo: BillTo
 }
 

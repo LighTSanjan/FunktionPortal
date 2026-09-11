@@ -4,6 +4,8 @@ import {
   AlignmentType, BorderStyle, VerticalAlign, Packer,
 } from 'docx'
 import type { InvoiceDocData } from './types'
+import { DEFAULT_VERIFYING_OFFICE } from './types'
+import { signatureBlock } from './signature-block'
 import { formatSgd, formatHours } from './money'
 import { FONT, SIZE, INK, INK_SOFT, RULE, HEADER_FILL, MONTHS, longDate, shortDate } from './theme'
 
@@ -72,6 +74,13 @@ function tableCell(children: Paragraph[], opts: { fill?: string; width?: number 
   })
 }
 
+/** "Some Society, SUTD", or the club alone where no institution is set. */
+function orgLine(data: InvoiceDocData): string {
+  return data.institutionShortName
+    ? `${data.organisationName}, ${data.institutionShortName}`
+    : data.organisationName
+}
+
 export function buildInvoice(data: InvoiceDocData): Document {
   const { instructor, lines } = data
   const period = `${MONTHS[data.periodMonth - 1]} ${data.periodYear}`
@@ -101,7 +110,7 @@ export function buildInvoice(data: InvoiceDocData): Document {
       line('For', { size: SIZE.tiny, caps: true, color: INK_SOFT, spaceAfter: 50, align: AlignmentType.RIGHT }),
       line(`${instructor.danceStyle} classes`, { bold: true, align: AlignmentType.RIGHT }),
       line(period, { size: SIZE.small, color: INK_SOFT, align: AlignmentType.RIGHT }),
-      line(`${data.organisationName}, SUTD`, { size: SIZE.small, color: INK_SOFT, align: AlignmentType.RIGHT }),
+      line(orgLine(data), { size: SIZE.small, color: INK_SOFT, align: AlignmentType.RIGHT }),
     ],
   )
 
@@ -168,6 +177,9 @@ export function buildInvoice(data: InvoiceDocData): Document {
     line(`${instructor.bankName}  ${instructor.bankAccountNo}`, { size: SIZE.small, color: INK_SOFT }),
   ]
 
+  // Only the club's half of the document is ever stamped. The coach signs
+  // their own invoice; see InvoiceDocData.endorsement.
+  const endorsed = data.endorsement
   const endorsement = [
     line('Student organisation endorsement', { size: SIZE.tiny, caps: true, color: INK_SOFT, spaceAfter: 50 }),
     new Paragraph({
@@ -176,12 +188,16 @@ export function buildInvoice(data: InvoiceDocData): Document {
                  text(`${data.fundSource === 'SEED' ? 'Seed' : 'Income'} Fund`, { size: SIZE.small, bold: true })],
     }),
     new Paragraph({
-      spacing: { after: 260 },
+      spacing: { after: 60 },
       children: [text('Reference:  ', { size: SIZE.small, color: INK_SOFT }), text(data.referenceNumber, { size: SIZE.small, bold: true })],
     }),
+    ...signatureBlock(endorsed?.signatureImage, 200),
     new Paragraph({ border: { bottom: HAIRLINE }, spacing: { after: 40 }, children: [] }),
     line(data.treasurerName, { size: SIZE.small, bold: true }),
-    line(`Treasurer, ${data.organisationName}`, { size: SIZE.tiny, color: INK_SOFT }),
+    line(`${endorsed?.office ?? DEFAULT_VERIFYING_OFFICE}, ${data.organisationName}`, { size: SIZE.tiny, color: INK_SOFT }),
+    ...(endorsed?.signedOn
+      ? [line(longDate(endorsed.signedOn), { size: SIZE.tiny, color: INK_SOFT })]
+      : []),
   ]
 
   return new Document({

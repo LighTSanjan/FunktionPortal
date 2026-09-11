@@ -31,9 +31,10 @@ export default async function SessionPage({
 
   const monthKey = `${session.heldOn.getUTCFullYear()}-${String(session.heldOn.getUTCMonth() + 1).padStart(2, '0')}`
   const backTo = `/${orgSlug}/sessions?month=${monthKey}`
+  const coach = session.instructor
   const amount =
-    session.rateCents !== null
-      ? sessionAmountCents(session.durationMinutes, session.rateCents)
+    coach && coach.rateCents !== null
+      ? sessionAmountCents(session.durationMinutes, coach.rateCents)
       : null
 
   const heldOnLabel = session.heldOn.toLocaleDateString('en-SG', {
@@ -53,24 +54,35 @@ export default async function SessionPage({
           { label: heldOnLabel },
         ]}
         title={heldOnLabel}
-        subtitle={`${session.instructorName} · ${formatHours(session.durationMinutes)} hr${
-          amount !== null ? ` · ${formatSgd(amount)}` : ' · no rate covers this date'
+        subtitle={`${coach ? coach.fullName : 'Self-practice — no coach'} · ${formatHours(
+          session.durationMinutes
+        )} hr${
+          !coach ? '' : amount !== null ? ` · ${formatSgd(amount)}` : ' · no rate covers this date'
         }`}
         actions={canManage ? <DeleteSessionButton orgSlug={orgSlug} sessionId={session.id} returnTo={backTo} /> : undefined}
       />
 
-      {amount === null && (
+      {coach && amount === null && (
         <Card>
           <CardContent className="py-4 text-[13px] leading-relaxed text-text-muted">
-            No rate covers {heldOnLabel} for {session.instructorName}, so this class cannot be
-            billed yet. Add a rate whose start date is on or before it —{' '}
+            No rate covers {heldOnLabel} for {coach.fullName}, so this class cannot be billed
+            yet. Add a rate whose start date is on or before it —{' '}
             <Link
-              href={`/${orgSlug}/instructors/${session.instructorId}`}
+              href={`/${orgSlug}/instructors/${coach.id}`}
               className="font-medium text-accent-600 underline-offset-4 hover:underline"
             >
               open their record
             </Link>
             .
+          </CardContent>
+        </Card>
+      )}
+
+      {!coach && (
+        <Card>
+          <CardContent className="py-4 text-[13px] leading-relaxed text-text-muted">
+            Nobody was paid to teach this one. It counts towards attendance and appears on the
+            month&rsquo;s sheets with the coach row reading NO, and it reaches no invoice.
           </CardContent>
         </Card>
       )}
@@ -114,7 +126,7 @@ export default async function SessionPage({
                 sessionId={session.id}
                 instructors={instructors}
                 defaults={{
-                  instructorId: session.instructorId,
+                  instructorId: coach?.id ?? '',
                   heldOn: session.heldOn.toISOString().slice(0, 10),
                   durationMinutes: session.durationMinutes,
                   notes: session.notes ?? '',

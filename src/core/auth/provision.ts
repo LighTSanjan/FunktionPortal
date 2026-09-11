@@ -26,6 +26,56 @@ export async function provisionUser(authUser: SupabaseUser): Promise<void> {
   })
 
   await joinDefaultOrganisation(authUser.id, email)
+  await linkRosterMember(authUser.id, email)
+}
+
+/** Organisations this account actually belongs to. */
+async function activeOrgIds(userId: string): Promise<string[]> {
+  const memberships = await dbAdmin.organisationMembership.findMany({
+    where: { userId, isActive: true },
+    select: { orgId: true },
+  })
+  return memberships.map((row) => row.orgId)
+}
+
+/**
+ * Attach a signed-in account to its roster row, by email.
+ *
+ * A User is somebody who can sign in; a Member is somebody on the club roster.
+ * Most members never sign in, and some users are not on the roster at all, so
+ * the two are separate — but a member opening the portal to pay their
+ * subscription has to be recognised as themselves, and asking them to claim a
+ * roster row would be asking them to assert an identity.
+ *
+ * Email is the only key both sides hold: the roster carries one for every row
+ * because the club collects it, and Supabase has verified the one on the
+ * account. It is matched case-insensitively and only where exactly one
+ * unlinked row carries it, so a shared or duplicated address links nobody and
+ * the exco is left to sort it out.
+ */
+async function linkRosterMember(userId: string, email: string): Promise<void> {
+  const already = await dbAdmin.member.findFirst({ where: { userId }, select: { id: true } })
+  if (already) return
+
+  // Only rosters this account belongs to. Searching every organisation would
+  // attach somebody to a club they have never joined the moment a second one
+  // exists — including in the case just above, where the auto-join declined
+  // to pick an organisation precisely because it could not tell which.
+  const orgIds = await activeOrgIds(userId)
+  if (orgIds.length === 0) return
+
+  const candidates = await dbAdmin.member.findMany({
+    where: {
+      orgId: { in: orgIds },
+      email: { equals: email, mode: 'insensitive' },
+      userId: null,
+    },
+    select: { id: true },
+    take: 2,
+  })
+  if (candidates.length !== 1) return
+
+  await dbAdmin.member.update({ where: { id: candidates[0].id }, data: { userId } })
 }
 
 // Single-club deployments auto-join new accounts as MEMBER. Role permissions

@@ -1,5 +1,6 @@
 import { Wordmark } from '@/core/ui/logo'
 import { StagePhoto } from './_components/stage-photo'
+import { BRAND } from '@/core/brand'
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -58,10 +59,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
           <div className="rise-in absolute inset-x-0 bottom-0 p-6 lg:p-10 xl:p-14" style={{ '--delay': '90ms' } as React.CSSProperties}>
             <h2 className="text-[26px] font-semibold leading-[1.05] tracking-[-0.025em] text-white lg:text-[42px] xl:text-[52px]">
-              FUNKtion Portal
+              {BRAND.name} Portal
             </h2>
             <p className="mt-2 text-[13.5px] text-white/80 lg:mt-3 lg:text-[16px] xl:text-[17px]">
-              SUTD&rsquo;s Ultimate Popping &amp; Locking Dance Club!
+              {BRAND.tagline}
             </p>
           </div>
 

@@ -7,6 +7,8 @@ import { Button } from '@/core/ui/button'
 import { Input } from '@/core/ui/input'
 import { FormField } from '@/core/ui/form-field'
 import { AuthCardShell } from '../_components/auth-card-shell'
+import { emailPlaceholder } from '@/core/brand'
+import { BRAND } from '@/core/brand'
 
 export default function ForgotPasswordPage() {
   const [state, formAction, pending] = useActionState<AuthState, FormData>(requestPasswordReset, {
@@ -28,7 +30,7 @@ export default function ForgotPasswordPage() {
         }
       >
         <div className="rounded-[var(--radius-md)] border border-border bg-surface p-4 text-[13px] leading-relaxed text-text-muted">
-          Nothing after a minute? Check spam — it comes from Supabase, not from a FUNKtion
+          Nothing after a minute? Check spam — it comes from Supabase, not from a {BRAND.name}
           address, so filters sometimes catch it. The link expires after an hour.
         </div>
       </AuthCardShell>
@@ -63,7 +65,7 @@ export default function ForgotPasswordPage() {
             id="email"
             name="email"
             type="email"
-            placeholder="you@mymail.sutd.edu.sg"
+            placeholder={emailPlaceholder()}
             required
             autoComplete="email"
             defaultValue={state.email ?? ''}

@@ -3,6 +3,8 @@
 import { useActionState } from 'react'
 import { useFormStatus } from 'react-dom'
 import { mapDate, type ActionState } from '@/modules/attendance/actions'
+import { SELF_PRACTICE, SKIP } from '@/modules/attendance/date-choice'
+import type { DateDisposition } from '@/modules/attendance/queries'
 
 export interface DateRowProps {
   orgSlug: string
@@ -11,11 +13,14 @@ export interface DateRowProps {
   header: string
   sheetLabel: string | null
   instructorId: string | null
+  disposition: DateDisposition
+  locked: boolean
   minutes: number
   overridden: boolean
   presentCount: number
   instructors: { id: string; fullName: string; shortCode: string }[]
-  locked: boolean
+  /** The import has been applied; nothing here can change any more. */
+  applied: boolean
 }
 
 export function DateRow(props: DateRowProps) {
@@ -43,26 +48,39 @@ export function DateRow(props: DateRowProps) {
         <form action={formAction} className="flex items-center gap-2">
           <input type="hidden" name="importId" value={props.importId} />
           <input type="hidden" name="iso" value={props.iso} />
+          {/* Three answers, because "the club met on its own" and "leave
+              this date out" are different statements about a date. */}
           <Field
             name="instructorId"
-            defaultValue={props.instructorId ?? ''}
-            disabled={props.locked}
-            className="min-w-[9rem]"
+            defaultValue={
+              props.disposition === 'COACH' && props.instructorId
+                ? props.instructorId
+                : props.disposition === 'SELF_PRACTICE'
+                  ? SELF_PRACTICE
+                  : SKIP
+            }
+            disabled={props.locked || props.applied}
+            className="min-w-[10.5rem]"
           >
-            <option value="">Not a coached class</option>
             {props.instructors.map((instructor) => (
               <option key={instructor.id} value={instructor.id}>
                 {instructor.fullName}
               </option>
             ))}
+            <option value={SELF_PRACTICE}>Self-practice</option>
+            <option value={SKIP}>Leave this date out</option>
           </Field>
-          <Field name="minutes" defaultValue={String(props.minutes || 90)} disabled={props.locked}>
+          <Field
+            name="minutes"
+            defaultValue={String(props.minutes || 90)}
+            disabled={props.locked || props.applied}
+          >
             <option value="90">1.5 h</option>
             <option value="180">3 h</option>
             <option value="120">2 h</option>
             <option value="60">1 h</option>
           </Field>
-          <Saving overridden={props.overridden} error={state.error} />
+          <Saving overridden={props.overridden} locked={props.locked} error={state.error} />
         </form>
       </td>
     </tr>
@@ -95,10 +113,19 @@ function Field({
   )
 }
 
-function Saving({ overridden, error }: { overridden: boolean; error: string | null }) {
+function Saving({
+  overridden,
+  locked,
+  error,
+}: {
+  overridden: boolean
+  locked: boolean
+  error: string | null
+}) {
   const { pending } = useFormStatus()
   if (pending) return <span className="text-[11.5px] text-text-subtle">saving…</span>
   if (error) return <span className="text-[11.5px] text-danger">{error}</span>
+  if (locked) return <span className="text-[11.5px] text-warning">month raised</span>
   if (overridden) return <span className="text-[11.5px] text-text-subtle">changed</span>
   return null
 }

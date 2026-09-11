@@ -23,8 +23,13 @@ export default async function ImportReviewPage({
   if (!detail) notFound()
 
   const applied = detail.status === 'APPLIED'
-  const planned = detail.plan.filter((date) => date.instructorId !== null)
-  const skipped = detail.plan.filter((date) => date.instructorId === null)
+  const coached = detail.plan.filter((date) => date.disposition === 'COACH')
+  const selfPractice = detail.plan.filter((date) => date.disposition === 'SELF_PRACTICE')
+  const skipped = detail.plan.filter((date) => date.disposition === 'SKIP')
+  const locked = detail.plan.filter((date) => date.locked)
+  // Self-practice counts. It writes a class and its marks like any other date;
+  // what it does not do is reach an invoice.
+  const planned = [...coached, ...selfPractice]
   const marks = detail.parsed.members.reduce(
     (total, member) =>
       total + member.presentOn.filter((iso) => planned.some((d) => d.iso === iso)).length,
@@ -43,6 +48,15 @@ export default async function ImportReviewPage({
         subtitle={`${detail.termName ?? 'No term'} · ${detail.dates} class dates · ${detail.rows} roster rows`}
         actions={applied ? <Badge variant="success">Applied</Badge> : undefined}
       />
+
+      {locked.length > 0 && (
+        <Note tone="warning" title="Some dates cannot be written">
+          {locked.map((date) => date.header).join(', ')} fall in a month whose documents have
+          already been raised. Rewriting the classes behind an attendance sheet that is with the Office of
+          Finance would leave the two disagreeing, so they are left alone. If the sheet is
+          right and the submitted month is wrong, void that month and raise it again.
+        </Note>
+      )}
 
       {applied && (
         <Note tone="success" title="Already imported">
@@ -67,11 +81,12 @@ export default async function ImportReviewPage({
       )}
 
       {detail.parsed.unattributedDates.length > 0 && (
-        <Note tone="warning" title="Classes with nobody recorded as teaching">
+        <Note tone="info" title="Classes with nobody recorded as teaching">
           {detail.parsed.unattributedDates.length} date
           {detail.parsed.unattributedDates.length === 1 ? '' : 's'} have attendance but no coach
-          marked in the sheet — most likely self-practice. A class in the portal has to have a coach
-          on it, so these stay out of the import unless you assign one.
+          marked in the sheet. They are read as self-practice: the club met, the attendance
+          counts, and nobody is billed. They appear on the month&rsquo;s attendance sheets with
+          the coach row reading NO. Assign a coach below if the sheet simply missed one.
         </Note>
       )}
 
@@ -99,7 +114,14 @@ export default async function ImportReviewPage({
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-5 py-3.5">
             <h2 className="text-[14px] font-semibold text-text">Classes</h2>
             <p className="text-[12.5px] text-text-muted">
-              <span className="font-semibold text-text">{planned.length}</span> to import
+              <span className="font-semibold text-text">{coached.length}</span> coached
+              {selfPractice.length > 0 && (
+                <span>
+                  {' · '}
+                  <span className="font-semibold text-text">{selfPractice.length}</span>{' '}
+                  self-practice
+                </span>
+              )}
               {skipped.length > 0 && <span> · {skipped.length} left out</span>}
             </p>
           </div>
@@ -120,7 +142,7 @@ export default async function ImportReviewPage({
                     orgSlug={orgSlug}
                     importId={detail.id}
                     instructors={detail.instructors}
-                    locked={applied}
+                    applied={applied}
                     {...date}
                   />
                 ))}
@@ -210,11 +232,16 @@ function Note({
   title,
   children,
 }: {
-  tone: 'success' | 'warning' | 'danger'
+  tone: 'success' | 'warning' | 'danger' | 'info'
   title: string
   children: React.ReactNode
 }) {
-  const ink = { success: 'var(--success)', warning: 'var(--warning)', danger: 'var(--danger)' }[tone]
+  const ink = {
+    success: 'var(--success)',
+    warning: 'var(--warning)',
+    danger: 'var(--danger)',
+    info: 'var(--brand-sky, var(--accent-500))',
+  }[tone]
   return (
     <div
       className="rounded-[var(--radius-md)] border border-border bg-surface px-5 py-4"

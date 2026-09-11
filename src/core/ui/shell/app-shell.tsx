@@ -40,7 +40,7 @@ function AppShell({
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg">
-      <div className="hidden md:flex">
+      <div className="hidden md:flex" data-print="hide">
         <AppSidebar
           orgSlug={orgSlug}
           orgName={orgName}
@@ -51,18 +51,20 @@ function AppShell({
       </div>
 
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-        <AppHeader
-          userName={userName}
-          userEmail={userEmail}
-          onSignOut={handleSignOut}
-          onCommandPalette={() => setCmdOpen(true)}
-        />
+        <div data-print="hide">
+          <AppHeader
+            userName={userName}
+            userEmail={userEmail}
+            onSignOut={handleSignOut}
+            onCommandPalette={() => setCmdOpen(true)}
+          />
+        </div>
 
-        <div className="md:hidden absolute top-3 left-3 z-40">
+        <div className="md:hidden absolute top-3 left-3 z-40" data-print="hide">
           <MobileNav orgSlug={orgSlug} orgName={orgName} navEntries={navEntries} canManageSettings={canManageSettings} />
         </div>
 
-        <main className="flex-1 overflow-y-auto bg-paper p-4 md:p-6">
+        <main className="flex-1 overflow-y-auto bg-paper p-4 md:p-6" data-print="page">
           {children}
         </main>
       </div>

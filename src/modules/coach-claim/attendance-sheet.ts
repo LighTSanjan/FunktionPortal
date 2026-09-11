@@ -5,6 +5,7 @@ import {
   type ITableCellOptions,
 } from 'docx'
 import type { AttendanceSheetDocData, ClaimLine } from './types'
+import { signatureBlock } from './signature-block'
 import { DEFAULT_VERIFYING_OFFICE } from './types'
 import { formatSgd, formatHours } from './money'
 import { FONT, SIZE, INK, INK_SOFT, RULE, HEADER_FILL, FALLBACK_BAND_COLORS, MONTHS, shortDate, longDate } from './theme'
@@ -257,7 +258,8 @@ export function buildAttendanceSheet(data: AttendanceSheetDocData): Document {
       new TableRow({
         children: [
           cell([
-            line('Verified by', { size: SIZE.tiny, caps: true, color: INK_SOFT, spaceAfter: 340 }),
+            line('Verified by', { size: SIZE.tiny, caps: true, color: INK_SOFT, spaceAfter: 60 }),
+            ...signatureBlock(v?.signatureImage, 280),
             new Paragraph({ border: { bottom: HAIRLINE }, spacing: { after: 60 }, children: [] }),
             line('Signature', { size: SIZE.tiny, color: INK_SOFT, spaceAfter: 90 }),
             fact('Name', v?.name ?? ''),

@@ -16,7 +16,15 @@ import { missingForInvoice } from './queries'
  * calculation rather than two that agree by inspection.
  */
 
-export type RunStatus = 'BLOCKED' | 'NO_SESSIONS' | 'READY' | 'GENERATED' | 'SUBMITTED' | 'PAID' | 'VOID'
+export type RunStatus =
+  | 'BLOCKED'
+  | 'NO_SESSIONS'
+  | 'READY'
+  | 'GENERATED'
+  | 'SIGNED'
+  | 'SUBMITTED'
+  | 'PAID'
+  | 'VOID'
 
 export interface RunEntry {
   instructorId: string
@@ -107,6 +115,8 @@ export async function getMonthlyRun(
 
       let status: RunStatus
       if (invoice) {
+        // Submitted beats signed: the pack has left the building either way,
+        // and the deadline the card counts down is the submission one.
         status =
           invoice.status === 'VOID'
             ? 'VOID'
@@ -114,7 +124,9 @@ export async function getMonthlyRun(
               ? 'PAID'
               : invoice.submittedToOslAt
                 ? 'SUBMITTED'
-                : 'GENERATED'
+                : invoice.status === 'SIGNED'
+                  ? 'SIGNED'
+                  : 'GENERATED'
       } else if (mine.length === 0) {
         status = 'NO_SESSIONS'
       } else if (blockers.length > 0) {
@@ -215,8 +227,18 @@ export async function buildClaimContext(
   if (!instructor) return null
 
   const { from, to } = periodRange(args.periodYear, args.periodMonth)
+  // This coach's classes and the month's self-practice dates, in one list.
+  //
+  // A self-practice date belongs on the sheet: the club met, the attendance
+  // counts, and the coach row reading NO is what tells OSL why the invoice
+  // bills fewer dates than the grid shows. It reaches no invoice line, because
+  // the claim is built from instructorPresent alone.
   const sessions = await tx.classSession.findMany({
-    where: { orgId: args.orgId, instructorId: instructor.id, heldOn: { gte: from, lt: to } },
+    where: {
+      orgId: args.orgId,
+      OR: [{ instructorId: instructor.id }, { instructorId: null }],
+      heldOn: { gte: from, lt: to },
+    },
     orderBy: { heldOn: 'asc' },
     include: { attendance: { where: { present: true }, select: { memberId: true } } },
   })
@@ -245,16 +267,12 @@ export async function buildClaimContext(
     rates: row.rates,
     periodYear: args.periodYear,
     periodMonth: args.periodMonth,
-    // instructorPresent is true for every recorded class: the portal only
-    // models coach-led sessions today, because ClassSession requires an
-    // instructor. Self-practice dates exist on the club's own sheets and will
-    // need their own representation before they can appear here.
     sessions: sessions.map((s) => ({
       // heldOn is a `date` column; buildClaim reads local components off it
       // to check the session falls in the billed month.
       heldOn: fromDateColumn(s.heldOn),
       durationMinutes: s.durationMinutes,
-      instructorPresent: true,
+      instructorPresent: s.instructorId !== null,
       presentMemberIds: s.attendance.map((a) => a.memberId),
     })),
     roster: members.map((m) => ({ id: m.id, fullName: m.fullName })),
@@ -274,8 +292,13 @@ export async function buildClaimContext(
     clubFundBalanceCents: fund?.openingBalanceCents,
   }
 
+  // Coach-led only. This map links an invoice line back to the class it
+  // bills, and a self-practice date sharing a day with a real class would
+  // otherwise overwrite the entry and point the line at the wrong session.
   const sessionIdByDate = new Map(
-    sessions.map((s) => [localDateKey(fromDateColumn(s.heldOn)), s.id])
+    sessions
+      .filter((s) => s.instructorId !== null)
+      .map((s) => [localDateKey(fromDateColumn(s.heldOn)), s.id])
   )
 
   return { input, instructorRow: row, sessionIdByDate }

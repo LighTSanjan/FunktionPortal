@@ -64,6 +64,10 @@ model OrganisationSettings {
   billToAddressLines String[] @map("bill_to_address_lines")
   countryCode       String  @default("SG") @map("country_code")
 
+  /// The institution the organisation sits under, short form, as printed
+  /// beside the club name on a coach's invoice. Null prints the club alone.
+  institutionShortName String? @map("institution_short_name")
+
   /// Last 3 digits of the StuOrg project code — the XXX in IV26-XXX-0001.
   projectCode String @default("097") @map("project_code")
   /// OSL cluster. Determines the A-code inside every WBS element:
@@ -85,6 +89,10 @@ model OrganisationSettings {
   /// only the exceptions need attention. A guess, never an authority: the
   /// treasurer confirms every date before sessions are written.
   sessionInstructorDefaults Json? @map("session_instructor_defaults")
+  /// Where completed coach documents are emailed. Prints on the submission
+  /// screen and fills the mail client's To: field; the portal never sends on
+  /// anybody's behalf.
+  submissionEmail    String? @map("submission_email")
   /// Uploaded PayNow QR shown on the member fee page.
   paynowQrUrl        String? @map("paynow_qr_url")
   /// Telegram group the portal posts reminders into.

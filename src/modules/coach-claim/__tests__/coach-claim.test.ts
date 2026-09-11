@@ -291,7 +291,7 @@ describe('the attendance sheet', () => {
   it('prints the club fund balance and the treasurer who verified it', async () => {
     const i = input({
       clubFundBalanceCents: 328198,
-      verification: { name: 'A Treasurer', studentId: '1009153', signedOn: new Date(2026, 5, 17) },
+      verification: { name: 'A Treasurer', studentId: '1000456', signedOn: new Date(2026, 5, 17) },
     })
     const text = await documentText(await renderAttendanceSheet(toAttendanceSheetData(i, buildClaim(i))))
 
@@ -302,8 +302,79 @@ describe('the attendance sheet', () => {
     // Office defaults rather than being asked for: the treasurer signs this.
     expect(text).toContain('Office:')
     expect(text).toContain('Treasurer')
-    expect(text).toContain('1009153')
+    expect(text).toContain('1000456')
     expect(text).toContain('17 June 2026')
+  })
+})
+
+describe('stamping a stored signature', () => {
+  /** A PNG header is all `readImageInfo` reads, and all this needs to be. */
+  function specimen(width = 600, height = 180) {
+    const bytes = Buffer.alloc(24)
+    bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0)
+    bytes.writeUInt32BE(13, 8)
+    bytes.write('IHDR', 12, 'latin1')
+    bytes.writeUInt32BE(width, 16)
+    bytes.writeUInt32BE(height, 20)
+    return { data: bytes, format: 'png' as const }
+  }
+
+  /** Images live under word/media/ once they are actually embedded. */
+  async function embeddedImages(buffer: Buffer): Promise<string[]> {
+    const zip = await JSZip.loadAsync(buffer)
+    // The directory entry is in the listing too, and it is not an image.
+    return Object.keys(zip.files).filter(
+      (name) => name.startsWith('word/media/') && !name.endsWith('/')
+    )
+  }
+
+  it('puts the specimen in the file when the sheet has been verified', async () => {
+    const signed = input({
+      verification: {
+        name: 'Test Treasurer',
+        office: 'Treasurer',
+        signedOn: new Date(2026, 5, 15),
+        signatureImage: specimen(),
+      },
+    })
+    const docx = await renderAttendanceSheet(toAttendanceSheetData(signed, buildClaim(signed)))
+
+    expect(await embeddedImages(docx)).toHaveLength(1)
+    const text = await documentText(docx)
+    expect(text).toContain('Test Treasurer')
+    expect(text).toContain('15 June 2026')
+  })
+
+  it('embeds nothing when nobody has signed, and still prints the rule', async () => {
+    const unsigned = input({ verification: { name: '', office: 'Treasurer' } })
+    const docx = await renderAttendanceSheet(toAttendanceSheetData(unsigned, buildClaim(unsigned)))
+
+    expect(await embeddedImages(docx)).toHaveLength(0)
+    // The block has to survive unstamped: the club may sign the printout by
+    // hand, and a document that drops its signature block invites somebody to
+    // sign in the margin.
+    const text = await documentText(docx)
+    expect(text).toContain('Verified by')
+    expect(text).toContain('Signature')
+  })
+
+  it('stamps the club endorsement on the invoice and never the coach', async () => {
+    const endorsed = input()
+    const docx = await renderInvoice({
+      ...toInvoiceData(endorsed, buildClaim(endorsed)),
+      endorsement: {
+        office: 'Assistant Treasurer',
+        signedOn: new Date(2026, 5, 15),
+        signatureImage: specimen(),
+      },
+    })
+
+    // Exactly one image: the club's. The coach's signature belongs to the
+    // coach, and there is no path here that could add a second.
+    expect(await embeddedImages(docx)).toHaveLength(1)
+    const text = await documentText(docx)
+    expect(text).toContain('Assistant Treasurer, Test Org')
+    expect(text).toContain('Student organisation endorsement')
   })
 })
 
@@ -322,10 +393,29 @@ describe('nothing club-specific is baked into the module', () => {
   it('mentions no real club anywhere in its own source', async () => {
     const fs = await import('node:fs/promises')
     const dir = new URL('..', import.meta.url).pathname
-    const files = (await fs.readdir(dir)).filter((f) => f.endsWith('.ts'))
+
+    // Walked rather than listed: the preview renderers live a directory down,
+    // and a check that only looks at the top level stops covering the module
+    // the first time somebody adds a folder to it.
+    async function sources(from: string): Promise<string[]> {
+      const entries = await fs.readdir(from, { withFileTypes: true })
+      const found: string[] = []
+      for (const entry of entries) {
+        if (entry.name === '__tests__') continue
+        const path = `${from}${entry.name}`
+        if (entry.isDirectory()) found.push(...(await sources(`${path}/`)))
+        else if (/\.tsx?$/.test(entry.name)) found.push(path)
+      }
+      return found
+    }
+
+    const files = await sources(dir)
+    // Enough to prove the walk found something, so a broken walk cannot pass
+    // by checking nothing at all.
+    expect(files.length).toBeGreaterThan(10)
 
     for (const file of files) {
-      const source = await fs.readFile(dir + file, 'utf8')
+      const source = await fs.readFile(file, 'utf8')
       // The module renders documents; it does not know whose they are.
       expect(source, `${file} names the club`).not.toMatch(/FUNKtion/i)
       expect(source, `${file} names a coach`).not.toMatch(/Lim Kah Sing|Neo Renyi/i)

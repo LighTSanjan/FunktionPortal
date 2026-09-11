@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
+import { SELF_PRACTICE, SKIP } from './date-choice'
 import type { Prisma } from '@prisma/client'
 import { dbAs } from '@/core/db'
 import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
@@ -110,7 +111,14 @@ const mapSchema = z.object({
   minutes: z.coerce.number().int().min(0).max(600),
 })
 
-/** Override a date's coach, or omit it when no coach taught it. */
+/**
+ * Say what a date is: a coach's class, a self-practice session, or nothing.
+ *
+ * Three answers rather than two. "Nobody taught it" and "leave it out" used to
+ * collapse into the same blank, which is how five real dates across the 2026
+ * trimesters — one of them with twenty-five people on it — ended up recorded
+ * nowhere at all.
+ */
 export async function mapDate(
   orgSlug: string,
   _previous: ActionState,
@@ -138,7 +146,8 @@ export async function mapDate(
     if (record.status === 'APPLIED') throw new Error('That import has already been applied')
 
     const overrides = { ...((record.dateInstructorMap ?? {}) as Record<string, unknown>) }
-    if (instructorId === '') overrides[iso] = null
+    if (instructorId === SKIP) overrides[iso] = null
+    else if (instructorId === SELF_PRACTICE) overrides[iso] = { instructorId: null, minutes }
     else overrides[iso] = { instructorId, minutes }
 
     await tx.attendanceImport.update({

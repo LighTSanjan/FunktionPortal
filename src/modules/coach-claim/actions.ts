@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import type { Prisma } from '@prisma/client'
 import { dbAs } from '@/core/db'
 import { getOrgContext, requirePermission } from '@/core/auth/dal'
 import { writeAudit } from '@/core/audit'
@@ -214,7 +215,9 @@ function redactBank<T extends { bankAccountNo?: string | null }>(row: T): Record
 // ─────────────────────────────────────────────
 
 const sessionSchema = z.object({
-  instructorId: z.string().min(1, 'Pick who taught the class'),
+  // Blank is a real answer, not a missing one: it means the club met and
+  // nobody was paid to teach. See ClassSession.instructorId.
+  instructorId: optionalText,
   heldOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'A date is required'),
   // 15 minutes is below any real class; 8 hours is above any real class and
   // is what a mistyped "600" for 60 looks like.
@@ -258,15 +261,18 @@ export async function saveSession(
   }
 
   const problem = await dbAs(userId, async (tx) => {
-    const instructor = await tx.instructor.findFirst({
-      where: { id: parsed.data.instructorId, orgId: org.id },
-      select: { id: true },
-    })
-    if (!instructor) return 'That coach is not on this club’s list'
+    if (parsed.data.instructorId) {
+      const instructor = await tx.instructor.findFirst({
+        where: { id: parsed.data.instructorId, orgId: org.id },
+        select: { id: true },
+      })
+      if (!instructor) return 'That coach is not on this club’s list'
+    }
 
-    // @@unique([orgId, instructorId, heldOn]). Caught here so the message is
-    // a sentence rather than a constraint name, and because the honest fix is
-    // usually to edit the existing session rather than add a second one.
+    // @@unique([orgId, instructorId, heldOn]), plus the partial index that
+    // covers self-practice. Caught here so the message is a sentence rather
+    // than a constraint name, and because the honest fix is usually to edit
+    // the existing session rather than add a second one.
     const clash = await tx.classSession.findFirst({
       where: {
         orgId: org.id,
@@ -277,7 +283,9 @@ export async function saveSession(
       select: { id: true },
     })
     if (clash) {
-      return 'That coach already has a class recorded on that date. Edit it instead of adding a second one.'
+      return parsed.data.instructorId
+        ? 'That coach already has a class recorded on that date. Edit it instead of adding a second one.'
+        : 'A self-practice session is already recorded on that date.'
     }
 
     if (sessionId) {
@@ -289,19 +297,13 @@ export async function saveSession(
       // Same rule as deleting. Editing a raised month is worse, if anything:
       // a deletion at least leaves an obvious hole, while a changed duration
       // silently makes a submitted invoice stop following from the register.
-      const raised = await tx.invoice.findFirst({
-        where: {
-          orgId: org.id,
-          instructorId: before.instructorId,
-          periodYear: before.heldOn.getUTCFullYear(),
-          periodMonth: before.heldOn.getUTCMonth() + 1,
-          status: { not: 'VOID' },
-        },
-        select: { id: true },
-      })
-      if (raised) {
-        return 'That month has already been raised for this coach. Void the invoice before changing its classes.'
-      }
+      // Both months, not just the one it is in now. Moving a class into a
+      // raised month adds a line to a document already with the Office of
+      // Finance just as surely as moving one out removes one.
+      const raised =
+        (await raisedMonthFor(tx, org.id, before)) ??
+        (await raisedMonthFor(tx, org.id, { instructorId: data.instructorId, heldOn }))
+      if (raised) return raised
 
       const after = await tx.classSession.update({ where: { id: before.id }, data })
       await writeAudit(
@@ -317,6 +319,15 @@ export async function saveSession(
         tx
       )
     } else {
+      // A new class in a month that has already been raised is the same
+      // problem from the other end: the invoice keeps the total it was issued
+      // with, while the document rebuilt for download grows a line.
+      const raised = await raisedMonthFor(tx, org.id, {
+        instructorId: data.instructorId,
+        heldOn,
+      })
+      if (raised) return raised
+
       const created = await tx.classSession.create({ data: { ...data, orgId: org.id } })
       await writeAudit(
         {
@@ -371,19 +382,8 @@ export async function deleteSession(
       return 'That class is already on an invoice. Void the invoice before changing it.'
     }
 
-    const raised = await tx.invoice.findFirst({
-      where: {
-        orgId: org.id,
-        instructorId: session.instructorId,
-        periodYear: session.heldOn.getUTCFullYear(),
-        periodMonth: session.heldOn.getUTCMonth() + 1,
-        status: { not: 'VOID' },
-      },
-      select: { id: true },
-    })
-    if (raised) {
-      return 'That month has already been raised for this coach. Void the invoice before changing its classes.'
-    }
+    const raised = await raisedMonthFor(tx, org.id, session)
+    if (raised) return raised
 
     await tx.classSession.delete({ where: { id: session.id } })
     await writeAudit(
@@ -426,9 +426,16 @@ export async function setAttendance(
   const problem = await dbAs(userId, async (tx) => {
     const session = await tx.classSession.findFirst({
       where: { id: sessionId, orgId: org.id },
-      select: { id: true },
+      select: { id: true, instructorId: true, heldOn: true },
     })
     if (!session) return 'That class no longer exists'
+
+    // Marking attendance changes the grid on the month's attendance sheet,
+    // which is the evidence the invoice rests on. Once that sheet has been
+    // raised it has gone out; re-marking it here would leave the portal and
+    // the Office of Finance holding different documents.
+    const raised = await raisedMonthFor(tx, org.id, session)
+    if (raised) return raised
 
     const members = await tx.member.findMany({
       where: { orgId: org.id, isActive: true },
@@ -476,4 +483,36 @@ export async function setAttendance(
   revalidatePath(`/${orgSlug}/sessions/${sessionId}`)
   revalidatePath(`/${orgSlug}/sessions`)
   return { error: null, ok: true }
+}
+
+/**
+ * Refuse to move a class out from under a document that has already been
+ * raised, and say which document.
+ *
+ * For a coach-led class that is their own month. For a self-practice class it
+ * is *any* coach's month, because a self-practice date prints on every
+ * attendance sheet for that month with the instructor row reading NO —
+ * removing it would change a sheet that has already gone to the Office of
+ * Finance, and the sheet is the evidence the invoice rests on.
+ */
+async function raisedMonthFor(
+  tx: Prisma.TransactionClient,
+  orgId: string,
+  session: { instructorId: string | null; heldOn: Date }
+): Promise<string | null> {
+  const raised = await tx.invoice.findFirst({
+    where: {
+      orgId,
+      ...(session.instructorId ? { instructorId: session.instructorId } : {}),
+      periodYear: session.heldOn.getUTCFullYear(),
+      periodMonth: session.heldOn.getUTCMonth() + 1,
+      status: { not: 'VOID' },
+    },
+    select: { id: true },
+  })
+  if (!raised) return null
+
+  return session.instructorId
+    ? 'That month has already been raised for this coach. Void the invoice before changing its classes.'
+    : 'That month has already been raised. A self-practice date appears on every attendance sheet for the month, so voiding the invoice comes first.'
 }

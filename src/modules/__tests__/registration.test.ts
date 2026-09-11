@@ -9,13 +9,17 @@ describe('navigation', () => {
       'Instructors',
       'Classes',
       'Attendance import',
+      'Subscription',
       'Monthly run',
     ])
   })
 
   it('shows members only sections they may open', () => {
+    // Their own subscription and their own access request. Everything else in
+    // the portal reads the roster, the fund balances or the register.
     expect(resolveNav('MEMBER').map((entry) => entry.label)).toEqual([
       'Your access',
+      'Subscription',
     ])
   })
 })

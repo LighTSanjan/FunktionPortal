@@ -5,6 +5,7 @@ import { dbAs } from '@/core/db'
 import { countPendingRequests, getMembership, OFFICE_LABELS } from '@/core/access'
 import { listLedger, countLedger, SECTION_FUND, SECTION_LABEL } from '@/core/register'
 import { rateForDate } from '@/modules/coach-claim/rates'
+import { financialYearOf } from '@/modules/references/format'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { Hero } from './_components/hero'
 import { FundCard, type FundView } from './_components/fund-card'
@@ -17,7 +18,6 @@ import { InstructorCard } from '../_components/instructor-card'
 
 export const dynamic = 'force-dynamic'
 
-const FINANCIAL_YEAR = 2026
 const DAY = 24 * 60 * 60 * 1000
 
 export default async function DashboardPage({
@@ -36,14 +36,34 @@ export default async function DashboardPage({
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
 
+  // Derived from today, never a constant.
+  //
+  // It was 2026, which would have gone on quietly showing FY2026's balances
+  // to the exco that took over in April 2027 — the one moment somebody most
+  // needs to see that the new year has nothing in it yet. Where the new year
+  // has no fund accounts, the most recent year that does is shown instead,
+  // and the hero says which year it is looking at.
+  const currentYear = financialYearOf(now)
+
   // Keep dashboard reads on one RLS-scoped pooler connection.
-  const data = await dbAs(userId, async (tx) => ({
+  const data = await dbAs(userId, async (tx) => {
+    const openYears = await tx.fundAccount.findMany({
+      where: { orgId: org.id, financialYear: { lte: currentYear } },
+      distinct: ['financialYear'],
+      select: { financialYear: true },
+      orderBy: { financialYear: 'desc' },
+      take: 1,
+    })
+    const financialYear = openYears[0]?.financialYear ?? currentYear
+
+    return {
+    financialYear,
     funds: await tx.fundAccount.findMany({
-      where: { orgId: org.id, financialYear: FINANCIAL_YEAR },
+      where: { orgId: org.id, financialYear },
       orderBy: { source: 'asc' },
     }),
     counters: await tx.referenceCounter.findMany({
-      where: { orgId: org.id, financialYear: FINANCIAL_YEAR },
+      where: { orgId: org.id, financialYear },
       orderBy: { series: 'asc' },
     }),
     instructors: await tx.instructor.findMany({
@@ -77,7 +97,7 @@ export default async function DashboardPage({
       where: { orgId: org.id, heldOn: { gte: monthStart, lt: monthEnd } },
     }),
     referencesIssued: await tx.referenceNumber.count({
-      where: { orgId: org.id, financialYear: FINANCIAL_YEAR, voidedAt: null },
+      where: { orgId: org.id, financialYear, voidedAt: null },
     }),
     declaredPayments: await tx.feePayment.count({
       where: { orgId: org.id, status: 'DECLARED' },
@@ -86,7 +106,17 @@ export default async function DashboardPage({
       where: { orgId: org.id, startDate: { lte: now }, endDate: { gte: now } },
       select: { name: true },
     }),
-  }))
+    // The project code lives in settings, so a different student organisation
+    // reads its own numbers back rather than this club's.
+    projectCode:
+      (
+        await tx.organisationSettings.findUnique({
+          where: { orgId: org.id },
+          select: { projectCode: true },
+        })
+      )?.projectCode ?? null,
+    }
+  })
 
   const [pendingRequests, ownMembership, ledger, ledgerCount] = await Promise.all([
     isExco ? countPendingRequests(org.id) : Promise.resolve(0),
@@ -237,7 +267,7 @@ export default async function DashboardPage({
         orgName={org.name}
         roleLabel={roleLabel}
         termName={data.currentTerm?.name ?? null}
-        financialYear={FINANCIAL_YEAR}
+        financialYear={data.financialYear}
         today={now}
       />
 
@@ -287,7 +317,7 @@ export default async function DashboardPage({
           delayMs={280}
         />
         <StatTile
-          label={`Reference numbers issued FY${FINANCIAL_YEAR % 100}`}
+          label={`Reference numbers issued FY${data.financialYear % 100}`}
           value={data.referencesIssued}
           accent="indigo"
           delayMs={320}
@@ -370,7 +400,8 @@ export default async function DashboardPage({
                 </dt>
                 <dd className="font-mono text-[14px] tabular-nums text-text">
                   {counter.series}
-                  {String(FINANCIAL_YEAR % 100)}-097-
+                  {String(data.financialYear % 100).padStart(2, '0')}
+                  {data.projectCode ? `-${data.projectCode}-` : '-'}
                   {String(counter.nextSequence).padStart(4, '0')}
                 </dd>
               </div>

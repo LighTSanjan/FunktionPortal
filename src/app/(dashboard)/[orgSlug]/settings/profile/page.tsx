@@ -6,6 +6,8 @@ import { Card, CardContent } from '@/core/ui/card'
 import { Badge } from '@/core/ui/badge'
 import { OFFICE_LABELS } from '@/core/access'
 import { ProfileForm } from './_components/profile-form'
+import { SignatureForm } from './_components/signature-form'
+import { signaturePreviewUrl } from '@/modules/signatures'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +27,7 @@ export default async function ProfilePage({
         name: true,
         email: true,
         signatureImagePath: true,
+        signatureUpdatedAt: true,
         createdAt: true,
       },
     }),
@@ -37,6 +40,9 @@ export default async function ProfilePage({
   if (!user) return null
 
   const isExco = membership.role === 'EXCO'
+  // Minted per request and short-lived, so the page cannot be saved and
+  // reshared as a way of handing somebody a specimen.
+  const signatureUrl = await signaturePreviewUrl(user.signatureImagePath)
 
   return (
     <div className="space-y-6">
@@ -103,18 +109,43 @@ export default async function ProfilePage({
       </Card>
 
       <Card>
-        <CardContent className="space-y-2 py-6">
+        <CardContent className="space-y-4 py-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="font-medium">Signature specimen</p>
-            <Badge variant={user.signatureImagePath ? 'success' : 'neutral'}>
-              {user.signatureImagePath ? 'On file' : 'Not uploaded'}
+            <Badge variant={signatureUrl ? 'success' : 'neutral'}>
+              {signatureUrl ? 'On file' : 'Not uploaded'}
             </Badge>
           </div>
           <p className="max-w-[68ch] text-[13px] leading-relaxed text-text-muted">
-            A stored signature is what lets the portal stamp the sheets you verify instead of
-            asking you to print and sign one every month. Upload is not built yet &mdash; it
-            needs the private bucket the payment screenshots will also use, and both land
-            together.
+            A stored signature lets the portal stamp the documents you sign off instead of
+            asking you to print and sign one every month. It is only ever applied in the same
+            moment you press the button that authorises a document, and only to documents you
+            authorise yourself &mdash; never on a schedule and never on anyone else&rsquo;s
+            behalf.
+          </p>
+          <p className="max-w-[68ch] text-[13px] leading-relaxed text-text-muted">
+            Sign a blank sheet of white paper, photograph it straight on, and crop to the
+            signature. PNG or JPEG, at least 200 pixels wide.
+          </p>
+
+          <SignatureForm
+            orgSlug={orgSlug}
+            currentUrl={signatureUrl}
+            updatedAt={
+              user.signatureUpdatedAt
+                ? user.signatureUpdatedAt.toLocaleDateString('en-SG', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  })
+                : null
+            }
+          />
+
+          <p className="max-w-[68ch] border-t border-border pt-4 text-[12.5px] leading-relaxed text-text-subtle">
+            Held in private storage, read only by the server while it composes a document you
+            have just signed, and never rendered into a page as a link anyone else could
+            follow. Uploading, replacing and removing it are all written to the audit log.
           </p>
         </CardContent>
       </Card>

@@ -4,6 +4,7 @@ import { dbAs } from '@/core/db'
 import type { AttendanceImportStatus } from '@prisma/client'
 import type { ParsedSheet } from './parse'
 import { matchMembers, type MatchResult } from './match'
+import { SELF_PRACTICE_MINUTES, raisedMonthKeys, isLocked } from './apply'
 
 /** Read stored parses and recompute their member matches for review. */
 
@@ -50,12 +51,28 @@ export async function listImports(userId: string, orgId: string): Promise<Import
   })
 }
 
+/**
+ * What will happen to one date when the import is applied.
+ *
+ * COACH writes a billable class. SELF_PRACTICE writes a class with no coach —
+ * it counts towards attendance and reaches no invoice. SKIP writes nothing,
+ * and is either a date nobody attended or one a human has set aside.
+ */
+export type DateDisposition = 'COACH' | 'SELF_PRACTICE' | 'SKIP'
+
 export interface PlannedDate {
   iso: string
   header: string
   /** What the sheet's own instructor rows propose. */
   sheetLabel: string | null
   instructorId: string | null
+  disposition: DateDisposition
+  /**
+   * True when the date's month has already been raised. The import leaves
+   * those alone rather than rewriting the classes behind a document that is
+   * with the Office of Finance.
+   */
+  locked: boolean
   minutes: number
   /** True when a human has overridden the sheet for this date. */
   overridden: boolean
@@ -105,9 +122,11 @@ export async function getImport(
 
     const overrides = (row.dateInstructorMap ?? {}) as Record<
       string,
-      { instructorId: string; minutes: number } | null
+      { instructorId: string | null; minutes: number } | null
     >
     const fromSheet = new Map(parsed.sessions.map((s) => [s.iso, s]))
+    const selfPractice = new Set(parsed.unattributedDates)
+    const raised = await raisedMonthKeys(tx, orgId)
 
     const plan: PlannedDate[] = parsed.dates.map((date) => {
       const sheet = fromSheet.get(date.iso) ?? null
@@ -116,12 +135,38 @@ export async function getImport(
         ? overrides[date.iso]
         : undefined
 
+      // Three states, and which one a date defaults to is read off the sheet.
+      // A date with no coach marked but people present is the club meeting on
+      // its own; a date whose coach label matches nobody in the portal is a
+      // question for a human, and defaults to being left out rather than
+      // quietly becoming self-practice.
+      const disposition: DateDisposition =
+        override !== undefined
+          ? override === null
+            ? 'SKIP'
+            : override.instructorId
+              ? 'COACH'
+              : 'SELF_PRACTICE'
+          : proposed
+            ? 'COACH'
+            : selfPractice.has(date.iso)
+              ? 'SELF_PRACTICE'
+              : 'SKIP'
+
+      const instructorId =
+        override !== undefined ? (override?.instructorId ?? null) : (proposed?.id ?? null)
+
       return {
         iso: date.iso,
         header: date.header,
         sheetLabel: sheet?.instructorLabel ?? null,
-        instructorId: override !== undefined ? (override?.instructorId ?? null) : (proposed?.id ?? null),
-        minutes: override !== undefined ? (override?.minutes ?? 0) : (sheet?.minutes ?? 90),
+        instructorId,
+        disposition,
+        locked: disposition !== 'SKIP' && isLocked(raised, date.iso, instructorId),
+        minutes:
+          override !== undefined
+            ? (override?.minutes ?? SELF_PRACTICE_MINUTES)
+            : (sheet?.minutes || SELF_PRACTICE_MINUTES),
         overridden: override !== undefined,
         presentCount: parsed.members.filter((m) => m.presentOn.includes(date.iso)).length,
       }

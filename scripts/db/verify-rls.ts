@@ -1,5 +1,5 @@
 /** Verify the app role, installed policies and unscoped RLS isolation. */
-import 'dotenv/config'
+import '../load-env'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 

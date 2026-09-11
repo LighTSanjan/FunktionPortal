@@ -9,6 +9,7 @@ import { FormField } from '@/core/ui/form-field'
 import { AuthCardShell } from '../_components/auth-card-shell'
 import { GoogleButton } from '../_components/google-button'
 import { CheckEmail } from '../_components/check-email'
+import { emailPlaceholder } from '@/core/brand'
 
 export default function SignUpPage() {
   const [state, formAction, pending] = useActionState(signUp, { error: null })
@@ -64,7 +65,7 @@ export default function SignUpPage() {
             id="email"
             name="email"
             type="email"
-            placeholder="you@mymail.sutd.edu.sg"
+            placeholder={emailPlaceholder()}
             required
             autoComplete="email"
           />
