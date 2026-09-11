@@ -180,14 +180,22 @@ export class Sheet {
       .replace(/\sr="\d+"/, '')
   }
 
-  setFormula(ref: string, formula: string): this {
+  /**
+   * `style` is used only where the cell does not already exist — a formula
+   * written into a template cell keeps the template's own formatting, which
+   * is the point, while one written into a row the template never had would
+   * otherwise land with no number format and print a sub-total as a bare
+   * number outside the ruled box.
+   */
+  setFormula(ref: string, formula: string, style?: number): this {
     const targetRow = rowOf(ref)
     this.xml = this.xml.replace(ROW_RE, (rowXml, rowNumber: string) => {
       if (Number(rowNumber) !== targetRow) return rowXml
       const cells = cellsOf(rowXml)
       const existing = cells.get(ref)
-      const style = existing ? Number(/\bs="(\d+)"/.exec(existing)?.[1] ?? NaN) : NaN
-      cells.set(ref, formulaXml(ref, formula, Number.isNaN(style) ? undefined : style))
+      const existingStyle = existing ? Number(/\bs="(\d+)"/.exec(existing)?.[1] ?? NaN) : NaN
+      const applied = Number.isNaN(existingStyle) ? style : existingStyle
+      cells.set(ref, formulaXml(ref, formula, applied))
       return rebuildRow(rowXml, cells)
     })
     return this

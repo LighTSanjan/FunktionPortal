@@ -148,7 +148,7 @@ export async function buildDepositForm(
     // Rows the template did not ship with have no sub-total formula of their
     // own. Rows it did keep theirs, which insertRows has already moved.
     if (index >= TEMPLATE_LINE_ROWS) {
-      sheet.setFormula(`D${row}`, `B${row}*C${row}`)
+      sheet.setFormula(`D${row}`, `B${row}*C${row}`, STYLE.money)
     }
   }
 

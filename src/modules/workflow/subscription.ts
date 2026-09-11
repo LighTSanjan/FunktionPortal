@@ -8,8 +8,35 @@
  */
 import 'server-only'
 import { deadline, count, type Workflow, type WorkflowStep } from './types'
-import { currentTerm, getTerm, listCollection, getDeposit } from '@/modules/fees/queries'
+import {
+  currentTerm,
+  getTerm,
+  listTerms,
+  listCollection,
+  getDeposit,
+  type TermRow,
+} from '@/modules/fees/queries'
 import { addWorkingDays } from '@/modules/coach-claim/deadlines'
+
+/**
+ * The collection the treasurer is working on.
+ *
+ * The oldest term whose deposit form has not been filed, and only then the
+ * current one. currentTerm() alone considers a term that is running or about
+ * to start, so a closed term whose form was never sent to OSL simply vanished
+ * from the home screen the day the next term began — which is the one case
+ * where somebody most needs to be told, because OSL are waiting on it.
+ */
+async function termNeedingWork(userId: string, orgId: string): Promise<TermRow | null> {
+  const terms = await listTerms(userId, orgId)
+  const running = await currentTerm(userId, orgId)
+
+  const unfiled = [...terms]
+    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
+    .find((term) => !term.closed || !term.filed)
+
+  return unfiled ?? running ?? terms[0] ?? null
+}
 
 export async function subscriptionWorkflow(
   userId: string,
@@ -18,7 +45,9 @@ export async function subscriptionWorkflow(
   now: Date,
   termId?: string
 ): Promise<Workflow | null> {
-  const term = termId ? await getTerm(userId, orgId, termId) : await currentTerm(userId, orgId)
+  const term = termId
+    ? await getTerm(userId, orgId, termId)
+    : await termNeedingWork(userId, orgId)
   if (!term) return null
 
   const [{ rows, totals }, deposit] = await Promise.all([
@@ -31,80 +60,109 @@ export async function subscriptionWorkflow(
   const declared = owing.filter((row) => row.status !== null)
   const toCheck = owing.filter((row) => row.status === 'DECLARED')
   const decided = owing.filter((row) => row.status === 'CONFIRMED' || row.status === 'REJECTED')
+  // A refused declaration is checked, but it is not money. The member has to
+  // pay again, so they still owe — and a collection closed while they do is a
+  // real decision, not a step that quietly completed itself.
+  const unpaid = owing.filter((row) => row.status !== 'CONFIRMED')
+
+  const filed = term.filed
+
+  // Both collection dates, not just the final one. OSL want two weeks'
+  // notice before a collection opens, which is a date the treasurer has to
+  // have thought about — and a step that called itself done without it was
+  // hiding the only part with a lead time on it.
+  const ratesSet =
+    term.fullFeeCents > 0 && term.finalCollectionAt !== null && term.collectionOpensAt !== null
+  const open = ratesSet && term.hasPaynowQr
 
   const steps: WorkflowStep[] = []
   let next: { label: string; href: string } | null = null
 
-  const ratesSet = term.fullFeeCents > 0 && term.finalCollectionAt !== null
-  steps.push({
-    key: 'rates',
-    label: 'Rates and dates',
-    state: ratesSet ? 'done' : 'current',
-    note: ratesSet ? undefined : 'OSL need two weeks’ notice before a collection opens.',
-    href,
-  })
-  if (!ratesSet) next = { label: 'Set the rates and the dates', href }
+  /**
+   * The steps in order, with how far each has got and what to do about it.
+   *
+   * Assigned across the whole sequence so exactly one is "current" — deciding
+   * each in isolation lit two at once whenever an early one was unfinished.
+   */
+  const sequence: {
+    key: string
+    label: string
+    complete: boolean
+    detail?: string
+    note?: string
+    href?: string
+    action?: { label: string; href: string }
+  }[] = [
+    {
+      key: 'rates',
+      label: 'Rates and dates',
+      complete: ratesSet,
+      note: ratesSet ? undefined : 'OSL need two weeks’ notice before a collection opens.',
+      action: { label: 'Set the rates and the dates', href },
+    },
+    {
+      key: 'qr',
+      label: 'PayNow QR up',
+      complete: term.hasPaynowQr,
+      note: term.hasPaynowQr ? undefined : 'Members can see what they owe and cannot pay it.',
+      action: { label: 'Put this term’s QR up', href },
+    },
+    {
+      key: 'declared',
+      label: 'Members declared',
+      complete: owing.length > 0 && declared.length >= owing.length,
+      detail: count(declared.length, owing.length),
+      // Deliberately no action. Chasing forty-five people is not a button,
+      // and the step below it is the one the treasurer can actually move.
+    },
+    {
+      key: 'check',
+      label: 'Checked against the statement',
+      complete: declared.length > 0 && decided.length >= declared.length,
+      detail: count(decided.length, declared.length),
+      note: toCheck.length > 0 ? 'Nobody decides their own.' : undefined,
+      action:
+        toCheck.length > 0
+          ? {
+              label: `Check ${toCheck.length} declaration${toCheck.length === 1 ? '' : 's'}`,
+              href,
+            }
+          : undefined,
+    },
+    {
+      key: 'close',
+      label: 'Collection closed',
+      complete: term.closed,
+      note:
+        !term.closed && unpaid.length > 0
+          ? `${unpaid.length} ${unpaid.length === 1 ? 'member has' : 'members have'} still not paid. Closing banks what has been confirmed and leaves them owing.`
+          : undefined,
+      action: { label: 'Close the collection', href },
+    },
+    {
+      key: 'deposit',
+      label: 'Deposit form filed',
+      complete: filed,
+      href: term.closed ? `${href}#deposit` : href,
+      action: { label: 'Download and file the deposit form', href },
+    },
+  ]
 
-  steps.push({
-    key: 'qr',
-    label: 'PayNow QR up',
-    state: term.hasPaynowQr ? 'done' : 'current',
-    note: term.hasPaynowQr ? undefined : 'Members can see what they owe and cannot pay it.',
-    href,
-  })
-  if (!next && !term.hasPaynowQr) next = { label: 'Put this term’s QR up', href }
-
-  // Waiting on the members. Shown as progress, never as the treasurer's
-  // next action — chasing forty-five people is not a button.
-  //
-  // Only live once members can actually act. Marked current while the rates
-  // or the QR are still missing, the card showed two steps in progress at
-  // once, which is a spine that has stopped saying where the work is.
-  const open = ratesSet && term.hasPaynowQr
-  steps.push({
-    key: 'declared',
-    label: 'Members declared',
-    state: !open ? 'todo' : declared.length >= owing.length && owing.length > 0 ? 'done' : 'current',
-    detail: count(declared.length, owing.length),
-    href,
-  })
-
-  const checkState =
-    declared.length === 0 ? 'todo' : decided.length >= declared.length ? 'done' : 'current'
-  steps.push({
-    key: 'check',
-    label: 'Checked against the statement',
-    state: checkState,
-    detail: count(decided.length, declared.length),
-    note: toCheck.length > 0 ? 'Nobody decides their own.' : undefined,
-    href,
-  })
-  if (!next && toCheck.length > 0) {
-    next = {
-      label: `Check ${toCheck.length} declaration${toCheck.length === 1 ? '' : 's'}`,
-      href,
+  let live = false
+  for (const step of sequence) {
+    const isCurrent = !step.complete && !live
+    if (isCurrent) {
+      live = true
+      if (step.action) next = step.action
     }
-  }
-
-  steps.push({
-    key: 'close',
-    label: 'Collection closed',
-    state: term.closed ? 'done' : toCheck.length === 0 && declared.length > 0 ? 'current' : 'todo',
-    href,
-  })
-  if (!next && !term.closed && declared.length > 0 && toCheck.length === 0) {
-    next = { label: 'Close the collection', href }
-  }
-
-  const filed = deposit?.submittedToOslAt !== null && deposit?.submittedToOslAt !== undefined
-  steps.push({
-    key: 'deposit',
-    label: 'Deposit form filed',
-    state: filed ? 'done' : term.closed ? 'current' : 'todo',
-    href: term.closed ? `/${orgSlug}/fees/collection?term=${term.id}#deposit` : href,
-  })
-  if (!next && term.closed && !filed) {
-    next = { label: 'Download and file the deposit form', href }
+    steps.push({
+      key: step.key,
+      label: step.label,
+      state: step.complete ? 'done' : isCurrent ? 'current' : 'todo',
+      detail: step.detail,
+      note: step.note,
+      href: step.href ?? href,
+    })
   }
 
   // Which deadline is live depends on where the job is. Before closing, it is
@@ -128,10 +186,27 @@ export async function subscriptionWorkflow(
     urgency: filed ? 'normal' : urgency,
     next: next ? { ...next, urgency } : null,
     settled,
-    restingState: settled
-      ? `Filed with OSL. ${totals.confirmed} member${totals.confirmed === 1 ? '' : 's'} paid.`
-      : next === null && toCheck.length === 0 && declared.length < owing.length
-        ? `Waiting on ${owing.length - declared.length} member${owing.length - declared.length === 1 ? '' : 's'} to declare.`
-        : null,
+    restingState: restingState(),
+  }
+
+  function restingState(): string | null {
+    if (settled) {
+      const stillOwing = unpaid.length
+      const paid = `${totals.confirmed} member${totals.confirmed === 1 ? '' : 's'} paid`
+      return stillOwing > 0
+        ? `Filed with OSL. ${paid}; ${stillOwing} did not, and still owe.`
+        : `Filed with OSL. ${paid}.`
+    }
+    // Nothing to collect at all: every roster row is charged nothing, which
+    // happens when a rate is zero or everybody on the roster has left. Saying
+    // nothing here left the card with no next action and no explanation.
+    if (open && owing.length === 0) {
+      return 'Nobody on the roster is being charged for this term. Check the rates if that is wrong.'
+    }
+    if (next === null && toCheck.length === 0 && declared.length < owing.length) {
+      const waiting = owing.length - declared.length
+      return `Waiting on ${waiting} member${waiting === 1 ? '' : 's'} to declare.`
+    }
+    return null
   }
 }

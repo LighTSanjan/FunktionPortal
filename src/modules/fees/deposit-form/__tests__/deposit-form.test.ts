@@ -2,17 +2,24 @@ import { describe, expect, it } from 'vitest'
 import JSZip from 'jszip'
 import { buildDepositForm, type DepositFormInput } from '..'
 
-/** Every cell of the generated sheet, keyed by reference. */
-async function cells(bytes: Buffer): Promise<Map<string, string>> {
+/** Every cell of the generated sheet, keyed by reference, plus its style. */
+async function cells(
+  bytes: Buffer
+): Promise<Map<string, string> & { styleOf: (ref: string) => number | undefined }> {
   const zip = await JSZip.loadAsync(bytes)
   const xml = await zip.file('xl/worksheets/sheet1.xml')!.async('string')
   const shared = await sharedStrings(zip)
 
-  const out = new Map<string, string>()
+  const styles = new Map<string, number>()
+  const out = Object.assign(new Map<string, string>(), {
+    styleOf: (ref: string) => styles.get(ref),
+  })
   const re = /<c\b[^>]*\br="([A-Z]+\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g
   let match: RegExpExecArray | null
   while ((match = re.exec(xml)) !== null) {
     const [whole, ref, body = ''] = match
+    const style = /\bs="(\d+)"/.exec(whole)
+    if (style) styles.set(ref, Number(style[1]))
     const formula = /<f>([\s\S]*?)<\/f>/.exec(body)
     if (formula) {
       out.set(ref, `=${formula[1]}`)
@@ -140,6 +147,10 @@ describe('the Income Deposit Form', () => {
     // Two rows were inserted, so the total and everything under it moved.
     expect(sheet.get('A21')).toBe('Staff')
     expect(sheet.get('D21')).toBe('=B21*C21')
+    // And in the template's own currency style, boxed like the rows above —
+    // a sub-total that prints as a bare 2000 outside the grid is the sort of
+    // thing OSL send back.
+    expect(sheet.styleOf('D21')).toBe(sheet.styleOf('D19'))
     expect(sheet.get('D22')).toBe('=SUM(D17:D21)')
     expect(sheet.get('A25')).toBe('H. Submitted by:')
     expect(sheet.get('B26')).toBe('A Treasurer')

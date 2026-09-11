@@ -33,6 +33,17 @@ describe('how a deadline reads', () => {
   })
 })
 
+describe('a deadline stored as a calendar date', () => {
+  it('reads as the day it names, not the instant it is', () => {
+    // Term dates are written at UTC midnight and converted to the local
+    // calendar date on the way out. Compared as instants, a due date of
+    // 15 September would read as the 14th anywhere west of Greenwich — a
+    // deadline shown a day early by the screen whose job is deadlines.
+    const asCalendarDate = new Date(2026, 8, 15)
+    expect(deadline(asCalendarDate, NOW).label).toBe('4 days left')
+  })
+})
+
 describe('progress in a step’s own terms', () => {
   it('drops the fraction once everything is accounted for', () => {
     expect(count(4, 4)).toBe('4')

@@ -282,21 +282,38 @@ export async function uploadPaynowQr(
 
   const key = await putQr(term.id, bytes, format)
 
-  await dbAs(userId, (tx) =>
-    tx.term.update({
+  // Re-check that the collection is still open in the same transaction that
+  // writes, not only in the read above. Between the two, somebody else can
+  // close the collection — and a QR attached to a banked collection is a
+  // payment code nobody is reconciling against.
+  const raced = await dbAs(userId, async (tx) => {
+    const deposit = await tx.incomeDeposit.findFirst({
+      where: { termId: term.id, orgId: org.id },
+      select: { id: true },
+    })
+    if (deposit) return true
+
+    await tx.term.update({
       where: { id: term.id },
       data: { paynowQrPath: key, paynowQrUploadedAt: new Date() },
     })
-  )
-
-  await writeAudit({
-    orgId: org.id,
-    actorId: userId,
-    action: 'fee.qr_uploaded',
-    targetType: 'Term',
-    targetId: term.id,
-    metadata: { termName: term.name },
+    await writeAudit(
+      {
+        orgId: org.id,
+        actorId: userId,
+        action: 'fee.qr_uploaded',
+        targetType: 'Term',
+        targetId: term.id,
+        metadata: { termName: term.name },
+      },
+      tx
+    )
+    return false
   })
+
+  if (raced) {
+    return { error: 'Somebody closed that collection a moment ago. The QR was not changed.' }
+  }
 
   revalidatePath(`/${orgSlug}/fees/collection`)
   revalidatePath(`/${orgSlug}/fees`)

@@ -14,6 +14,7 @@ function month(overrides: Partial<MonthState> = {}): MonthState {
     sent: 0,
     paid: 0,
     sessions: 9,
+    voided: 0,
     dueAt: null,
     blocked: [],
     ...overrides,
@@ -126,17 +127,59 @@ describe('a coach who cannot be invoiced', () => {
   })
 })
 
-describe('the deadline', () => {
-  it('falls on the 15th of the month after the classes', () => {
-    const workflow = describeMonth(month(), 'acme', NOW)
-    expect(workflow.dueAt).toEqual(new Date(2026, 8, 15))
+describe('exactly one step is live', () => {
+  it('does not call signing and sending both current at once', () => {
+    // Two raised, one signed. Deciding each step in isolation made Signed and
+    // Sent both "current", and once one had gone, Paid as well — a spine that
+    // has stopped saying where the work is.
+    const workflow = describeMonth(month({ raised: 2, signed: 1 }), 'acme', NOW)
+    const live = workflow.steps.filter((step) => step.state === 'current')
+    expect(live.map((step) => step.key)).toEqual(['sign'])
+    expect(stateOf(workflow, 'send')).toBe('todo')
+    expect(stateOf(workflow, 'paid')).toBe('todo')
   })
 
-  it('rolls into the next year for December', () => {
-    // new Date(2026, 12, 15) is January 2027, which is what is wanted — but
-    // it is the kind of arithmetic worth pinning down.
+  it('holds to one even when a later step is further along than an earlier one', () => {
+    const workflow = describeMonth(month({ raised: 2, signed: 1, sent: 1 }), 'acme', NOW)
+    expect(workflow.steps.filter((step) => step.state === 'current')).toHaveLength(1)
+  })
+})
+
+describe('a month whose documents were voided', () => {
+  it('does not tell the treasurer to raise it again', () => {
+    // The reference is spent and the unique key on (org, coach, month) is
+    // still occupied, so the generate action refuses. Saying "raise it" would
+    // be an instruction the portal itself will not carry out.
+    const row = month({ taught: 1, raised: 0, voided: 1 })
+    const workflow = describeMonth(row, 'acme', NOW)
+
+    expect(isFinished(row)).toBe(false)
+    expect(stateOf(workflow, 'raise')).toBe('blocked')
+    expect(workflow.steps.find((s) => s.key === 'raise')?.note).toContain('voided')
+    expect(workflow.next?.label).not.toContain('Raise')
+  })
+
+  it('is finished once a replacement has been raised', () => {
+    const row = month({ taught: 1, raised: 1, signed: 1, sent: 1, paid: 1, voided: 1 })
+    expect(isFinished(row)).toBe(true)
+  })
+})
+
+describe('the deadline', () => {
+  it('matches what a raised document would store', () => {
+    // Documents are dated the 15th of the following month and must reach OSL
+    // within three working days of that. The fallback used to be the 15th
+    // itself, so raising a document pushed its own displayed deadline three
+    // days later than the home screen had been showing all week.
+    // 15 September 2026 is a Tuesday; three working days on is Friday 18th.
+    const workflow = describeMonth(month(), 'acme', NOW)
+    expect(workflow.dueAt).toEqual(new Date(2026, 8, 18))
+  })
+
+  it('rolls into the next year for December, and over the weekend', () => {
+    // 15 January 2027 is a Friday, so three working days is the Wednesday.
     const workflow = describeMonth(month({ year: 2026, month: 12 }), 'acme', new Date(2027, 0, 5))
-    expect(workflow.dueAt).toEqual(new Date(2027, 0, 15))
+    expect(workflow.dueAt).toEqual(new Date(2027, 0, 20))
   })
 
   it('prefers the deadline stored on the documents once they exist', () => {

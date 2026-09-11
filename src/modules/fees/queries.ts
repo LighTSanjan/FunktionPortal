@@ -18,6 +18,12 @@ export interface TermRow {
   /** True once the collection has been closed and the deposit form raised. */
   closed: boolean
   /**
+   * True once somebody has recorded the deposit form as sent to OSL. Closing
+   * and filing are different events, and a term closed months ago with an
+   * unfiled form is the one OSL are waiting on.
+   */
+  filed: boolean
+  /**
    * Whether this collection has a PayNow QR uploaded. Never the key itself —
    * the bytes come from a route that checks membership on every request, so
    * a key in a page's props would only be an invitation to bypass it.
@@ -82,7 +88,7 @@ function toTermRow(row: {
   finalCollectionAt: Date | null
   paynowQrPath: string | null
   paynowQrUploadedAt: Date | null
-  incomeDeposit: { id: string } | null
+  incomeDeposit: { id: string; submittedToOslAt: Date | null } | null
 }): TermRow {
   return {
     id: row.id,
@@ -92,9 +98,14 @@ function toTermRow(row: {
     fullFeeCents: row.fullFeeCents,
     halfFeeCents: row.halfFeeCents,
     exchangeFeeCents: row.exchangeFeeCents,
-    collectionOpensAt: row.collectionOpensAt,
-    finalCollectionAt: row.finalCollectionAt,
+    // Both are written as calendar dates at UTC midnight, and every other
+    // date in the portal is a local calendar date. Left unconverted they read
+    // as the previous day anywhere west of Greenwich — which is a deadline
+    // shown a day early, by the one screen whose job is deadlines.
+    collectionOpensAt: row.collectionOpensAt && fromDateColumn(row.collectionOpensAt),
+    finalCollectionAt: row.finalCollectionAt && fromDateColumn(row.finalCollectionAt),
     closed: row.incomeDeposit !== null,
+    filed: row.incomeDeposit?.submittedToOslAt != null,
     hasPaynowQr: row.paynowQrPath !== null,
     paynowQrUploadedAt: row.paynowQrUploadedAt,
   }
@@ -112,7 +123,7 @@ const TERM_SELECT = {
   finalCollectionAt: true,
   paynowQrPath: true,
   paynowQrUploadedAt: true,
-  incomeDeposit: { select: { id: true } },
+  incomeDeposit: { select: { id: true, submittedToOslAt: true } },
 } as const
 
 export async function listTerms(userId: string, orgId: string): Promise<TermRow[]> {

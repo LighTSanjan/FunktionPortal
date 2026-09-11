@@ -52,14 +52,17 @@ export function readBackground(
   }
 
   const inset = Math.max(1, Math.round(Math.min(width, height) * 0.02))
+  let borderSamples = 0
   for (let x = 0; x < width; x++) {
     for (const y of [inset, height - 1 - inset]) {
+      borderSamples += 1
       const l = at(x, y)
       if (l !== null) border.push(l)
     }
   }
   for (let y = 0; y < height; y++) {
     for (const x of [inset, width - 1 - inset]) {
+      borderSamples += 1
       const l = at(x, y)
       if (l !== null) border.push(l)
     }
@@ -83,10 +86,24 @@ export function readBackground(
   // means the uneven lighting of a photograph.
   const spread = border[Math.floor(border.length * 0.9)] - border[Math.floor(border.length * 0.1)]
 
+  // A signature cropped tight enough to touch the edge, on a transparent
+  // background, leaves only ink in the border sample. That reads as very dark
+  // "paper", and lifting against it would drive the whole signature
+  // transparent — destroying a perfectly good specimen, by default, because
+  // the cleaned version is the one preselected.
+  //
+  // Two guards. If much of the border is transparent, there is no paper to
+  // lift. And if what is left is not clearly lighter than the ink, there is
+  // nothing to separate, so leave it alone rather than guess.
+  const sampled = borderSamples
+  const opaqueShare = sampled === 0 ? 0 : border.length / sampled
+  const mostlyOpaque = opaqueShare > 0.9
+  const separable = paper - ink > 40
+
   return {
     paper,
     ink,
-    photographed: paper < 244 || spread > 18,
+    photographed: mostlyOpaque && separable && (paper < 244 || spread > 18),
   }
 }
 
