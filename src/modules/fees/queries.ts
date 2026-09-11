@@ -17,6 +17,13 @@ export interface TermRow {
   finalCollectionAt: Date | null
   /** True once the collection has been closed and the deposit form raised. */
   closed: boolean
+  /**
+   * Whether this collection has a PayNow QR uploaded. Never the key itself —
+   * the bytes come from a route that checks membership on every request, so
+   * a key in a page's props would only be an invitation to bypass it.
+   */
+  hasPaynowQr: boolean
+  paynowQrUploadedAt: Date | null
 }
 
 export interface PaymentRow {
@@ -73,6 +80,8 @@ function toTermRow(row: {
   exchangeFeeCents: number | null
   collectionOpensAt: Date | null
   finalCollectionAt: Date | null
+  paynowQrPath: string | null
+  paynowQrUploadedAt: Date | null
   incomeDeposit: { id: string } | null
 }): TermRow {
   return {
@@ -86,6 +95,8 @@ function toTermRow(row: {
     collectionOpensAt: row.collectionOpensAt,
     finalCollectionAt: row.finalCollectionAt,
     closed: row.incomeDeposit !== null,
+    hasPaynowQr: row.paynowQrPath !== null,
+    paynowQrUploadedAt: row.paynowQrUploadedAt,
   }
 }
 
@@ -99,6 +110,8 @@ const TERM_SELECT = {
   exchangeFeeCents: true,
   collectionOpensAt: true,
   finalCollectionAt: true,
+  paynowQrPath: true,
+  paynowQrUploadedAt: true,
   incomeDeposit: { select: { id: true } },
 } as const
 
@@ -288,7 +301,6 @@ export interface OwnFee {
     rejectedReason: string | null
     hasProof: boolean
   } | null
-  paynowQrUrl: string | null
 }
 
 /** What the signed-in member owes, and what they have said about it. */
@@ -304,11 +316,6 @@ export async function getOwnFee(
       where: { orgId, userId },
       select: { id: true, fullName: true, rosterLabel: true, isActive: true },
     })
-    const settings = await tx.organisationSettings.findUnique({
-      where: { orgId },
-      select: { paynowQrUrl: true },
-    })
-
     if (!member || !term) {
       return {
         member: member ? { id: member.id, fullName: member.fullName } : null,
@@ -317,7 +324,6 @@ export async function getOwnFee(
         owesNothing: false,
         amountCents: 0,
         payment: null,
-        paynowQrUrl: settings?.paynowQrUrl ?? null,
       }
     }
 
@@ -347,7 +353,6 @@ export async function getOwnFee(
             hasProof: Boolean(payment.paymentProofPath),
           }
         : null,
-      paynowQrUrl: settings?.paynowQrUrl ?? null,
     }
   })
 }

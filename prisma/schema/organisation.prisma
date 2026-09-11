@@ -93,8 +93,6 @@ model OrganisationSettings {
   /// screen and fills the mail client's To: field; the portal never sends on
   /// anybody's behalf.
   submissionEmail    String? @map("submission_email")
-  /// Uploaded PayNow QR shown on the member fee page.
-  paynowQrUrl        String? @map("paynow_qr_url")
   /// Telegram group the portal posts reminders into.
   telegramChatId     String? @map("telegram_chat_id")
 

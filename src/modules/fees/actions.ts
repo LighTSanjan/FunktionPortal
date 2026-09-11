@@ -12,6 +12,7 @@ import { addWorkingDays } from '@/modules/coach-claim/deadlines'
 import { amountForTier, tierFor } from './tiers'
 import { splitGst, DEFAULT_GST_BASIS_POINTS } from './money'
 import { validateProof, putProof, ProofRejected, MAX_PROOF_BYTES } from './proof'
+import { validateQr, putQr, QrRejected, MAX_QR_BYTES } from './qr'
 
 export interface FeeState {
   error: string | null
@@ -224,6 +225,83 @@ const decideSchema = z.object({
    */
   route: z.enum(['OFFICIAL', 'UNOFFICIAL']).default('OFFICIAL'),
 })
+
+/**
+ * Put this collection's PayNow QR up.
+ *
+ * Stored against the term, because a fresh QR is generated for each
+ * collection. Held once on the club, the second term would show members the
+ * first term's code and their money would land somewhere nobody is
+ * reconciling against this roster.
+ *
+ * A replaced QR keeps the old object rather than overwriting it: a member who
+ * loaded the page a minute before the swap is looking at a code that must
+ * either still work or visibly fail, never silently resolve to different
+ * bytes at the same address.
+ */
+export async function uploadPaynowQr(
+  orgSlug: string,
+  _prev: FeeState,
+  formData: FormData
+): Promise<FeeState> {
+  const { org } = await getOrgContext(orgSlug)
+  const { userId } = await requirePermission(org.id, 'fee.manage')
+
+  const termId = String(formData.get('termId') ?? '')
+  if (!termId) return { error: 'No collection was named.' }
+
+  const file = formData.get('qr')
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: 'Choose the QR image first.' }
+  }
+  if (file.size > MAX_QR_BYTES) {
+    return { error: `That image is over ${MAX_QR_BYTES / 1_000_000} MB.` }
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  let format
+  try {
+    format = validateQr(bytes)
+  } catch (error) {
+    if (error instanceof QrRejected) return { error: error.message }
+    throw error
+  }
+
+  // Read the term under RLS before writing anything to storage, so a term id
+  // belonging to another club cannot cause an upload at all.
+  const term = await dbAs(userId, (tx) =>
+    tx.term.findFirst({
+      where: { id: termId, orgId: org.id },
+      select: { id: true, name: true, incomeDeposit: { select: { id: true } } },
+    })
+  )
+  if (!term) return { error: 'That collection no longer exists.' }
+  if (term.incomeDeposit) {
+    return { error: 'That collection is closed and banked in. Its QR cannot be changed.' }
+  }
+
+  const key = await putQr(term.id, bytes, format)
+
+  await dbAs(userId, (tx) =>
+    tx.term.update({
+      where: { id: term.id },
+      data: { paynowQrPath: key, paynowQrUploadedAt: new Date() },
+    })
+  )
+
+  await writeAudit({
+    orgId: org.id,
+    actorId: userId,
+    action: 'fee.qr_uploaded',
+    targetType: 'Term',
+    targetId: term.id,
+    metadata: { termName: term.name },
+  })
+
+  revalidatePath(`/${orgSlug}/fees/collection`)
+  revalidatePath(`/${orgSlug}/fees`)
+  return { error: null, ok: true }
+}
 
 /**
  * The exco confirming a declaration against the bank statement.

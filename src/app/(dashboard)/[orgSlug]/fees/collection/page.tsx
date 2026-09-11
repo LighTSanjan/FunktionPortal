@@ -18,6 +18,7 @@ import { splitGst, DEFAULT_GST_BASIS_POINTS } from '@/modules/fees/money'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { longDate } from '@/modules/coach-claim/theme'
 import { TermForm } from './_components/term-form'
+import { QrForm } from './_components/qr-form'
 import { DecideButtons } from './_components/decide-buttons'
 import { CloseButton } from './_components/close-button'
 import { LinkForm } from './_components/link-form'
@@ -273,6 +274,27 @@ export default async function CollectionPage({
       <Card>
         <CardContent className="space-y-4 py-6">
           <div>
+            <h2 className="text-[15px] font-semibold">How members pay</h2>
+            <p className="mt-1 max-w-[68ch] text-[13px] leading-relaxed text-text-muted">
+              A new PayNow QR is generated for each collection, so it belongs to this term and
+              not to the club. Until it is up, members can see what they owe and have no way to
+              pay it.
+            </p>
+          </div>
+          <QrForm
+            orgSlug={orgSlug}
+            termId={term.id}
+            termName={term.name}
+            hasQr={term.hasPaynowQr}
+            uploadedAt={term.paynowQrUploadedAt}
+            locked={term.closed}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="space-y-4 py-6">
+          <div>
             <h2 className="text-[15px] font-semibold">The term</h2>
             <p className="mt-1 max-w-[68ch] text-[13px] leading-relaxed text-text-muted">
               What each tier pays, and the two dates the guidelines hang off: OSL want two weeks&rsquo;
@@ -314,10 +336,13 @@ export default async function CollectionPage({
             <div>
               <h2 className="text-[15px] font-semibold">The Income Deposit Form</h2>
               <p className="mt-1 max-w-[68ch] text-[13px] leading-relaxed text-text-muted">
-                These are the figures the form wants. The portal does not fill OSL&rsquo;s own
-                template &mdash; it has never had a copy of it &mdash; so it derives every number
-                the form asks for and leaves the typing to you. GST is derived from the gross by
-                division (&sect;2), which is why the three add back up to what was banked exactly.
+                Download it filled in. This is OSL&rsquo;s own workbook with these figures written
+                into its blanks &mdash; their layout, their GL account codes and their GST
+                formulas, untouched. The breakdown goes by tier rather than by member, which is
+                what the form asks for and keeps forty-five names off a document that leaves the
+                club. Only money on the official route is counted: anything held outside OSL was
+                never banked, and putting it here would make the form disagree with the statement
+                it gets checked against.
               </p>
             </div>
             <dl className="grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-[auto_1fr]">
@@ -333,12 +358,20 @@ export default async function CollectionPage({
                 <Row label="Due at OSL" value={longDate(deposit.submissionDueAt)} />
               )}
             </dl>
-            <Link
-              href={`/${orgSlug}/fees/collection/summary?term=${term.id}`}
-              className="inline-block text-[13px] font-medium text-accent-600 underline-offset-4 hover:underline"
-            >
-              Open the club&rsquo;s own record of who paid
-            </Link>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-1">
+              <a
+                href={`/${orgSlug}/fees/collection/deposit-form?term=${term.id}`}
+                className="inline-flex items-center rounded-[var(--radius-sm)] bg-accent-600 px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-accent-700"
+              >
+                Download the deposit form
+              </a>
+              <Link
+                href={`/${orgSlug}/fees/collection/summary?term=${term.id}`}
+                className="text-[13px] font-medium text-accent-600 underline-offset-4 hover:underline"
+              >
+                The club&rsquo;s own record of who paid
+              </Link>
+            </div>
           </CardContent>
         </Card>
       )}

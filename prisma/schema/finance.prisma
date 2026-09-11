@@ -473,6 +473,13 @@ model Term {
   /// figure inferred inside the code that reads roster labels.
   exchangeFeeCents Int? @map("exchange_fee_cents")
 
+  /// The PayNow QR for THIS collection, as an object key in the private
+  /// bucket. A fresh QR is generated per collection, so it is a fact about
+  /// the term and not about the club: held once on the organisation, the
+  /// second term would quietly show members the first term's code.
+  paynowQrPath       String?   @map("paynow_qr_path")
+  paynowQrUploadedAt DateTime? @map("paynow_qr_uploaded_at")
+
   /// OSL must be told at least 2 weeks before this date so they can create
   /// the DBS Max Wallet user account (§2.2).
   collectionOpensAt DateTime? @map("collection_opens_at")

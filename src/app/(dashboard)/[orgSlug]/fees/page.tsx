@@ -153,23 +153,38 @@ export default async function FeesPage({
           ) : (
             fee.payment?.status !== 'CONFIRMED' && (
               <>
-                {fee.paynowQrUrl && (
-                  <Card>
-                    <CardContent className="space-y-3 py-5">
-                      <p className="text-[14px] font-semibold">Pay by PayNow</p>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={fee.paynowQrUrl}
-                        alt="The club's PayNow QR code"
-                        className="max-h-[240px] rounded-[var(--radius-sm)] border border-border bg-white p-2"
-                      />
+                <Card>
+                  <CardContent className="space-y-3 py-5">
+                    <p className="text-[14px] font-semibold">Pay by PayNow</p>
+                    {fee.term.hasPaynowQr ? (
+                      <>
+                        {/* Streamed by a route that re-checks membership, and
+                            never cached: a QR replaced mid-collection must not
+                            keep resolving to the superseded code.
+                            eslint-disable-next-line @next/next/no-img-element */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`/${orgSlug}/fees/qr/${fee.term.id}`}
+                          alt={`PayNow QR for the ${fee.term.name} subscription`}
+                          className="max-h-[240px] rounded-[var(--radius-sm)] border border-border bg-white p-2"
+                        />
+                        <p className="max-w-[62ch] text-[12.5px] leading-relaxed text-text-muted">
+                          Transfer {formatSgd(fee.amountCents)} exactly. A different amount is one
+                          the exco cannot match to you without asking.
+                        </p>
+                      </>
+                    ) : (
+                      // A blank space where a QR should be is a member who
+                      // cannot tell whether the club has not put it up or
+                      // their own browser has failed. Say which.
                       <p className="max-w-[62ch] text-[12.5px] leading-relaxed text-text-muted">
-                        Transfer {formatSgd(fee.amountCents)} exactly. A different amount is one
-                        the exco cannot match to you without asking.
+                        The QR for this collection is not up yet — a new one is generated for
+                        each term. Ask the treasurer for it, and do not reuse last term&rsquo;s:
+                        it collects into an account nobody is reconciling against this roster.
                       </p>
-                    </CardContent>
-                  </Card>
-                )}
+                    )}
+                  </CardContent>
+                </Card>
 
                 <Card>
                   <CardContent className="py-6">
