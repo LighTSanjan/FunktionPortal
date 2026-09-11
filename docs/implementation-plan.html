@@ -1185,6 +1185,66 @@ flowchart TD
 </section>
 
 <section>
+  <h2>Organised by job, not by table</h2>
+  <p>The sidebar was a flat list of seven &mdash; Your access, Register, Instructors, Classes, Attendance import, Subscription, Monthly run. That is the schema. A treasurer arrives thinking &ldquo;the coaches need paying for August&rdquo;, which spans three of those entries with nothing to say they belong together and no hint that two of them are inputs to the third.</p>
+  <p>A second opinion on the whole portal, asked for bluntly, came back with the same verdict and a list of concrete dead ends. It is now <strong>Home</strong>, then <strong>Work</strong> (Coach payments, Subscriptions), then <strong>Records</strong> (Classes, Transactions, Coaches), then <strong>You</strong>. Grouping appears only once there is enough to group, so an ordinary member gets a flat list of three rather than three headings over three items.</p>
+  <ul>
+    <li><strong>Attendance import moved into settings.</strong> It is done once or twice a trimester and it is one of two ways into the same rows. It sat level with the month&rsquo;s work, next to a screen that does the same job by hand, and the Classes screen claimed to be &ldquo;the only place a date or a duration is entered&rdquo; &mdash; which the import contradicts.</li>
+    <li><strong>&ldquo;Register&rdquo; became &ldquo;Transactions&rdquo;.</strong> In a dance club, a register is the attendance register. The portal used the word for both, in the same sidebar.</li>
+    <li><strong>The exco&rsquo;s subscription entry goes to the collection,</strong> not to the member-facing page with the workspace hidden behind a quiet button on it.</li>
+  </ul>
+
+  <h3>Both jobs are modelled</h3>
+  <p>A <em>workflow</em> says which steps are done, which one is live, when it is due, and the single next action &mdash; built on the server from the same rows the screens read, so a step cannot claim to be done when it is not. It appears as a card on the home screen and as a strip along the top of the screen that advances it, because a stepper that only exists on the home screen is one you have already left behind by the time you need it.</p>
+  <p>It names <em>one</em> next action rather than exposing every possible one. Where nothing the treasurer does would help &mdash; a month sitting with OSL, forty-five members who have not yet declared &mdash; it says so and offers no button, because inventing work and then nagging about it is worse than silence.</p>
+
+  <h3>What building it turned up</h3>
+  <div class="note flag">
+    <span class="note-label">The home screen could say everything was clear on the 14th</span>
+    <p>&ldquo;Nothing needs you right now. Everything with a deadline on it is clear&rdquo; appeared whenever there were no alerts &mdash; while the alert logic only ever looked at invoices that had <em>already been raised</em>. A month whose classes were recorded and whose documents had never been raised produced no alert at all. The empty state is gone; the two workflow cards carry that state now, and they are built from the classes as well as the invoices.</p>
+  </div>
+  <ul>
+    <li><strong>Terms could only be created by the seed script.</strong> Subscription collection called <code>notFound()</code> without one and the attendance import refused to load, so a club that had not been seeded &mdash; which is every club but this one &mdash; could never reach either. There is a create-term screen now, pre-filled with the trimester it probably is.</li>
+    <li><strong><code>PAID</code> and <code>paidAt</code> had existed since the schema was written with nothing that ever set them.</strong> Every submitted month sat at &ldquo;with OSL&rdquo; for good, and the board could not tell a month that was finished from one that had been ignored. Recordable now, and reversible, because it is a person reporting what happened in somebody else&rsquo;s ledger.</li>
+    <li><strong>Closing a collection immediately claimed &ldquo;Banked in&rdquo;.</strong> Closing, filing the form and the money landing are three events; the portal can observe none of them and was asserting the last. They are separate states now.</li>
+    <li>The declared-payments alert had no link on it &mdash; it said there was a queue and left you to find it.</li>
+  </ul>
+  <p>Dropped: the next-reference-number panel, which is bookkeeping and is shown at the moment a number is allocated anyway. The reference-count tile became claims OSL have been sent and have not yet paid &mdash; the one number on that page that is money the club is owed rather than money it has.</p>
+</section>
+
+<section>
+  <h2>The Income Deposit Form</h2>
+  <p>The blank template arrived, so the figures became a generator. It is <strong>OSL&rsquo;s own workbook with our numbers written into its blanks</strong> &mdash; their layout, their fonts, their borders, their GL account codes, their GST formulas &mdash; not a reconstruction that they may or may not accept. That is the whole point of a Class B document.</p>
+  <ul>
+    <li><strong>The breakdown goes by tier, not by member.</strong> That is what the form asks for &mdash; item, price, quantity &mdash; and forty-five lines reading &ldquo;membership subscription, $70, 1&rdquo; is a worse answer than one line saying forty-two. It also keeps the members&rsquo; names off a document that leaves the club.</li>
+    <li><strong>Only money on the official route is counted.</strong> Anything the exco confirmed as held outside OSL was never banked into the DBS Max wallet, and including it would make the form disagree with the statement it gets checked against.</li>
+    <li><strong>The template ships base64-encoded</strong> so it survives a standalone build. OSL&rsquo;s document properties were stripped: they carried two staff members&rsquo; names and SUTD&rsquo;s own sensitivity label.</li>
+    <li><strong>The form has room for three breakdown rows.</strong> A club with four fee tiers is not an error, so the writer inserts rows &mdash; shifting merges, cell references and the total&rsquo;s own range with them &mdash; rather than silently dropping the fourth and understating what was banked.</li>
+    <li><strong>Where the club is not on 9% GST, it says so</strong> rather than overwriting OSL&rsquo;s formula with our arithmetic.</li>
+  </ul>
+  <p>It downloads as the spreadsheet &mdash; the working copy, the one OSL can reopen and correct &mdash; and prints as a PDF through the browser, the same way the coach pack does. The print view is a rendering of the workbook rather than a redesign of it, with the club&rsquo;s mark in the corner. <strong>Both read one model, and a test reduces each to text and compares them</strong>, evaluating the workbook&rsquo;s formulas rather than skipping the money as &ldquo;a formula&rdquo;, since the money is the part worth checking.</p>
+  <div class="note">
+    <span class="note-label">Whose rounding wins</span>
+    <p>OSL&rsquo;s cells compute <code>gross/109*100</code> and <code>gross/109*9</code> and round each for display. The portal&rsquo;s own <code>splitGst</code> divides and takes the remainder, which can put a stray cent somewhere else. The PDF follows the workbook, because a PDF that disagrees with the spreadsheet it accompanies is worse than one that rounds the way the recipient&rsquo;s own template does.</p>
+  </div>
+</section>
+
+<section>
+  <h2>The signatures, once real ones arrived</h2>
+  <p>Six specimens went up, and they broke two assumptions.</p>
+  <ul>
+    <li><strong>The width floor was wrong.</strong> It asked for 200 pixels on the assumption that a signature is wide and short, and refused a real one that is 160&times;162 &mdash; which would have printed beautifully, because the box is far shorter than it is wide and a tall image is scaled <em>down</em> by its height. What matters is the resolution left after the fit, which is a fact about both dimensions and about the box. It is measured as effective dpi now, with a loose aspect bound to catch the 900&times;3 hairline that has plenty of dpi and is not handwriting. A test names all six.</li>
+    <li><strong>One of the six is a photograph of ink on cream paper.</strong> Stamped onto a white form it is a coloured rectangle sitting over the signature line. The paper is lifted off now &mdash; alpha ramped between the paper and the ink rather than thresholded, because a threshold turns the edge of every stroke into a staircase and a signature is nothing but edges. The detector finds exactly that one and leaves the five clean captures alone.</li>
+  </ul>
+  <p>The lifting happens <em>in the browser</em>, in front of the person whose signature it is, with both versions shown over a real signature rule so they can compare and refuse. Altering somebody&rsquo;s signature silently on a server is not a thing to do.</p>
+</section>
+
+<section>
+  <h2>The PayNow QR belongs to the collection</h2>
+  <p>It was one nullable URL on organisation settings, which assumes the club has one QR forever. It does not &mdash; a new one is generated for each collection, so the term after the first would have shown members the previous term&rsquo;s code and their money would have gone somewhere nobody was reconciling against this roster. It lives on the term now, uploaded on the collection screen, streamed by a route that re-checks membership on every request and is never cached. Where there is no QR yet, the member page says so rather than leaving a blank space they cannot interpret.</p>
+</section>
+
+<section>
   <h2>Still open</h2>
   <ul>
     <li>A spend-over-time chart. Now that the registers are imported there is enough dated history to draw one honestly &mdash; it was not worth adding while pre-portal spend was a single undated lump.</li>
@@ -1194,9 +1254,11 @@ flowchart TD
     <li>Instructor photographs. The card is already built to take one &mdash; <code>photoUrl</code> is threaded through the component &mdash; but there is no column and no upload yet, so every plate is currently initials. The signature upload has now laid the private-bucket path it would follow.</li>
     <li>Storage policies on <code>storage.objects</code>, added from the Supabase SQL editor. Signature access is authorised in the application today and there is nothing a migration here can do about the second layer.</li>
     <li>Production authentication email. Supabase's built-in sender is for development and is too rate-limited for a club-wide signup. Configure a transactional SMTP provider in Supabase before launch; no application email SDK is needed. Email confirmation on sign-up is still on and has to be turned off from the Supabase dashboard &mdash; the portal holds no management credential for the project and the connector exposes no auth settings.</li>
-    <li>OSL's Income Deposit Form template. The portal derives every figure the form asks for and cannot fill the form itself, because there has never been a copy of it here. One PDF or .docx of the real thing turns that into a generator.</li>
     <li>A real fee collection. The flow is built and nobody has run one through it. The first term it is used for should be one somebody is watching.</li>
     <li>Reminders. The deadlines are computed and shown; nothing sends them yet. That is phase 03, and the Telegram half needs a bot token.</li>
+    <li>Procurement (phase 04). The schema models a Purchase Request and derives its form type from the amount; no screen reads it yet. When it arrives it is a third workflow, and the card and the strip on the home screen are already the shape it should take.</li>
+    <li>Register sync writeback (phase 05). The registers import; nothing writes back to Drive.</li>
+    <li>Nobody has signed in to any of this. Verification is by typecheck, lint, build, the test suite, live-database probes and static renders of every document. The browser here has no session and will not be given a password.</li>
   </ul>
 </section>
 

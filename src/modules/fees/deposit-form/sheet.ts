@@ -43,6 +43,18 @@ function rowOf(ref: string): number {
   return Number(match[2])
 }
 
+/** 1 -> "A", 27 -> "AA". The inverse of columnIndex. */
+function columnName(index: number): string {
+  let name = ''
+  let remaining = index
+  while (remaining > 0) {
+    const rest = (remaining - 1) % 26
+    name = String.fromCharCode(65 + rest) + name
+    remaining = Math.floor((remaining - 1) / 26)
+  }
+  return name
+}
+
 /** "A" -> 1, "B" -> 2, "AA" -> 27. Used only to order cells within a row. */
 function columnIndex(column: string): number {
   let n = 0
@@ -109,7 +121,7 @@ export class Sheet {
    * empty. An existing cell keeps its style unless one is given, because the
    * template's own formatting is the thing being preserved.
    */
-  set(writes: readonly CellWrite[]): this {
+  set(writes: readonly CellWrite[], options: { likeRow?: number } = {}): this {
     const byRow = new Map<number, CellWrite[]>()
     for (const write of writes) {
       const row = rowOf(write.ref)
@@ -133,8 +145,9 @@ export class Sheet {
       return rebuildRow(rowXml, cells)
     })
 
-    // Rows the template does not contain at all — the blank breakdown rows
-    // have no <row> element until something is put in them.
+    // Rows the template does not contain at all — a breakdown line beyond the
+    // three the form ships with has no <row> element until something is put
+    // in it.
     for (const [rowNumber, writesHere] of byRow) {
       const cells = new Map<string, string>()
       for (const write of writesHere) cells.set(write.ref, cellXml(write))
@@ -142,10 +155,29 @@ export class Sheet {
         .sort((a, b) => columnIndex(columnOf(a[0])) - columnIndex(columnOf(b[0])))
         .map(([, xml]) => xml)
         .join('')
-      this.insertRowXml(rowNumber, `<row r="${rowNumber}">${ordered}</row>`)
+      // Carry the model row's own attributes — chiefly its height, which the
+      // template sets explicitly on the breakdown rows. Without it a fourth
+      // fee tier is visibly shorter than the three above it.
+      this.insertRowXml(
+        rowNumber,
+        `<row r="${rowNumber}"${this.attributesOf(options.likeRow)}>${ordered}</row>`
+      )
     }
 
     return this
+  }
+
+  /** A row's attributes, minus its number, for cloning onto a new one. */
+  private attributesOf(rowNumber: number | undefined): string {
+    if (rowNumber === undefined) return ''
+    const match = new RegExp(
+      `<row\\b[^>]*\\br="${rowNumber}"[^>]*?(?:/>|>)`
+    ).exec(this.xml)
+    if (!match) return ''
+    return match[0]
+      .replace(/^<row\b/, '')
+      .replace(/\/?>$/, '')
+      .replace(/\sr="\d+"/, '')
   }
 
   setFormula(ref: string, formula: string): this {
@@ -228,6 +260,31 @@ export class Sheet {
     this.xml = this.xml.replace(
       /(<c\b[^>]*>)(<f>[\s\S]*?<\/f>)<v>[\s\S]*?<\/v>(<\/c>)/g,
       '$1$2$3'
+    )
+    return this
+  }
+
+  /**
+   * Rewrite <dimension> to cover what the sheet now holds.
+   *
+   * It is a declared bounding box, and inserting rows leaves it claiming the
+   * sheet ends where the template ended. Excel recalculates it and shrugs;
+   * stricter readers are entitled not to, and a workbook that opens
+   * everywhere is the whole reason this fills OSL's file rather than
+   * generating one.
+   */
+  fixDimension(): this {
+    let maxRow = 0
+    let maxColumn = 1
+    for (const [, ref] of this.xml.matchAll(/<c\b[^>]*\br="([A-Z]+\d+)"/g)) {
+      maxRow = Math.max(maxRow, rowOf(ref))
+      maxColumn = Math.max(maxColumn, columnIndex(columnOf(ref)))
+    }
+    if (maxRow === 0) return this
+
+    this.xml = this.xml.replace(
+      /<dimension ref="[^"]*"\s*\/>/,
+      `<dimension ref="A1:${columnName(maxColumn)}${maxRow}"/>`
     )
     return this
   }

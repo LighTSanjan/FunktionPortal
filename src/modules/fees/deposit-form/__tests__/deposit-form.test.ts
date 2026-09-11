@@ -148,6 +148,44 @@ describe('the Income Deposit Form', () => {
     expect(sheet.get('B12')).toBe('=D22/109*9')
   })
 
+  it('declares the range it actually covers once rows are inserted', async () => {
+    // <dimension> is a bounding box the reader is told to expect. Excel
+    // recalculates it and shrugs; stricter readers are entitled not to, and
+    // a workbook that opens everywhere is the whole reason this fills OSL's
+    // file instead of generating one.
+    const { bytes } = await buildDepositForm(
+      input({
+        lines: [
+          { description: 'Full', unitPriceCents: 7000, quantity: 40 },
+          { description: 'Half', unitPriceCents: 3500, quantity: 3 },
+          { description: 'Exchange', unitPriceCents: 3500, quantity: 1 },
+          { description: 'Alumni', unitPriceCents: 2000, quantity: 2 },
+        ],
+      })
+    )
+    const zip = await JSZip.loadAsync(bytes)
+    const xml = await zip.file('xl/worksheets/sheet1.xml')!.async('string')
+    expect(/<dimension ref="([^"]*)"/.exec(xml)![1]).toBe('A1:E27')
+  })
+
+  it('gives an inserted breakdown row the height of the ones above it', async () => {
+    const { bytes } = await buildDepositForm(
+      input({
+        lines: [
+          { description: 'Full', unitPriceCents: 7000, quantity: 40 },
+          { description: 'Half', unitPriceCents: 3500, quantity: 3 },
+          { description: 'Exchange', unitPriceCents: 3500, quantity: 1 },
+          { description: 'Alumni', unitPriceCents: 2000, quantity: 2 },
+        ],
+      })
+    )
+    const zip = await JSZip.loadAsync(bytes)
+    const xml = await zip.file('xl/worksheets/sheet1.xml')!.async('string')
+    const row20 = /<row\b[^>]*\br="20"[^>]*>/.exec(xml)![0]
+    expect(row20).toContain('ht="19.95"')
+    expect(row20).toContain('customHeight="1"')
+  })
+
   it('says so when the club is not on the rate the form hard-codes', async () => {
     const { warnings } = await buildDepositForm(input({ gstBasisPoints: 800 }))
     expect(warnings.join(' ')).toContain('8.00%')

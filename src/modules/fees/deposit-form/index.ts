@@ -135,11 +135,16 @@ export async function buildDepositForm(
 
   for (const [index, line] of input.lines.entries()) {
     const row = FIRST_LINE_ROW + index
-    sheet.set([
-      { ref: `A${row}`, value: line.description, style: STYLE.boxed },
-      { ref: `B${row}`, value: line.unitPriceCents / 100, style: STYLE.money },
-      { ref: `C${row}`, value: line.quantity, style: STYLE.centred },
-    ])
+    sheet.set(
+      [
+        { ref: `A${row}`, value: line.description, style: STYLE.boxed },
+        { ref: `B${row}`, value: line.unitPriceCents / 100, style: STYLE.money },
+        { ref: `C${row}`, value: line.quantity, style: STYLE.centred },
+      ],
+      // A row the template did not ship with copies the height of one it did,
+      // so a fourth fee tier is not visibly shorter than the three above it.
+      { likeRow: FIRST_LINE_ROW }
+    )
     // Rows the template did not ship with have no sub-total formula of their
     // own. Rows it did keep theirs, which insertRows has already moved.
     if (index >= TEMPLATE_LINE_ROWS) {
@@ -158,7 +163,7 @@ export async function buildDepositForm(
     { ref: `B${submittedRow + 2}`, value: input.submittedBy.designation, style: STYLE.boxed },
   ])
 
-  sheet.dropCachedValues()
+  sheet.dropCachedValues().fixDimension()
 
   zip.file('xl/worksheets/sheet1.xml', sheet.toString())
 
