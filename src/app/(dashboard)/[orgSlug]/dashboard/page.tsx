@@ -11,6 +11,8 @@ import { coachPaymentsWorkflow } from '@/modules/workflow/coach-payments'
 import { subscriptionWorkflow } from '@/modules/workflow/subscription'
 import { WorkflowCard } from '@/modules/workflow/ui'
 import { Hero } from './_components/hero'
+import { OwnSubscription } from './_components/own-subscription'
+import { getOwnFee } from '@/modules/fees/queries'
 import { FundCard, type FundView } from './_components/fund-card'
 import { FundsOverview } from './_components/funds-overview'
 import { SpendRing } from './_components/spend-ring'
@@ -126,7 +128,7 @@ export default async function DashboardPage({
     }
   })
 
-  const [pendingRequests, ownMembership, ledger, ledgerCount, coachRun, collection] =
+  const [pendingRequests, ownMembership, ledger, ledgerCount, coachRun, collection, ownFee, ownClaim] =
     await Promise.all([
       isExco ? countPendingRequests(org.id) : Promise.resolve(0),
       getMembership(org.id, userId),
@@ -136,6 +138,11 @@ export default async function DashboardPage({
       // so a step cannot claim to be done when it is not.
       isExco ? coachPaymentsWorkflow(userId, org.id, orgSlug, now) : Promise.resolve(null),
       isExco ? subscriptionWorkflow(userId, org.id, orgSlug, now) : Promise.resolve(null),
+      // Everybody's own subscription, exco included — they pay too.
+      getOwnFee(userId, org.id, null),
+      dbAs(userId, (tx) =>
+        tx.user.findUnique({ where: { id: userId }, select: { claimedStudentId: true } })
+      ),
     ])
 
   const committedFor = (source: FundView['source']) =>
@@ -296,6 +303,17 @@ export default async function DashboardPage({
         today={now}
       />
 
+      {/* A member's reason to be here, so it comes first for them. */}
+      {!isExco && (
+        <OwnSubscription
+          orgSlug={orgSlug}
+          fee={ownFee}
+          claimedStudentId={ownClaim?.claimedStudentId ?? null}
+          alwaysShow
+          delayMs={30}
+        />
+      )}
+
       {isExco && (coachRun || collection) && (
         <section className="space-y-3" aria-labelledby="dash-work">
           <h2
@@ -309,6 +327,18 @@ export default async function DashboardPage({
             {collection && <WorkflowCard workflow={collection} delayMs={80} />}
           </div>
         </section>
+      )}
+
+      {/* The exco pay too, but the club's work comes before their own fee —
+          and only while it needs them, not as a receipt once paid. */}
+      {isExco && (
+        <OwnSubscription
+          orgSlug={orgSlug}
+          fee={ownFee}
+          claimedStudentId={ownClaim?.claimedStudentId ?? null}
+          alwaysShow={false}
+          delayMs={100}
+        />
       )}
 
       {isExco && !collection && (

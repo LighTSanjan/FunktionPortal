@@ -122,7 +122,10 @@ test('the treasurer puts this term’s PayNow QR up', async () => {
 test('a member signs up with a personal address and says which student they are', async () => {
   const page = await member.newPage()
   await signUp(page, MEMBER)
-  await visit(page, `/${ORG}/fees`)
+  // From the home screen, not by knowing where the subscription page lives.
+  await expect(page.getByText('Tell the club your student ID')).toBeVisible()
+  await page.getByRole('link', { name: 'Give your student ID' }).click()
+  await page.waitForURL(new RegExp(`/${ORG}/fees$`))
   await expect(page.getByText('not matched to the roster yet')).toBeVisible()
 
   await page.getByPlaceholder(/Student ID/).fill(MEMBER.studentId)
@@ -155,9 +158,27 @@ test('the treasurer is told about the claim and confirms it in one click', async
   await expect(page.getByText('Says they are')).toHaveCount(0)
 })
 
-test('the member now sees what they owe and the QR to pay it', async () => {
+test('the member’s home screen now says what they owe, and takes them to pay it', async () => {
   const page = await member.newPage()
-  const { body } = await visit(page, `/${ORG}/fees`)
-  expect(body).toContain('$70.00')
+  const { body: home } = await visit(page, `/${ORG}/dashboard`)
+  expect(home).toMatch(/\$70\.00 due/)
+  await page.getByRole('link', { name: 'Pay now' }).click()
+  await page.waitForURL(new RegExp(`/${ORG}/fees$`))
   await expect(page.getByAltText(/PayNow QR/)).toBeVisible()
+})
+
+test('the treasurer, who is on the roster too, can reach their own subscription from home', async () => {
+  // The sidebar hides "Your subscription" from the exco, so without the home
+  // card the treasurer's only route to paying their own fee was the URL.
+  const { dbAdmin } = await import('../../src/core/db/admin')
+  const org = await dbAdmin.organisation.findUniqueOrThrow({ where: { slug: ORG } })
+  const user = await dbAdmin.user.findFirstOrThrow({ where: { email: TREASURER.email } })
+  await dbAdmin.member.create({
+    data: { orgId: org.id, fullName: TREASURER.name, studentId: '1000009', userId: user.id, rosterLabel: 'Confirmed' },
+  })
+
+  const page = await treasurer.newPage()
+  await visit(page, `/${ORG}/dashboard`)
+  await page.getByRole('link', { name: 'Pay now' }).click()
+  await page.waitForURL(new RegExp(`/${ORG}/fees$`))
 })
