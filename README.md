@@ -4,7 +4,7 @@
 
 # FUNKtion Treasury
 
-**The treasury portal for FUNKtion — SUTD's popping &amp; locking dance club.**
+**The treasury portal for FUNKtion - SUTD's Ultimate Popping &amp; Locking Dance Club!**
 
 Every fact gets entered once. Every document is a rendering of it.
 
