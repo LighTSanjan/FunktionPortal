@@ -24,6 +24,7 @@ export default async function SettingsLayout({
     { slug: 'access', label: 'Access requests', permission: 'org.manage_members' },
     { slug: 'invitations', label: 'Invitations', permission: 'org.manage_members' },
     { slug: 'audit-log', label: 'Audit Log', permission: 'audit.view' },
+    { slug: 'screens', label: 'All screens', permission: 'org.manage_settings' },
   ].filter((tab) => tab.permission === null || hasPermission(membership.role, tab.permission))
 
   return (

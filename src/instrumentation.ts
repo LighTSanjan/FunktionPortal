@@ -13,6 +13,8 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
     typeof error === 'object' && error !== null && 'digest' in error ? String(error.digest) : undefined
   // redirect() and notFound() travel as errors; they are not failures.
   if (digest?.startsWith('NEXT_')) return
+  // The crash preview on Settings → All screens.
+  if (error instanceof Error && error.message.startsWith('[preview]')) return
 
   await alert('server_error', {
     route: context.routePath,

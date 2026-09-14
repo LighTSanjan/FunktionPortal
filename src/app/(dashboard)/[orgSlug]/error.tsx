@@ -1,41 +1,47 @@
 'use client'
 
 import { useEffect } from 'react'
+import Link from 'next/link'
+import { ErrorScene } from '@/core/ui/error-scene'
 
 export default function OrgError({
   error,
   reset,
+  unstable_retry,
 }: {
   error: Error & { digest?: string }
   reset: () => void
+  unstable_retry?: () => void
 }) {
   useEffect(() => {
-    // Log the error for observability — do not expose details to the user
+    // The details go to the server log and the alert; never onto the page.
     console.error('[OrgError]', error)
   }, [error])
 
   return (
-    <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 p-8">
-      <div className="rounded-[var(--radius-md)] border border-border bg-surface p-8 text-center">
-        <h2 className="text-[16px] font-semibold text-text">
-          Something went wrong
-        </h2>
-        {/* It used to promise this was "not a permanent error". Nothing here
-            knows that — and the most common reason anybody saw it was a
-            member opening an exco link, which retrying never fixes. Those go
-            to /no-access now; what reaches this is genuinely unexpected. */}
-        <p className="mt-2 text-[14px] text-muted">
-          This page could not be loaded. Trying again sometimes helps; if it
-          keeps happening, tell the treasurer what you were doing{error.digest ? ` and quote ${error.digest}` : ''}.
+    <ErrorScene
+      kind="crash"
+      reference={error.digest}
+      body={
+        <p>
+          This page broke on our side, not yours. Trying again often works. If it keeps happening,
+          tell the treasurer what you were doing{error.digest ? ' and read them the reference below' : ''}.
         </p>
-        <button
-          type="button"
-          onClick={reset}
-          className="mt-4 rounded-[var(--radius-sm)] bg-accent-500 px-4 py-2 text-[14px] font-medium text-white hover:bg-accent-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2"
-        >
-          Try again
-        </button>
-      </div>
-    </div>
+      }
+      actions={
+        <>
+          <button
+            type="button"
+            onClick={() => (unstable_retry ?? reset)()}
+            className="lapis-stack inline-flex h-11 items-center rounded-[var(--radius-md)] bg-accent-500 px-5 text-[14px] font-medium text-white hover:bg-accent-400"
+          >
+            Try again
+          </button>
+          <Link href="/" className="text-[14px] font-medium text-accent-600 underline-offset-4 hover:underline">
+            Back to the home screen
+          </Link>
+        </>
+      }
+    />
   )
 }

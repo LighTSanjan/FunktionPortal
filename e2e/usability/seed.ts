@@ -1,8 +1,8 @@
 /**
  * A club with a month's classes and an open term, before any browser opens.
  *
- * Nobody is signed up yet: the treasurer and the member create their accounts
- * through the sign-up form, as they would.
+ * Nobody has an account yet: the treasurer and the member make theirs by
+ * signing in with a code, as they would.
  */
 import '../../src/test/integration/env'
 import { dbAdmin } from '../../src/core/db/admin'

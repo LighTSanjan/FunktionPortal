@@ -22,6 +22,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:stack": "scripts/test/prepare-stack.sh",
     "test:stack:down": "docker compose -p funktion-test -f docker-compose.yml -f docker-compose.test.yml down -v",
+    "demo": "scripts/demo/run.sh",
     "test:usability": "playwright test --config playwright.usability.config.ts"
   },
   "dependencies": {
