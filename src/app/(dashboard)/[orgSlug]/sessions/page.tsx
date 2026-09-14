@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
+import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { hasPermission } from '@/core/permissions'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
@@ -20,7 +20,7 @@ export default async function SessionsPage({
   const { orgSlug } = await params
   const { month } = await searchParams
   const { org, membership } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'session.view')
+  await requirePagePermission(org, 'session.view')
   const { userId } = await verifySession()
 
   const canManage = hasPermission(membership.role, 'session.manage')

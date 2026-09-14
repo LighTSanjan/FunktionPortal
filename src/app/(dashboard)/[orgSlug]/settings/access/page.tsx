@@ -1,4 +1,4 @@
-import { getOrgContext, requirePermission } from '@/core/auth/dal'
+import { getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
 import { Badge } from '@/core/ui/badge'
@@ -22,7 +22,7 @@ export default async function AccessRequestsPage({
 }) {
   const { orgSlug } = await params
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'org.manage_members')
+  await requirePagePermission(org, 'org.manage_members')
   const { userId } = await verifySession()
 
   const requests = await listAccessRequests(org.id)

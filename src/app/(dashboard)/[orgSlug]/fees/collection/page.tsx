@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
+import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { dbAs } from '@/core/db'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
@@ -43,7 +43,7 @@ export default async function CollectionPage({
   const { orgSlug } = await params
   const { term: termParam } = await searchParams
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'fee.manage')
+  await requirePagePermission(org, 'fee.manage')
   const { userId } = await verifySession()
 
   const terms = await listTerms(userId, org.id)

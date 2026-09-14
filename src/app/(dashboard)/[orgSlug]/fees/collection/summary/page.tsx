@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
+import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
 import { buildTermSummary } from '@/modules/fees/summary'
@@ -18,7 +18,7 @@ export default async function TermSummaryPage({
   const { orgSlug } = await params
   const { term: termId } = await searchParams
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'fee.manage')
+  await requirePagePermission(org, 'fee.manage')
   const { userId } = await verifySession()
 
   if (!termId) notFound()

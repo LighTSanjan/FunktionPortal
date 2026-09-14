@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
+import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { getOrgBranding } from '@/core/org/queries'
 import { depositFormInput } from '@/modules/fees/deposit-input'
 import { buildDepositForm } from '@/modules/fees/deposit-form'
@@ -26,7 +26,7 @@ export default async function PrintDepositFormPage({
   const { orgSlug } = await params
   const { term: termId } = await searchParams
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'fee.manage')
+  await requirePagePermission(org, 'fee.manage')
   const { userId } = await verifySession()
 
   if (!termId) notFound()

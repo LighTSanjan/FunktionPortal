@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
+import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
 import { Badge } from '@/core/ui/badge'
@@ -16,7 +16,7 @@ export default async function AttendancePage({
 }) {
   const { orgSlug } = await params
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'session.manage')
+  await requirePagePermission(org, 'session.manage')
   const { userId } = await verifySession()
 
   const [imports, terms] = await Promise.all([

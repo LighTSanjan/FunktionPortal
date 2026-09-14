@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
+import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { dbAs } from '@/core/db'
 import { loadMonthDocuments, withSignature } from '@/modules/coach-claim/documents'
 import { MonthNotFrozenError } from '@/modules/coach-claim/snapshot'
@@ -25,7 +25,7 @@ export default async function PrintMonthPage({
 }) {
   const { orgSlug, invoiceId } = await params
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'claim.generate')
+  await requirePagePermission(org, 'claim.generate')
   const { userId } = await verifySession()
 
   const loaded = await dbAs(userId, (tx) =>

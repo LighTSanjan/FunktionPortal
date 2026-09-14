@@ -90,6 +90,12 @@ export async function subscriptionWorkflow(
     complete: boolean
     detail?: string
     note?: string
+    /**
+     * Show the note only while this is the step being worked on. A warning
+     * about what closing does, printed while the QR is not even up yet, is a
+     * warning about a decision weeks away — read once, then ignored.
+     */
+    noteWhenCurrent?: boolean
     href?: string
     action?: { label: string; href: string }
   }[] = [
@@ -137,6 +143,7 @@ export async function subscriptionWorkflow(
         !term.closed && unpaid.length > 0
           ? `${unpaid.length} ${unpaid.length === 1 ? 'member has' : 'members have'} still not paid. Closing banks what has been confirmed and leaves them owing.`
           : undefined,
+      noteWhenCurrent: true,
       action: { label: 'Close the collection', href },
     },
     {
@@ -160,7 +167,7 @@ export async function subscriptionWorkflow(
       label: step.label,
       state: step.complete ? 'done' : isCurrent ? 'current' : 'todo',
       detail: step.detail,
-      note: step.note,
+      note: step.noteWhenCurrent && !isCurrent ? undefined : step.note,
       href: step.href ?? href,
     })
   }

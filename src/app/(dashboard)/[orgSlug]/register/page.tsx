@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { RegisterSection } from '@prisma/client'
-import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
+import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
 import { formatSgd } from '@/modules/coach-claim/money'
@@ -22,7 +22,7 @@ export default async function RegisterPage({
   const { orgSlug } = await params
   const { section: sectionParam, year: yearParam } = await searchParams
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'references.view')
+  await requirePagePermission(org, 'references.view')
   const { userId } = await verifySession()
 
   const section = SECTIONS.includes(sectionParam as RegisterSection)

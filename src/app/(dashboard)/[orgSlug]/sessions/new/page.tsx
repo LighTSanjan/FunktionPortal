@@ -1,4 +1,4 @@
-import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
+import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
 import { listInstructorOptions } from '@/modules/coach-claim/queries'
@@ -16,7 +16,7 @@ export default async function NewSessionPage({
   const { orgSlug } = await params
   const { month } = await searchParams
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'session.manage')
+  await requirePagePermission(org, 'session.manage')
   const { userId } = await verifySession()
 
   const instructors = await listInstructorOptions(userId, org.id)

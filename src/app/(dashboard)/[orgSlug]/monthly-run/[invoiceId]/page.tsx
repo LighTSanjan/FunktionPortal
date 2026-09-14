@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
+import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { dbAs } from '@/core/db'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
@@ -26,7 +26,7 @@ export default async function MonthDocumentsPage({
 }) {
   const { orgSlug, invoiceId } = await params
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'claim.generate')
+  await requirePagePermission(org, 'claim.generate')
   const { userId, name: viewerName } = await verifySession()
 
   const loaded = await dbAs(userId, async (tx) => {

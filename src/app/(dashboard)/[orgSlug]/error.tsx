@@ -20,9 +20,13 @@ export default function OrgError({
         <h2 className="text-[16px] font-semibold text-text">
           Something went wrong
         </h2>
+        {/* It used to promise this was "not a permanent error". Nothing here
+            knows that — and the most common reason anybody saw it was a
+            member opening an exco link, which retrying never fixes. Those go
+            to /no-access now; what reaches this is genuinely unexpected. */}
         <p className="mt-2 text-[14px] text-muted">
-          A temporary issue prevented this page from loading. This is not a
-          permanent error.
+          This page could not be loaded. Trying again sometimes helps; if it
+          keeps happening, tell the treasurer what you were doing{error.digest ? ` and quote ${error.digest}` : ''}.
         </p>
         <button
           type="button"

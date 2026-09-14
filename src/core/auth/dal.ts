@@ -129,3 +129,25 @@ export async function requirePermission(
 
   return { userId: session.userId, role: membership.role }
 }
+
+/**
+ * The same check, for a page rather than an action.
+ *
+ * requirePermission throws, which is right for a server action or a download
+ * route — the caller gets a refusal and nothing happens. Thrown from a page,
+ * it lands in the error boundary: a 500, and "a temporary issue prevented this
+ * page from loading". A member who opens an exco link from the group chat is
+ * not experiencing a temporary issue. They are on a screen that is not theirs,
+ * and the page that says so should also say how to get access if they need it.
+ */
+export async function requirePagePermission(
+  org: { id: string; slug: string },
+  key: string
+): Promise<{ userId: string; role: OrgRole }> {
+  try {
+    return await requirePermission(org.id, key)
+  } catch (error) {
+    if (error instanceof PermissionDeniedError) redirect(`/${org.slug}/no-access`)
+    throw error
+  }
+}

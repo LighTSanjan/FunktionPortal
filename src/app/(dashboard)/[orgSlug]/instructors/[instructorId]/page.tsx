@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
+import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { PageHeader } from '@/core/ui/page-header'
 import { getInstructor } from '@/modules/coach-claim/queries'
 import { InstructorForm } from '../_components/instructor-form'
@@ -14,7 +14,7 @@ export default async function InstructorPage({
 }) {
   const { orgSlug, instructorId } = await params
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'instructor.manage')
+  await requirePagePermission(org, 'instructor.manage')
   const { userId } = await verifySession()
 
   const instructor = await getInstructor(userId, org.id, instructorId)

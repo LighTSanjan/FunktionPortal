@@ -1,4 +1,4 @@
-import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
+import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { dbAs } from '@/core/db'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
@@ -13,7 +13,7 @@ export default async function OrganisationSettingsPage({
 }) {
   const { orgSlug } = await params
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'org.manage_settings')
+  await requirePagePermission(org, 'org.manage_settings')
   const { userId } = await verifySession()
 
   const settings = await dbAs(userId, (tx) =>

@@ -1,4 +1,4 @@
-import { verifySession, getOrgContext, requirePermission } from '@/core/auth'
+import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth'
 import { Card, CardContent, CardHeader, CardTitle, PageHeader, EmptyState } from '@/core/ui'
 import { getAuditLog, listAuditActors } from '@/core/audit/queries'
 import { AuditLogTable } from './_components/audit-log-table'
@@ -25,7 +25,7 @@ export default async function AuditLogPage({
   // from the HR fork, which is never registered here — so the page 404'd for
   // everyone, including an exco with the permission.
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'audit.view')
+  await requirePagePermission(org, 'audit.view')
 
   const page = Math.max(1, Number(rawSearch.page) || 1)
   const actorId = typeof rawSearch.actorId === 'string' ? rawSearch.actorId : undefined

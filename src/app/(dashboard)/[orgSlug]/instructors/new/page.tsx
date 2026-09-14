@@ -1,4 +1,4 @@
-import { getOrgContext, requirePermission } from '@/core/auth/dal'
+import { getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { PageHeader } from '@/core/ui/page-header'
 import { InstructorForm } from '../_components/instructor-form'
 
@@ -11,7 +11,7 @@ export default async function NewInstructorPage({
 }) {
   const { orgSlug } = await params
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'instructor.manage')
+  await requirePagePermission(org, 'instructor.manage')
 
   return (
     <div className="space-y-6">

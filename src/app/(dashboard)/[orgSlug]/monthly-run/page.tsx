@@ -1,9 +1,11 @@
 import Link from 'next/link'
-import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
+import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { dbAs } from '@/core/db'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
 import { getMonthlyRun } from '@/modules/coach-claim/monthly-run'
+import { invoiceDateFor } from '@/modules/coach-claim/claim'
+import { financialYearOf } from '@/modules/references/format'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { coachPaymentsWorkflow } from '@/modules/workflow/coach-payments'
 import { WorkflowStrip } from '@/modules/workflow/ui'
@@ -22,7 +24,7 @@ export default async function MonthlyRunPage({
   const { orgSlug } = await params
   const { month } = await searchParams
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'claim.generate')
+  await requirePagePermission(org, 'claim.generate')
   const { userId } = await verifySession()
 
   // Claims cover completed months, so the default is last month.
@@ -36,7 +38,15 @@ export default async function MonthlyRunPage({
 
   const funds = await dbAs(userId, (tx) =>
     tx.fundAccount.findMany({
-      where: { orgId: org.id },
+      // The financial year the month's documents will be dated in — the same
+      // one generateMonthlyDocuments allocates the reference against. Without
+      // this every year's accounts were offered, so from the second financial
+      // year on the picker listed "OSL Seed Fund" once per year, with each
+      // year's opening balance, and nothing to say which was which.
+      where: {
+        orgId: org.id,
+        financialYear: financialYearOf(invoiceDateFor(year, monthIndex + 1)),
+      },
       select: { source: true, openingBalanceCents: true },
       orderBy: { source: 'asc' },
     })

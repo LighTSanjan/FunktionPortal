@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { dbAs } from '@/core/db'
-import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
+import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { hasPermission } from '@/core/permissions'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
@@ -20,7 +20,7 @@ export default async function FeesPage({
 }) {
   const { orgSlug } = await params
   const { org, membership } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'fee.declare')
+  await requirePagePermission(org, 'fee.declare')
   const { userId } = await verifySession()
 
   const fee = await getOwnFee(userId, org.id, null)
