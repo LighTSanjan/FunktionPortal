@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
 import { writeAudit } from '@/core/audit'
+import { alert } from '@/core/alerts'
 import {
   REQUEST_TTL_DAYS,
   getMembership,
@@ -145,6 +146,10 @@ export async function decideAccessRequest(
     grantRole: request.requestedRole,
     grantOffice: request.requestedOffice,
   })
+
+  if (parsed.data.decision === 'APPROVED') {
+    await alert('exco_granted', { office: request.requestedOffice, club: org.slug })
+  }
 
   await writeAudit({
     orgId: org.id,

@@ -22,6 +22,7 @@ export default async function SettingsLayout({
     // records. It was a top-level sidebar entry, level with the month's work.
     { slug: 'attendance', label: 'Attendance import', permission: 'session.manage' },
     { slug: 'access', label: 'Access requests', permission: 'org.manage_members' },
+    { slug: 'invitations', label: 'Invitations', permission: 'org.manage_members' },
     { slug: 'audit-log', label: 'Audit Log', permission: 'audit.view' },
   ].filter((tab) => tab.permission === null || hasPermission(membership.role, tab.permission))
 

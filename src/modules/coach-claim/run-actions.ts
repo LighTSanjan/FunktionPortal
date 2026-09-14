@@ -9,7 +9,7 @@ import { writeAudit } from '@/core/audit'
 import { allocateReference } from '@/modules/references'
 import { financialYearOf } from '@/modules/references/format'
 import { buildClaim, buildClaimContext, localDateKey } from './monthly-run'
-import { captureSnapshot } from './snapshot'
+import { captureSnapshot, snapshotForStorage } from './snapshot'
 import { toInvoiceData } from './claim'
 import { addWorkingDays, OSL_SUBMISSION_WORKING_DAYS } from './deadlines'
 import { toDateColumn } from '@/lib/date-only'
@@ -124,7 +124,7 @@ export async function generateMonthlyDocuments(
         // The month as it stands, now. Everything behind it keeps moving —
         // rates get backdated, members join the roster, a coach changes bank
         // account — and the copy the Office of Finance receives does not.
-        snapshot: captureSnapshot({
+        snapshot: snapshotForStorage(captureSnapshot({
           organisationName: context.input.organisationName,
           institutionShortName: settings?.institutionShortName ?? undefined,
           instructor: context.input.instructor,
@@ -133,7 +133,7 @@ export async function generateMonthlyDocuments(
           roster: context.input.roster,
           sessions: claim.sessions,
           clubFundBalanceCents: context.input.clubFundBalanceCents,
-        }) as unknown as Prisma.InputJsonValue,
+        })) as unknown as Prisma.InputJsonValue,
         generatedAt: new Date(),
       },
       select: { id: true },

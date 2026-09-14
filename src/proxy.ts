@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 
 const STATIC_PREFIXES = ['/_next/', '/favicon.ico', '/robots.txt', '/sitemap.xml']
 
-const AUTH_PAGES = ['/sign-in', '/sign-up', '/forgot-password']
+const AUTH_PAGES = ['/sign-in', '/sign-up']
 
 const AUTH_FLOW_PATHS = [
   '/auth/callback',

@@ -8,6 +8,7 @@ import { retryOnce } from './dal'
 /** Resolve the first route before an organisation context exists. */
 export type HomeDestination =
   | { kind: 'sign-in' }
+  | { kind: 'verify-email' }
   | { kind: 'onboarding' }
   | { kind: 'dashboard'; orgSlug: string }
 
@@ -19,6 +20,12 @@ export const resolveHomeDestination = cache(
     } = await supabase.auth.getUser()
 
     if (!user) return { kind: 'sign-in' }
+
+    const appUser = await retryOnce(
+      () => dbAdmin.user.findUnique({ where: { id: user.id }, select: { emailProvenAt: true } }),
+      (result) => !result
+    )
+    if (!appUser?.emailProvenAt) return { kind: 'verify-email' }
 
     const membership = await retryOnce(
       () =>
@@ -40,6 +47,8 @@ export function destinationToPath(dest: HomeDestination): string {
   switch (dest.kind) {
     case 'sign-in':
       return '/sign-in'
+    case 'verify-email':
+      return '/verify-email'
     case 'onboarding':
       return '/onboarding'
     case 'dashboard':

@@ -4,21 +4,14 @@
  */
 import { test } from '@playwright/test'
 import { TREASURER, MEMBER } from './seed'
+import { signInWithCode } from './sign-in'
 
 const OUT = process.env.TOUR_OUT ?? 'test-results/tour'
 test.skip(!process.env.TOUR, 'screenshot tour only runs when TOUR=1')
 
-async function signIn(page: import('@playwright/test').Page, who: { email: string; password: string }) {
-  await page.goto('/sign-in')
-  await page.locator('#email').fill(who.email)
-  await page.locator('#password').fill(who.password)
-  await page.getByRole('button', { name: /Sign in/ }).click()
-  await page.waitForURL(/dashboard/)
-}
-
 test('tour', async ({ browser }) => {
   const exco = await browser.newPage({ viewport: { width: 1280, height: 900 } })
-  await signIn(exco, TREASURER)
+  await signInWithCode(exco, TREASURER.email)
   for (const [name, path] of [
     ['exco-home', 'dashboard'],
     ['exco-coach-payments', 'monthly-run'],
@@ -44,7 +37,7 @@ test('tour', async ({ browser }) => {
   }
 
   const member = await browser.newPage({ viewport: { width: 390, height: 844 } })
-  await signIn(member, MEMBER)
+  await signInWithCode(member, MEMBER.email)
   for (const [name, path] of [
     ['member-home-mobile', 'dashboard'],
     ['member-fees-mobile', 'fees'],

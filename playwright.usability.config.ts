@@ -41,10 +41,6 @@ export default defineConfig({
     reuseExistingServer: false,
     env: {
       ...testEnv,
-      // The local stack confirms every address itself, so here — and only
-      // here — a password sign-up's email can be trusted, which lets the
-      // bootstrap treasurer be created through the real sign-up form.
-      AUTH_EMAILS_ARE_VERIFIED: 'true',
     },
   },
 })

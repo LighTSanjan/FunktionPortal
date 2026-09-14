@@ -107,7 +107,7 @@ export interface TestUser {
 export async function createUser(name: string, email?: string): Promise<TestUser> {
   const id = randomUUID()
   const address = email ?? `${name.toLowerCase().replace(/\W+/g, '.')}@test.local`
-  await dbAdmin.user.create({ data: { id, email: address, name } })
+  await dbAdmin.user.create({ data: { id, email: address, name, emailProvenAt: new Date(), emailProvenVia: 'email_code' } })
   return { id, email: address, name }
 }
 

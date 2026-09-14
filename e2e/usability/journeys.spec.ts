@@ -1,5 +1,6 @@
 import { test, expect, type Page, type BrowserContext } from '@playwright/test'
-import { TREASURER, MEMBER } from './seed'
+import { TREASURER, MEMBER, STRANGER } from './seed'
+import { latestCode, signInWithCode } from './sign-in'
 import { png as makePng } from '../../src/test/integration/harness'
 
 const ORG = 'test-club'
@@ -34,16 +35,6 @@ async function visit(page: Page, path: string) {
   return { status, body }
 }
 
-async function signUp(page: Page, who: { name: string; email: string; password: string }) {
-  await page.goto('/sign-up')
-  await page.locator('#name').fill(who.name)
-  await page.locator('#email').fill(who.email)
-  await page.locator('#password').fill(who.password)
-  await page.locator('#confirmPassword').fill(who.password)
-  await page.getByRole('button', { name: 'Create account' }).click()
-  await page.waitForURL(new RegExp(`/${ORG}/dashboard`))
-}
-
 test.describe.configure({ mode: 'serial' })
 
 let treasurer: BrowserContext
@@ -59,9 +50,9 @@ test.afterAll(async () => {
   await member.close()
 })
 
-test('the treasurer signs up and lands on their work', async () => {
+test('the treasurer signs in with a code to their SUTD address and lands on their work', async () => {
   const page = await treasurer.newPage()
-  await signUp(page, TREASURER)
+  await signInWithCode(page, TREASURER.email)
   await expect(page.getByText('Your work')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Coach payments' })).toBeVisible()
   await expect(page.getByRole('link', { name: /Raise .* documents/ })).toBeVisible()
@@ -84,6 +75,7 @@ test('every screen renders for the treasurer', async () => {
     'settings/organisation',
     'settings/attendance',
     'settings/access',
+    'settings/invitations',
     'settings/audit-log',
   ]) {
     await visit(page, `/${ORG}/${path}`)
@@ -119,9 +111,30 @@ test('the treasurer puts this term’s PayNow QR up', async () => {
   await expect(page.getByText('Saved. Members see it now.')).toBeVisible()
 })
 
-test('a member signs up with a personal address and says which student they are', async () => {
+test('somebody with no SUTD address and no invitation gets no code and no account', async () => {
   const page = await member.newPage()
-  await signUp(page, MEMBER)
+  await page.goto('/sign-in')
+  await page.locator('#email').fill(STRANGER.email)
+  await page.getByRole('button', { name: 'Email me a code' }).click()
+  // The same words as everybody else, so the page does not say who is in.
+  await expect(page.getByText(/If .* can use the portal, a code is on its way/)).toBeVisible()
+  await expect(latestCode(STRANGER.email, Date.now() - 5000)).rejects.toThrow()
+  const { dbAdmin } = await import('../../src/core/db/admin')
+  const rows = await dbAdmin.$queryRaw<unknown[]>`SELECT 1 FROM auth.users WHERE email = ${STRANGER.email}`
+  expect(rows).toHaveLength(0)
+})
+
+test('the treasurer invites a member who has no SUTD address', async () => {
+  const page = await treasurer.newPage()
+  await visit(page, `/${ORG}/settings/invitations`)
+  await page.getByLabel('Email address to invite').fill(MEMBER.email)
+  await page.getByRole('button', { name: 'Invite' }).click()
+  await expect(page.getByText(`Invited ${MEMBER.email}`)).toBeVisible()
+})
+
+test('the invited member signs in and says which student they are', async () => {
+  const page = await member.newPage()
+  await signInWithCode(page, MEMBER.email)
   // From the home screen, not by knowing where the subscription page lives.
   await expect(page.getByText('Tell the club your student ID')).toBeVisible()
   await page.getByRole('link', { name: 'Give your student ID' }).click()
@@ -138,7 +151,7 @@ test('every screen a member can open renders, and exco screens refuse them polit
   for (const path of ['dashboard', 'fees', 'access', 'settings/profile']) {
     await visit(page, `/${ORG}/${path}`)
   }
-  for (const path of ['monthly-run', 'fees/collection', 'instructors', 'register', 'settings/audit-log', 'settings/organisation', 'sessions']) {
+  for (const path of ['monthly-run', 'fees/collection', 'instructors', 'register', 'settings/audit-log', 'settings/organisation', 'settings/invitations', 'sessions']) {
     const { body } = await visit(page, `/${ORG}/${path}`)
     // Told plainly, with a way back — not a crash, and nothing of the exco's.
     expect(page.url(), `${path} should send a member to no-access`).toMatch(/\/no-access$/)

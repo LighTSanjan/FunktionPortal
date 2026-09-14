@@ -19,6 +19,9 @@ if [ ! -f .env.test ]; then
 fi
 
 "${COMPOSE[@]}" up -d
+# Kong resolves the other containers once, at start. If `up` just recreated
+# one, Kong still points at the old address and answers 502.
+"${COMPOSE[@]}" restart kong >/dev/null
 
 echo "Waiting for Postgres…"
 for _ in $(seq 1 60); do

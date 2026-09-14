@@ -37,8 +37,21 @@ export async function retryOnce<T>(
   return read()
 }
 
-/** Verify the current session or redirect to sign-in. */
+/**
+ * Verify the current session or redirect to sign-in.
+ *
+ * An account whose address is not proven is sent to confirm it first. Until
+ * it does, it may be somebody who signed up as another person's address —
+ * see core/auth/proof.ts — so it is not let near anything that address owns.
+ */
 export const verifySession = cache(async (): Promise<VerifiedSession> => {
+  const session = await verifySessionAllowingUnproven()
+  if (!session.emailProven) redirect('/verify-email')
+  return { userId: session.userId, email: session.email, name: session.name }
+})
+
+/** The signed-in account, proven or not. Only the confirm-your-email screen wants this. */
+export const verifySessionAllowingUnproven = cache(async (): Promise<VerifiedSession & { emailProven: boolean }> => {
   const supabase = await createSupabaseServer()
   const {
     data: { user },
@@ -52,7 +65,7 @@ export const verifySession = cache(async (): Promise<VerifiedSession> => {
     () =>
       dbAdmin.user.findUnique({
         where: { id: user.id },
-        select: { id: true, email: true, name: true, isActive: true },
+        select: { id: true, email: true, name: true, isActive: true, emailProvenAt: true },
       }),
     (result) => !result
   )
@@ -61,7 +74,12 @@ export const verifySession = cache(async (): Promise<VerifiedSession> => {
     redirect('/sign-in')
   }
 
-  return { userId: appUser.id, email: appUser.email, name: appUser.name }
+  return {
+    userId: appUser.id,
+    email: appUser.email,
+    name: appUser.name,
+    emailProven: appUser.emailProvenAt !== null,
+  }
 })
 
 /** Return an active membership, hiding inaccessible organisations as 404s. */

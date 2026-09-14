@@ -13,14 +13,16 @@ import {
   resetDatabase,
 } from '../../src/test/integration/harness'
 
-export const TREASURER = { name: 'Tess Treasurer', email: 'treasurer@test.funktion.local', password: 'correct-horse-9-battery' }
-export const MEMBER = { name: 'Ada Lee', email: 'ada.personal@gmail.test', password: 'another-horse-9-battery', studentId: '1000001' }
+export const TREASURER = { name: 'Tess Treasurer', email: 'treasurer@mymail.sutd.edu.sg' }
+export const MEMBER = { name: 'Ada Lee', email: 'ada.personal@gmail.test', studentId: '1000001' }
+/** Somebody nobody invited, with no university address. */
+export const STRANGER = { email: 'stranger@gmail.test' }
 
 export default async function seed() {
   await resetDatabase()
   await ensureBucket()
   // Sign-ups create auth.users rows too; clear them so the same addresses work again.
-  await dbAdmin.$executeRawUnsafe(`DELETE FROM auth.users WHERE email LIKE '%test%'`)
+  await dbAdmin.$executeRawUnsafe(`DELETE FROM auth.users WHERE email LIKE '%test%' OR email LIKE '%@mymail.sutd.edu.sg'`)
 
   const org = await createOrganisation('test-club', 'Test Club')
 

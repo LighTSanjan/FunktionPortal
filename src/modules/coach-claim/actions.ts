@@ -1,6 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { openOptional, sealOptional } from '@/core/crypto/fields'
+import { alert } from '@/core/alerts'
 import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
 import { dbAs } from '@/core/db'
@@ -66,16 +68,21 @@ export async function saveInstructor(
     return { error: parsed.error.issues[0]?.message ?? 'Those details are not valid' }
   }
 
+  const plainBank = parsed.data.bankAccountNo ?? null
   const data = {
     ...parsed.data,
     shortCode: parsed.data.shortCode ?? deriveShortCode(parsed.data.fullName),
+    bankAccountNo: sealOptional(plainBank, 'instructors.bank_account_no'),
   }
+  let bankChanged = false
 
   const missing = await dbAs(userId, async (tx) => {
     if (instructorId) {
       const before = await tx.instructor.findFirst({ where: { id: instructorId, orgId: org.id } })
       if (!before) return true
 
+      const plainBefore = openOptional(before.bankAccountNo, 'instructors.bank_account_no')
+      bankChanged = plainBefore !== plainBank || (before.bankName ?? null) !== (parsed.data.bankName ?? null)
       const after = await tx.instructor.update({ where: { id: before.id }, data })
       await writeAudit(
         {
@@ -84,8 +91,8 @@ export async function saveInstructor(
           action: 'instructor.update',
           targetType: 'Instructor',
           targetId: before.id,
-          before: redactBank(before),
-          after: redactBank(after),
+          before: redactBank({ ...before, bankAccountNo: plainBefore }),
+          after: redactBank({ ...after, bankAccountNo: plainBank }),
         },
         tx
       )
@@ -98,7 +105,7 @@ export async function saveInstructor(
           action: 'instructor.create',
           targetType: 'Instructor',
           targetId: created.id,
-          after: redactBank(created),
+          after: redactBank({ ...created, bankAccountNo: plainBank }),
         },
         tx
       )
@@ -107,6 +114,10 @@ export async function saveInstructor(
   })
 
   if (missing) return { error: 'That instructor no longer exists' }
+
+  // Changing where a coach's money goes is the classic invoice fraud. It is
+  // allowed, it is audited, and somebody hears about it straight away.
+  if (bankChanged) await alert('bank_details_changed', { coach: data.fullName, club: org.slug })
 
   revalidatePath(`/${orgSlug}/instructors`)
   return { error: null, ok: true }
