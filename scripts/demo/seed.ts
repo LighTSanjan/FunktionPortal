@@ -7,6 +7,11 @@ import { dbAdmin } from '../../src/core/db/admin'
 
 async function main() {
   await seed()
+  // The seed clears test addresses; your own demo address is cleared too, so
+  // it signs in fresh and the bootstrap makes it the treasurer again.
+  if (process.env.DEMO_TREASURER_EMAIL) {
+    await dbAdmin.$executeRaw`DELETE FROM auth.users WHERE lower(email) = lower(${process.env.DEMO_TREASURER_EMAIL})`
+  }
   const org = await dbAdmin.organisation.findUniqueOrThrow({ where: { slug: 'test-club' } })
   await dbAdmin.invitation.create({
     data: {
@@ -20,9 +25,9 @@ async function main() {
   Demo club ready.
 
     Open         http://localhost:3100
-    Treasurer    ${TREASURER.email}   (becomes exco on first sign-in)
+    Treasurer    ${process.env.DEMO_TREASURER_EMAIL || TREASURER.email}   (becomes exco on first sign-in)
     Member       ${MEMBER.email}      (invited)
-    Codes        http://localhost:58025   ← every sign-in email lands here
+    Codes        http://localhost:58025   ← every sign-in email lands HERE, not in your real inbox
 
   Once signed in as the treasurer: Settings → All screens.
 `)

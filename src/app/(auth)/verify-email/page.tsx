@@ -22,7 +22,7 @@ export default async function VerifyEmailPage() {
       title="One more step"
       subtitle="Confirm this is your email address. It keeps anybody else from signing in as you."
     >
-      <EmailCodeForm fixedEmail={session.email} />
+      <EmailCodeForm fixedEmail={session.email} localMailbox={process.env.LOCAL_MAILBOX_URL || undefined} />
 
       <form action="/api/auth/sign-out" method="post" className="mt-6">
         <Button type="submit" variant="ghost" className="w-full">

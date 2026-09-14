@@ -13,7 +13,7 @@ import { emailPlaceholder } from '@/core/brand'
  * `fixedEmail` is for somebody already signed in whose address still needs
  * proving: the code goes to the address on their account and nowhere else.
  */
-export function EmailCodeForm({ fixedEmail }: { fixedEmail?: string }) {
+export function EmailCodeForm({ fixedEmail, localMailbox }: { fixedEmail?: string; localMailbox?: string }) {
   const [sendState, send, sending] = useActionState<CodeState, FormData>(requestEmailCode, { error: null })
   const [verifyState, verify, verifying] = useActionState<CodeState, FormData>(verifyEmailCode, { error: null })
   const [changing, setChanging] = useState(false)
@@ -57,6 +57,16 @@ export function EmailCodeForm({ fixedEmail }: { fixedEmail?: string }) {
         If <span className="font-medium text-text">{sentTo}</span> can use the portal, a code is on
         its way. It comes from Supabase, so check spam if it is not there in a minute.
       </p>
+
+      {localMailbox && (
+        <p className="rounded-[var(--radius-sm)] border border-warning/30 bg-warning/10 p-3 text-[13px] leading-relaxed text-text">
+          This is a local copy of the portal: emails do not reach real inboxes. Your code is in the{' '}
+          <a href={localMailbox} target="_blank" rel="noreferrer" className="font-medium text-accent-600 underline">
+            local mailbox
+          </a>
+          .
+        </p>
+      )}
 
       <form action={verify} className="space-y-4">
         {verifyState.error && <Alert>{verifyState.error}</Alert>}

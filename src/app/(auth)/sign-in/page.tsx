@@ -59,7 +59,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
         </>
       )}
 
-      <EmailCodeForm />
+      <EmailCodeForm localMailbox={process.env.LOCAL_MAILBOX_URL || undefined} />
     </AuthCardShell>
   )
 }
