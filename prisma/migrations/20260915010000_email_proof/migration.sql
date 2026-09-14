@@ -11,23 +11,24 @@ ALTER TABLE "users" ADD COLUMN "email_proven_via" TEXT;
 -- Invitations are matched by address, whatever case it was typed in.
 CREATE INDEX "invitations_lower_email_idx" ON "invitations" (lower("email"));
 
--- Sign-in attempts per key (an address, or an IP), per window. Written only
--- through the admin connection; nothing else may read or write it.
-CREATE TABLE "auth_throttle" (
-  "key"          TEXT         NOT NULL,
-  "window_start" TIMESTAMP(3) NOT NULL,
-  "count"        INTEGER      NOT NULL DEFAULT 0,
-  CONSTRAINT "auth_throttle_pkey" PRIMARY KEY ("key", "window_start")
+-- Sign-in attempts per key (an address, or an IP), in the shape
+-- rate-limiter-flexible's Prisma store reads and writes. Admin connection
+-- only; nothing else may read or write it.
+CREATE TABLE "rate_limits" (
+  "key"    TEXT         NOT NULL,
+  "points" INTEGER      NOT NULL DEFAULT 0,
+  "expire" TIMESTAMP(3),
+  CONSTRAINT "rate_limits_pkey" PRIMARY KEY ("key")
 );
-ALTER TABLE "auth_throttle" ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON "auth_throttle" FROM PUBLIC;
+ALTER TABLE "rate_limits" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON "rate_limits" FROM PUBLIC;
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
-    REVOKE ALL ON "auth_throttle" FROM app_user;
+    REVOKE ALL ON "rate_limits" FROM app_user;
   END IF;
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-    REVOKE ALL ON "auth_throttle" FROM anon, authenticated;
+    REVOKE ALL ON "rate_limits" FROM anon, authenticated;
   END IF;
 END
 $$;

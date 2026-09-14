@@ -109,10 +109,8 @@ export function readSnapshot(value: unknown): MonthSnapshot | null {
   const snapshot = record as unknown as MonthSnapshot
   const bank = snapshot.instructor.bankAccountNo
   if (!bank) return snapshot
-  return { ...snapshot, instructor: { ...snapshot.instructor, bankAccountNo: openField(bank, SNAPSHOT_BANK) } }
+  return { ...snapshot, instructor: { ...snapshot.instructor, bankAccountNo: openField(bank) } }
 }
-
-const SNAPSHOT_BANK = 'attendance_sheets.snapshot.bank_account_no' as const
 
 /**
  * The snapshot as it is written to the database: the same, with the coach's
@@ -121,7 +119,7 @@ const SNAPSHOT_BANK = 'attendance_sheets.snapshot.bank_account_no' as const
 export function snapshotForStorage(snapshot: MonthSnapshot): MonthSnapshot {
   const bank = snapshot.instructor.bankAccountNo
   if (!bank) return snapshot
-  return { ...snapshot, instructor: { ...snapshot.instructor, bankAccountNo: sealField(bank, SNAPSHOT_BANK) } }
+  return { ...snapshot, instructor: { ...snapshot.instructor, bankAccountNo: sealField(bank) } }
 }
 
 /** The sheet's grid, rebuilt from the snapshot rather than from live rows. */

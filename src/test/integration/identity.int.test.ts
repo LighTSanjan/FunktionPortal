@@ -13,6 +13,7 @@ import { createClient, type User as SupabaseUser } from '@supabase/supabase-js'
 import { provisionUser } from '@/core/auth/provision'
 import { proofFromEmailCode, proofFromProviderSignIn } from '@/core/auth/proof'
 import { secureProvenAccount } from '@/core/auth/secure'
+import { takeAttempt } from '@/core/auth/throttle'
 import { addRosterMember, createOrganisation, dbAdmin, resetDatabase, type TestOrg } from './harness'
 
 function supabaseUser(email: string, id: string = randomUUID()): SupabaseUser {
@@ -259,5 +260,15 @@ describe('shutting out whoever signed up as the address first', () => {
     expect((await anon().auth.getUser(stolen.access_token)).error).not.toBeNull()
     expect((await anon().auth.signInWithPassword({ email, password: 'impostor-password-1' })).error).not.toBeNull()
     expect((await anon().auth.refreshSession({ refresh_token: stolen.refresh_token })).error).not.toBeNull()
+  })
+})
+
+describe('rate limits on codes', () => {
+  it('allows the limit, refuses the next, and keeps addresses apart', async () => {
+    const key = `test:${randomUUID()}`
+    const limit = (k: string) => [{ key: k, max: 5, windowSeconds: 3600 }]
+    for (let i = 0; i < 5; i++) expect(await takeAttempt(limit(key))).toBe(true)
+    expect(await takeAttempt(limit(key))).toBe(false)
+    expect(await takeAttempt(limit(`${key}:someone-else`))).toBe(true)
   })
 })

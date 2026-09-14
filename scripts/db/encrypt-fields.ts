@@ -13,15 +13,12 @@ import { PrismaClient, Prisma } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { needsResealing, openField, sealField } from '../../src/core/crypto/fields'
 
-const COLUMN = 'instructors.bank_account_no' as const
-const SNAPSHOT = 'attendance_sheets.snapshot.bank_account_no' as const
-
 async function main() {
   const apply = process.argv.includes('--apply')
   const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL
   if (!connectionString) throw new Error('DIRECT_URL is not set')
   // Fails before touching anything if the key is missing or malformed.
-  sealField('check', COLUMN)
+  sealField('check')
 
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString }) })
   try {
@@ -49,13 +46,13 @@ async function main() {
 
     await db.$transaction(async (tx) => {
       for (const row of staleInstructors) {
-        const plain = openField(row.bankAccountNo!, COLUMN)
-        await tx.instructor.update({ where: { id: row.id }, data: { bankAccountNo: sealField(plain, COLUMN) } })
+        const plain = openField(row.bankAccountNo!)
+        await tx.instructor.update({ where: { id: row.id }, data: { bankAccountNo: sealField(plain) } })
       }
       for (const row of staleSheets) {
         const snapshot = row.snapshot as { instructor: { bankAccountNo: string } }
-        const plain = openField(snapshot.instructor.bankAccountNo, SNAPSHOT)
-        const sealed = { ...snapshot, instructor: { ...snapshot.instructor, bankAccountNo: sealField(plain, SNAPSHOT) } }
+        const plain = openField(snapshot.instructor.bankAccountNo)
+        const sealed = { ...snapshot, instructor: { ...snapshot.instructor, bankAccountNo: sealField(plain) } }
         await tx.attendanceSheet.update({ where: { id: row.id }, data: { snapshot: sealed as Prisma.InputJsonValue } })
       }
     })

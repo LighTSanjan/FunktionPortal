@@ -259,13 +259,13 @@ describe('a month of coach payments', () => {
     // What a leaked backup or a stolen connection string would show.
     const [column] = await dbAdmin.$queryRaw<Array<{ bank_account_no: string }>>`
       SELECT bank_account_no FROM instructors WHERE id = ${coachId}`
-    expect(column.bank_account_no).toMatch(/^enc:v1:/)
+    expect(column.bank_account_no).toMatch(/^v1\.aesgcm256\./)
     expect(column.bank_account_no).not.toContain('00000')
 
     const [sheet] = await dbAdmin.$queryRaw<Array<{ snapshot: string }>>`
       SELECT snapshot::text AS snapshot FROM attendance_sheets WHERE org_id = ${org.id}`
     expect(sheet.snapshot).not.toContain('000-00000-0')
-    expect(sheet.snapshot).toContain('enc:v1:')
+    expect(sheet.snapshot).toContain('v1.aesgcm256.')
 
     as(treasurer)
     const response = await downloadDocument(new Request('http://test/'), {
@@ -304,7 +304,7 @@ describe('a month of coach payments', () => {
     expect(updated.bank.count).toBe(0)
     expect(updated.email.count).toBe(0)
     const stored = (await dbAdmin.instructor.findUniqueOrThrow({ where: { id: coachId } })).bankAccountNo!
-    expect(openField(stored, 'instructors.bank_account_no')).toBe('000-00000-0')
+    expect(openField(stored)).toBe('000-00000-0')
     expect((await dbAdmin.organisationSettings.findUniqueOrThrow({ where: { orgId: org.id } })).submissionEmail).toBe(
       before.submissionEmail
     )

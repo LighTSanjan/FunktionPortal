@@ -174,7 +174,7 @@ function toRow(instructor: InstructorWithRates): InstructorRow {
     addressLine2: instructor.addressLine2,
     postalCode: instructor.postalCode,
     bankName: instructor.bankName,
-    bankAccountNo: openOptional(instructor.bankAccountNo, 'instructors.bank_account_no'),
+    bankAccountNo: openOptional(instructor.bankAccountNo),
     engagement: instructor.engagement,
     contractRef: instructor.contractRef,
     isActive: instructor.isActive,

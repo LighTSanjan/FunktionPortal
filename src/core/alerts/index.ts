@@ -14,6 +14,8 @@
  * as does the job: addresses are masked, and no amounts, account numbers or
  * student IDs are ever included.
  */
+import { Api } from 'grammy'
+
 export type AlertKind =
   | 'account_proven'
   | 'join_refused'
@@ -63,14 +65,9 @@ export async function alert(kind: AlertKind, details: Record<string, string | nu
   if (recent.size > 500) recent.clear()
 
   try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
-      signal: AbortSignal.timeout(3000),
-    })
+    await new Api(token, { timeoutSeconds: 3 }).sendMessage(chatId, text, { link_preview_options: { is_disabled: true } })
   } catch (error) {
-    // The token is in the URL; never log the request itself.
+    // The token is part of the request; never log the request itself.
     console.error('[alerts] Telegram send failed:', error instanceof Error ? error.name : 'unknown')
   }
 }

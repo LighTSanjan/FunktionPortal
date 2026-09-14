@@ -4,32 +4,30 @@
  * Row-level security decides who may query a row; it does nothing for a
  * leaked backup, a stolen DATABASE_URL, or a support session on the database.
  * A coach's bank account number is the field whose leak does real harm, so
- * it is sealed in the application with AES-256-GCM before it reaches
- * Postgres, under a key the database never sees.
+ * it is sealed in the application before it reaches Postgres, under a key the
+ * database never sees.
  *
- *   enc:v1:<key id>:<iv>:<auth tag>:<ciphertext>     (base64url parts)
+ * The cryptography is @47ng/cloak (AES-256-GCM, keys identified by
+ * fingerprint): v1.aesgcm256.<fingerprint>.<iv>.<ciphertext>. This file only
+ * decides where the keys come from and what a plaintext row means.
  *
- * The column name is bound in as associated data, so a sealed value cannot be
- * copied into a different column and opened there.
+ * Keys come from FIELD_ENCRYPTION_KEYS: cloak keys (k1.aesgcm256.…), comma-
+ * separated, newest first. New values are sealed under the first; any listed
+ * key opens. To rotate: put a new key first, run `npm run db:encrypt-fields --
+ * --apply`, then drop the old one. Generate a key with `npx @47ng/cloak generate`.
  *
- * Keys come from FIELD_ENCRYPTION_KEYS, "id:base64key" pairs separated by
- * commas, newest first. New values are sealed under the first; any listed key
- * opens. To rotate: put a new key first, run scripts/db/encrypt-fields.ts,
- * then drop the old one.
- *
- * A value without the prefix is read as plaintext, so rows written before
- * encryption keep working until the backfill script seals them.
+ * A value that is not a cloak message is read as plaintext, so rows written
+ * before encryption keep working until the backfill script seals them.
  */
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
-
-const PREFIX = 'enc:v1:'
-
-export type SealedColumn = 'instructors.bank_account_no' | 'attendance_sheets.snapshot.bank_account_no'
-
-interface Key {
-  id: string
-  bytes: Buffer
-}
+import {
+  decryptStringSync,
+  encryptStringSync,
+  findKeyForMessage,
+  getMessageKeyFingerprint,
+  makeKeychainSync,
+  parseCloakedString,
+  parseKeySync,
+} from '@47ng/cloak'
 
 export class FieldKeyError extends Error {
   constructor(message: string) {
@@ -38,68 +36,50 @@ export class FieldKeyError extends Error {
   }
 }
 
-function keys(): Key[] {
-  const raw = process.env.FIELD_ENCRYPTION_KEYS ?? ''
-  const parsed = raw
+function configuredKeys(): string[] {
+  return (process.env.FIELD_ENCRYPTION_KEYS ?? '')
     .split(',')
     .map((entry) => entry.trim())
     .filter(Boolean)
-    .map((entry) => {
-      const [id, material] = entry.split(':')
-      const bytes = Buffer.from(material ?? '', 'base64')
-      if (!id || !/^[A-Za-z0-9_-]+$/.test(id) || bytes.length !== 32) {
-        throw new FieldKeyError('FIELD_ENCRYPTION_KEYS must be "id:<32 bytes, base64>" pairs, comma-separated')
-      }
-      return { id, bytes }
-    })
-  return parsed
 }
 
 export function isSealed(value: string | null | undefined): boolean {
-  return typeof value === 'string' && value.startsWith(PREFIX)
+  return typeof value === 'string' && parseCloakedString(value) !== false
 }
 
-export function sealField(plain: string, column: SealedColumn): string {
-  const [current] = keys()
+export function sealField(plain: string): string {
+  const [current] = configuredKeys()
   if (!current) {
     throw new FieldKeyError(
-      'FIELD_ENCRYPTION_KEYS is not set, so bank details cannot be saved. Generate one with: ' +
-        'node -e "console.log(\'k1:\' + require(\'crypto\').randomBytes(32).toString(\'base64\'))"'
+      'FIELD_ENCRYPTION_KEYS is not set, so bank details cannot be saved. Generate a key with: npx @47ng/cloak generate'
     )
   }
-  const iv = randomBytes(12)
-  const cipher = createCipheriv('aes-256-gcm', current.bytes, iv)
-  cipher.setAAD(Buffer.from(column))
-  const ciphertext = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()])
-  const tag = cipher.getAuthTag()
-  return `${PREFIX}${current.id}:${iv.toString('base64url')}:${tag.toString('base64url')}:${ciphertext.toString('base64url')}`
+  return encryptStringSync(plain, current)
 }
 
-export function openField(stored: string, column: SealedColumn): string {
+export function openField(stored: string): string {
   if (!isSealed(stored)) return stored
-
-  const [keyId, iv, tag, ciphertext] = stored.slice(PREFIX.length).split(':')
-  const key = keys().find((candidate) => candidate.id === keyId)
-  if (!key) {
-    throw new FieldKeyError(`No key "${keyId}" in FIELD_ENCRYPTION_KEYS to open ${column}`)
+  const keychain = makeKeychainSync(configuredKeys())
+  try {
+    return decryptStringSync(stored, findKeyForMessage(stored, keychain))
+  } catch (error) {
+    throw new FieldKeyError(
+      `Could not open a sealed value (key ${getMessageKeyFingerprint(stored)}): ${error instanceof Error ? error.message : error}`
+    )
   }
-  const decipher = createDecipheriv('aes-256-gcm', key.bytes, Buffer.from(iv, 'base64url'))
-  decipher.setAAD(Buffer.from(column))
-  decipher.setAuthTag(Buffer.from(tag, 'base64url'))
-  return Buffer.concat([decipher.update(Buffer.from(ciphertext, 'base64url')), decipher.final()]).toString('utf8')
 }
 
-export function sealOptional(plain: string | null | undefined, column: SealedColumn): string | null {
-  return plain ? sealField(plain, column) : null
+export function sealOptional(plain: string | null | undefined): string | null {
+  return plain ? sealField(plain) : null
 }
 
-export function openOptional(stored: string | null | undefined, column: SealedColumn): string | null {
-  return stored ? openField(stored, column) : null
+export function openOptional(stored: string | null | undefined): string | null {
+  return stored ? openField(stored) : null
 }
 
-/** Whether a sealed value is under a key other than the current one. */
+/** Plaintext, or sealed under a key other than the current one. */
 export function needsResealing(stored: string): boolean {
   if (!isSealed(stored)) return true
-  const [current] = keys()
-  return Boolean(current) && stored.slice(PREFIX.length).split(':')[0] !== current.id
+  const [current] = configuredKeys()
+  return Boolean(current) && getMessageKeyFingerprint(stored) !== parseKeySync(current).fingerprint
 }

@@ -147,12 +147,11 @@ model AccessRequest {
   @@map("access_requests")
 }
 
-/// Sign-in attempts per key per window. Admin connection only.
-model AuthThrottle {
-  key         String
-  windowStart DateTime @map("window_start")
-  count       Int      @default(0)
+/// Sign-in attempts per key, for rate-limiter-flexible. Admin connection only.
+model RateLimit {
+  key    String    @id
+  points Int       @default(0)
+  expire DateTime?
 
-  @@id([key, windowStart])
-  @@map("auth_throttle")
+  @@map("rate_limits")
 }

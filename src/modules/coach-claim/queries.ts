@@ -70,7 +70,7 @@ function toInstructorRow(row: InstructorWithRates): InstructorRow {
     addressLine2: row.addressLine2,
     postalCode: row.postalCode,
     bankName: row.bankName,
-    bankAccountNo: openOptional(row.bankAccountNo, 'instructors.bank_account_no'),
+    bankAccountNo: openOptional(row.bankAccountNo),
     engagement: row.engagement,
     contractRef: row.contractRef,
     isActive: row.isActive,

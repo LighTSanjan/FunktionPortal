@@ -72,7 +72,7 @@ export async function saveInstructor(
   const data = {
     ...parsed.data,
     shortCode: parsed.data.shortCode ?? deriveShortCode(parsed.data.fullName),
-    bankAccountNo: sealOptional(plainBank, 'instructors.bank_account_no'),
+    bankAccountNo: sealOptional(plainBank),
   }
   let bankChanged = false
 
@@ -81,7 +81,7 @@ export async function saveInstructor(
       const before = await tx.instructor.findFirst({ where: { id: instructorId, orgId: org.id } })
       if (!before) return true
 
-      const plainBefore = openOptional(before.bankAccountNo, 'instructors.bank_account_no')
+      const plainBefore = openOptional(before.bankAccountNo)
       bankChanged = plainBefore !== plainBank || (before.bankName ?? null) !== (parsed.data.bankName ?? null)
       const after = await tx.instructor.update({ where: { id: before.id }, data })
       await writeAudit(
