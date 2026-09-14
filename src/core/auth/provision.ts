@@ -25,8 +25,31 @@ export async function provisionUser(authUser: SupabaseUser): Promise<void> {
     create: { id: authUser.id, email, name },
   })
 
-  await joinDefaultOrganisation(authUser.id, email)
-  await linkRosterMember(authUser.id, email)
+  const verified = emailIsVerified(authUser)
+  await joinDefaultOrganisation(authUser.id, email, verified)
+  if (verified) await linkRosterMember(authUser.id, email)
+}
+
+/**
+ * Whether the email on this account proves anything about who is holding it.
+ *
+ * Linking to a roster row and the first-exco bootstrap both key on email, so
+ * both assume the address was verified. That stops being true the moment
+ * Supabase's "Confirm email" is switched off: anyone can then sign up as
+ * somebody else's SUTD address and would be linked to their roster row —
+ * seeing their fee, and declaring payments as them — or, on a fresh
+ * deployment, sign up as the bootstrap address and become the exco.
+ *
+ * So: an OAuth provider that verifies addresses itself (Google does) counts.
+ * A password sign-up counts only when the deployment declares that Supabase
+ * is confirming emails, with AUTH_EMAILS_ARE_VERIFIED=true. The default is
+ * the safe one — nothing is linked automatically, and the exco confirm
+ * student-ID claims by hand instead.
+ */
+export function emailIsVerified(authUser: Pick<SupabaseUser, 'app_metadata' | 'email_confirmed_at'>): boolean {
+  const provider = authUser.app_metadata?.provider
+  if (provider && provider !== 'email' && provider !== 'phone') return true
+  return process.env.AUTH_EMAILS_ARE_VERIFIED === 'true' && Boolean(authUser.email_confirmed_at)
 }
 
 /** Organisations this account actually belongs to. */
@@ -44,12 +67,11 @@ async function activeOrgIds(userId: string): Promise<string[]> {
  * A User is somebody who can sign in; a Member is somebody on the club roster.
  * Most members never sign in, and some users are not on the roster at all, so
  * the two are separate — but a member opening the portal to pay their
- * subscription has to be recognised as themselves, and asking them to claim a
- * roster row would be asking them to assert an identity.
+ * subscription has to be recognised as themselves.
  *
- * Email is the only key both sides hold: the roster carries one for every row
- * because the club collects it, and Supabase has verified the one on the
- * account. It is matched case-insensitively and only where exactly one
+ * Only ever called for a verified address — see emailIsVerified. Where the
+ * email is not verified, the member claims their student ID instead and an
+ * exco member confirms it. It is matched case-insensitively and only where exactly one
  * unlinked row carries it, so a shared or duplicated address links nobody and
  * the exco is left to sort it out.
  */
@@ -80,7 +102,11 @@ async function linkRosterMember(userId: string, email: string): Promise<void> {
 
 // Single-club deployments auto-join new accounts as MEMBER. Role permissions
 // and RLS keep financial and roster data restricted to EXCO.
-async function joinDefaultOrganisation(userId: string, email: string): Promise<void> {
+async function joinDefaultOrganisation(
+  userId: string,
+  email: string,
+  verified: boolean
+): Promise<void> {
   const existing = await dbAdmin.organisationMembership.findFirst({
     where: { userId },
     select: { id: true },
@@ -88,7 +114,7 @@ async function joinDefaultOrganisation(userId: string, email: string): Promise<v
   if (existing) {
     // Already in. Still run the bootstrap: with auto-join, the first exco now
     // arrives holding a MEMBER row, so it has to be able to upgrade one.
-    await bootstrapFirstExco(userId, email)
+    if (verified) await bootstrapFirstExco(userId, email)
     return
   }
 
@@ -101,12 +127,15 @@ async function joinDefaultOrganisation(userId: string, email: string): Promise<v
     data: { userId, orgId: orgs[0].id, role: 'MEMBER', isActive: true },
   })
 
-  await bootstrapFirstExco(userId, email)
+  // Promotion to exco by email is only as good as the email. Unverified, it
+  // is a sign-up form that makes whoever types the right address the club's
+  // treasurer.
+  if (verified) await bootstrapFirstExco(userId, email)
 
 }
 
-// Bootstrap is disabled once any active EXCO exists. It trusts only the email
-// verified by Supabase and never reactivates a disabled membership.
+// Bootstrap is disabled once any active EXCO exists, runs only for a verified
+// email (see emailIsVerified), and never reactivates a disabled membership.
 async function bootstrapFirstExco(userId: string, email: string): Promise<void> {
   const allowed = (process.env.BOOTSTRAP_EXCO_EMAILS ?? '')
     .split(',')

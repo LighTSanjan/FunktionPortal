@@ -425,6 +425,15 @@ export interface UnlinkedAccount {
   userId: string
   name: string
   email: string
+  /** The student ID the account says it is, if it has said. */
+  claimedStudentId: string | null
+  /**
+   * The roster row carrying that student ID, when exactly one unlinked row
+   * does. The exco still confirms it — this only saves them the search.
+   */
+  suggestedMemberId: string | null
+  /** Another account has claimed the same student ID. Somebody is wrong. */
+  contested: boolean
 }
 
 /**
@@ -437,7 +446,10 @@ export interface UnlinkedAccount {
 export async function listUnlinked(
   userId: string,
   orgId: string
-): Promise<{ accounts: UnlinkedAccount[]; members: { id: string; fullName: string }[] }> {
+): Promise<{
+  accounts: UnlinkedAccount[]
+  members: { id: string; fullName: string; studentId: string | null }[]
+}> {
   return dbAs(userId, async (tx) => {
     const linked = await tx.member.findMany({
       where: { orgId, userId: { not: null } },
@@ -447,21 +459,53 @@ export async function listUnlinked(
 
     const memberships = await tx.organisationMembership.findMany({
       where: { orgId, isActive: true, userId: { notIn: linkedIds.length ? linkedIds : ['-'] } },
-      select: { user: { select: { id: true, name: true, email: true } } },
+      select: {
+        user: { select: { id: true, name: true, email: true, claimedStudentId: true } },
+      },
+      // Claims first: somebody who has said who they are is the quick one to
+      // confirm, and the one waiting on the club rather than on themselves.
       orderBy: { createdAt: 'asc' },
     })
 
-    return {
-      accounts: memberships.map((row) => ({
+    const members = await tx.member.findMany({
+      where: { orgId, isActive: true, userId: null },
+      orderBy: { fullName: 'asc' },
+      select: { id: true, fullName: true, studentId: true },
+    })
+
+    const byStudentId = new Map<string, string[]>()
+    for (const member of members) {
+      const id = member.studentId?.replace(/\D/g, '')
+      if (!id) continue
+      byStudentId.set(id, [...(byStudentId.get(id) ?? []), member.id])
+    }
+
+    const claimCounts = new Map<string, number>()
+    for (const row of memberships) {
+      const claim = row.user.claimedStudentId
+      if (claim) claimCounts.set(claim, (claimCounts.get(claim) ?? 0) + 1)
+    }
+
+    const accounts = memberships.map((row) => {
+      const claim = row.user.claimedStudentId
+      const matches = claim ? (byStudentId.get(claim) ?? []) : []
+      return {
         userId: row.user.id,
         name: row.user.name,
         email: row.user.email,
-      })),
-      members: await tx.member.findMany({
-        where: { orgId, isActive: true, userId: null },
-        orderBy: { fullName: 'asc' },
-        select: { id: true, fullName: true },
-      }),
+        claimedStudentId: claim,
+        suggestedMemberId: matches.length === 1 ? matches[0] : null,
+        contested: claim ? (claimCounts.get(claim) ?? 0) > 1 : false,
+      }
+    })
+
+    accounts.sort((a, b) => Number(Boolean(b.claimedStudentId)) - Number(Boolean(a.claimedStudentId)))
+
+    return {
+      accounts,
+      // The student ID is on the option so the exco can check a claim against
+      // it. They can already see it on the roster; this is the same screen.
+      members: members.map(({ id, fullName, studentId }) => ({ id, fullName, studentId })),
     }
   })
 }

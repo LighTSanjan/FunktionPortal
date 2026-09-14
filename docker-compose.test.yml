@@ -1,0 +1,24 @@
+# Integration-test overrides for docker-compose.yml.
+#
+# Run the self-hosted stack on ports nothing else on a developer machine is
+# likely to hold, under its own project name so its volumes never mix with a
+# dev database:
+#
+#   docker compose -p funktion-test -f docker-compose.yml -f docker-compose.test.yml up -d
+#
+# The tests never touch the hosted database. Everything they create is
+# throwaway, and the hosted one holds real members' data.
+services:
+  postgres:
+    container_name: funktion-test-db
+    ports: !override
+      - '127.0.0.1:55432:5432'
+  kong:
+    ports: !override
+      - '127.0.0.1:58000:8000'
+  gotrue:
+    environment:
+      API_EXTERNAL_URL: http://localhost:58000
+      GOTRUE_SITE_URL: http://localhost:3100
+      GOTRUE_URI_ALLOW_LIST: http://localhost:3100/**
+      GOTRUE_MAILER_AUTOCONFIRM: 'true'

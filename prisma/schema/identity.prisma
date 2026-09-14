@@ -24,6 +24,13 @@ model User {
   signatureImagePath  String?   @map("signature_image_path")
   signatureUpdatedAt  DateTime? @map("signature_updated_at")
 
+  /// The student ID this account says it belongs to, waiting for an exco
+  /// member to confirm. Student IDs are unique, which makes them the right
+  /// key; they are printed on every attendance sheet and run sequentially,
+  /// which is why a claim links nobody on its own.
+  claimedStudentId   String?   @map("claimed_student_id")
+  claimedStudentIdAt DateTime? @map("claimed_student_id_at")
+
   createdAt                 DateTime @default(now()) @map("created_at")
   updatedAt                 DateTime @updatedAt @map("updated_at")
 
@@ -45,6 +52,7 @@ model User {
   registerSyncsRequested RegisterSync[]
   attendanceImports     AttendanceImport[]
 
+  @@index([claimedStudentId])
   @@map("users")
 }
 

@@ -11,8 +11,11 @@
 /// 0001 at the start of each FY, and the four series are numbered
 /// independently of one another.
 ///
-/// FY is stored as the two-digit form used in the reference number: 26
-/// means FY2026, i.e. April 2026 to March 2027.
+/// FY is stored in full — 2026 means FY2026, i.e. April 2026 to March 2027 —
+/// and shortened to its last two digits only when printed into a reference
+/// number. (This comment used to say the two-digit form was stored. It never
+/// was; the seed, the allocator and the dashboard all use four digits, and a
+/// counter written from the comment is a counter nothing ever finds.)
 model ReferenceCounter {
   id            String    @id @default(cuid())
   orgId         String    @map("org_id")

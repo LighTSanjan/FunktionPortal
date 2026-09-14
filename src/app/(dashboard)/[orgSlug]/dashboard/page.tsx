@@ -110,6 +110,15 @@ export default async function DashboardPage({
     declaredPayments: await tx.feePayment.count({
       where: { orgId: org.id, status: 'DECLARED' },
     }),
+    // Accounts that have said which student they are and are waiting on a
+    // person to confirm it. Each one is a member who cannot see what they owe.
+    pendingClaims: await tx.user.count({
+      where: {
+        claimedStudentId: { not: null },
+        memberships: { some: { orgId: org.id, isActive: true } },
+        member: null,
+      },
+    }),
     currentTerm: await tx.term.findFirst({
       where: { orgId: org.id, startDate: { lte: now }, endDate: { gte: now } },
       select: { name: true },
@@ -234,6 +243,17 @@ export default async function DashboardPage({
       detail:
         'Members have declared payment and attached their PayNow confirmation. Confirming is an exco act.',
       href: `/${orgSlug}/fees/collection`,
+    })
+  }
+
+  if (isExco && data.pendingClaims > 0) {
+    alerts.push({
+      id: 'student-id-claims',
+      tone: 'todo',
+      title: `${data.pendingClaims} member${data.pendingClaims === 1 ? '' : 's'} waiting to be matched to the roster`,
+      detail:
+        'They have given their student ID. Each is already matched to a roster row where one carries that ID — confirming takes a click, and until then they cannot see what they owe.',
+      href: `/${orgSlug}/fees/collection#unlinked`,
     })
   }
 

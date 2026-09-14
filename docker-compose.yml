@@ -96,7 +96,7 @@ services:
       - storage_data:/var/lib/storage
 
   kong:
-    image: kong:3-alpine
+    image: kong:3.9
     restart: unless-stopped
     depends_on:
       postgres:

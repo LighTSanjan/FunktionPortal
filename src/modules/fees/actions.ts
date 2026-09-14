@@ -848,6 +848,68 @@ function parseDate(value: string): Date | null {
   return new Date(`${value}T00:00:00Z`)
 }
 
+const claimSchema = z.object({
+  studentId: z
+    .string()
+    .transform((value) => value.replace(/\D/g, ''))
+    .pipe(
+      z
+        .string()
+        .min(5, 'That does not look like a student ID — it is the number on your student card')
+        .max(12, 'That is longer than a student ID')
+    ),
+})
+
+/**
+ * An account saying which roster row it is, by student ID.
+ *
+ * Student IDs are unique and never change, which makes them the right key.
+ * They are also printed on every attendance sheet and run in sequence, which
+ * is why this links nothing: it records the claim, and an exco member — who
+ * can see the roster row it matches and knows the person — confirms it.
+ */
+export async function claimStudentId(
+  orgSlug: string,
+  _prev: FeeState,
+  formData: FormData
+): Promise<FeeState> {
+  const { org } = await getOrgContext(orgSlug)
+  const { userId } = await verifySession()
+
+  const parsed = claimSchema.safeParse({ studentId: String(formData.get('studentId') ?? '') })
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'That student ID is not valid' }
+  }
+
+  const problem = await dbAs(userId, async (tx) => {
+    const linked = await tx.member.findFirst({ where: { orgId: org.id, userId }, select: { id: true } })
+    if (linked) return 'Your account is already linked to the roster.'
+
+    await tx.user.update({
+      where: { id: userId },
+      data: { claimedStudentId: parsed.data.studentId, claimedStudentIdAt: new Date() },
+    })
+    await writeAudit(
+      {
+        orgId: org.id,
+        actorId: userId,
+        action: 'member.claim_student_id',
+        targetType: 'User',
+        targetId: userId,
+        after: { studentId: parsed.data.studentId },
+      },
+      tx
+    )
+    return null
+  })
+
+  if (problem) return { error: problem }
+  revalidatePath(`/${orgSlug}/fees`)
+  revalidatePath(`/${orgSlug}/fees/collection`)
+  revalidatePath(`/${orgSlug}/dashboard`)
+  return { error: null, ok: true }
+}
+
 const linkSchema = z.object({
   userId: z.string().min(1),
   memberId: z.string().min(1),
@@ -906,6 +968,9 @@ export async function linkMemberAccount(
       where: { id: member.id },
       data: { userId: parsed.data.userId },
     })
+    // The claim is left on the account. It only ever surfaces for accounts
+    // with no roster row, so once linked it stops showing — and the users
+    // policy rightly will not let one person rewrite another's row to tidy it.
     await writeAudit(
       {
         orgId: org.id,

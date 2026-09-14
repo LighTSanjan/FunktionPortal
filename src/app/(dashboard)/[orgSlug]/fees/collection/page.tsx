@@ -290,16 +290,15 @@ export default async function CollectionPage({
       </Card>
 
       {unlinked.accounts.length > 0 && unlinked.members.length > 0 && (
-        <Card>
+        <Card id="unlinked">
           <CardContent className="space-y-4 py-6">
             <div>
-              <h2 className="text-[15px] font-semibold">Accounts with no roster row</h2>
+              <h2 className="text-[15px] font-semibold">Accounts not matched to the roster</h2>
               <p className="mt-1 max-w-[68ch] text-[13px] leading-relaxed text-text-muted">
-                Signing in links itself when the account&rsquo;s email is the one the club already
-                holds. These signed up with a different address, so nothing matched &mdash; and
-                until somebody says which row they are, the portal cannot tell them what they
-                owe. Asking them to pick their own would be asking them to assert an identity,
-                so it is the club&rsquo;s call. It is written to the audit log.
+                Members give their student ID when they sign in, and where one roster row carries
+                it the match is already chosen &mdash; check it and confirm. It stays a person&rsquo;s
+                call: a student ID is printed on every attendance sheet, so a claim is somebody&rsquo;s
+                word rather than proof. Every link is written to the audit log.
               </p>
             </div>
             <ul className="space-y-3">

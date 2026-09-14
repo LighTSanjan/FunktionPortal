@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { dbAs } from '@/core/db'
 import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
 import { hasPermission } from '@/core/permissions'
 import { PageHeader } from '@/core/ui/page-header'
@@ -8,6 +9,7 @@ import { getOwnFee } from '@/modules/fees/queries'
 import { TIER_LABEL } from '@/modules/fees/tiers'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { DeclareForm } from './_components/declare-form'
+import { ClaimForm } from './_components/claim-form'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +24,13 @@ export default async function FeesPage({
   const { userId } = await verifySession()
 
   const fee = await getOwnFee(userId, org.id, null)
+  const claimedStudentId = fee.member
+    ? null
+    : ((
+        await dbAs(userId, (tx) =>
+          tx.user.findUnique({ where: { id: userId }, select: { claimedStudentId: true } })
+        )
+      )?.claimedStudentId ?? null)
   const canManage = hasPermission(membership.role, 'fee.manage')
 
   return (
@@ -47,13 +56,16 @@ export default async function FeesPage({
 
       {!fee.member && (
         <Card>
-          <CardContent className="space-y-2 py-8 text-center">
-            <p className="font-medium">You are not on the roster yet</p>
-            <p className="mx-auto max-w-[52ch] text-[13px] leading-relaxed text-text-muted">
-              The roster comes from the club&rsquo;s trimester attendance sheet, matched to your
-              account by email address. If you have just joined, or you signed up here with a
-              different address from the one the club has, ask an exco member to link you.
-            </p>
+          <CardContent className="space-y-4 py-8 text-center">
+            <div className="space-y-2">
+              <p className="font-medium">Your account is not matched to the roster yet</p>
+              <p className="mx-auto max-w-[52ch] text-[13px] leading-relaxed text-text-muted">
+                The roster comes from the club&rsquo;s attendance sheet, where everybody is
+                identified by student ID. Until your account is matched to your row, the portal
+                cannot tell what you owe.
+              </p>
+            </div>
+            <ClaimForm orgSlug={orgSlug} claimed={claimedStudentId} />
           </CardContent>
         </Card>
       )}
