@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
 import { writeAudit } from '@/core/audit'
+import { alert } from '@/core/alerts'
 import {
   REQUEST_TTL_DAYS,
   getMembership,
@@ -135,31 +136,18 @@ export async function decideAccessRequest(
     return { error: 'That request has expired. Ask them to raise a new one.' }
   }
 
-  await settleRequest({
+  const outcome = await settleRequest({
     orgId: org.id,
     requestId: request.id,
-    subjectUserId: request.userId,
     reviewerUserId: userId,
     decision: parsed.data.decision,
     decisionNote: parsed.data.decisionNote || null,
-    grantRole: request.requestedRole,
-    grantOffice: request.requestedOffice,
   })
+  if (!outcome.settled) return { error: 'Somebody else has just settled that request.' }
 
-  await writeAudit({
-    orgId: org.id,
-    actorId: userId,
-    action: parsed.data.decision === 'APPROVED' ? 'access.approve' : 'access.reject',
-    targetType: 'AccessRequest',
-    targetId: request.id,
-    before: { status: 'PENDING' },
-    after: {
-      status: parsed.data.decision,
-      subjectUserId: request.userId,
-      grantedRole: parsed.data.decision === 'APPROVED' ? request.requestedRole : null,
-      grantedOffice: parsed.data.decision === 'APPROVED' ? request.requestedOffice : null,
-    },
-  })
+  if (parsed.data.decision === 'APPROVED') {
+    await alert('exco_granted', { office: outcome.grantOffice, club: org.slug })
+  }
 
   revalidatePath(`/${orgSlug}/settings/access`)
   return { error: null, ok: true }

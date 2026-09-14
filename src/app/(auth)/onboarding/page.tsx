@@ -18,8 +18,8 @@ export default async function OnboardingPage() {
 
   return (
     <AuthCardShell
-      title="You're in — almost"
-      subtitle="Your account is set up. An exco member still has to add you to the club roster before there is anything here to see."
+      title="You're not on the list yet"
+      subtitle="The portal lets in SUTD student and alumni addresses by itself. Anyone else — instructors, members without an SUTD email — needs an invitation from the exco."
     >
       <div className="rounded-[var(--radius-md)] border border-border bg-surface p-4">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-subtle">
@@ -30,8 +30,8 @@ export default async function OnboardingPage() {
       </div>
 
       <p className="mt-5 text-[13.5px] leading-relaxed text-text-muted">
-        Send that address to the treasurer or the secretary and ask them to add you. If you
-        meant to use a different account, sign out and try again.
+        Send that address to the treasurer or the secretary and ask them to invite it, then sign
+        in again. If you have an SUTD address, sign out and use that instead.
       </p>
 
       <form action="/api/auth/sign-out" method="post" className="mt-6">

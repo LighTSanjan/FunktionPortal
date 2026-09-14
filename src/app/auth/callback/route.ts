@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createSupabaseServer } from '@/core/auth/supabase-server'
-import { provisionUser } from '@/core/auth/provision'
-import { logAuthEvent } from '@/core/audit/auth-events'
+import { afterSignIn } from '@/core/auth/after-sign-in'
+import { proofFromProviderSignIn } from '@/core/auth/proof'
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = request.nextUrl
+  const { searchParams } = request.nextUrl
+  // Where to send people afterwards comes from configuration, not from the
+  // request's Host header.
+  const origin = (process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin).replace(/\/$/, '')
 
   const oauthError = searchParams.get('error')
   if (oauthError) {
@@ -24,8 +27,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/sign-in?error=exchange_failed`)
   }
 
-  await provisionUser(data.user)
-  await logAuthEvent(data.user.id, 'auth.sign_in')
+  // A provider sign-in proves the address only when the provider vouched for
+  // it. When it did not, "/" sends the person to confirm it with a code.
+  await afterSignIn(supabase, data.user, proofFromProviderSignIn(data.user))
 
   return NextResponse.redirect(origin)
 }

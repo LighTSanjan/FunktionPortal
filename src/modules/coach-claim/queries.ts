@@ -1,4 +1,5 @@
 import 'server-only'
+import { openOptional } from '@/core/crypto/fields'
 
 import type { Prisma } from '@prisma/client'
 import { dbAs } from '@/core/db'
@@ -69,7 +70,7 @@ function toInstructorRow(row: InstructorWithRates): InstructorRow {
     addressLine2: row.addressLine2,
     postalCode: row.postalCode,
     bankName: row.bankName,
-    bankAccountNo: row.bankAccountNo,
+    bankAccountNo: openOptional(row.bankAccountNo),
     engagement: row.engagement,
     contractRef: row.contractRef,
     isActive: row.isActive,

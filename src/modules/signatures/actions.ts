@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { alert } from '@/core/alerts'
 import { dbAs } from '@/core/db'
 import { getOrgContext, verifySession } from '@/core/auth/dal'
 import { writeAudit } from '@/core/audit'
@@ -76,6 +77,9 @@ export async function uploadSignature(
     return before?.signatureImagePath ?? null
   })
 
+  // A signature is what stamps a document as authorised. A replacement
+  // nobody expected is the first sign somebody else is signing as you.
+  await alert('signature_replaced', { club: orgSlug })
   revalidatePath(`/${orgSlug}/settings/signature`)
   return { error: null, ok: true }
 }

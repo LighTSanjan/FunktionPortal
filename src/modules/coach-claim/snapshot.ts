@@ -22,6 +22,7 @@ import type {
   SheetSession,
 } from './types'
 import { isoDate } from './theme'
+import { openField, sealField } from '@/core/crypto/fields'
 
 /** Bumped when the shape changes in a way an old row cannot satisfy. */
 export const SNAPSHOT_VERSION = 1
@@ -105,7 +106,20 @@ export function readSnapshot(value: unknown): MonthSnapshot | null {
   if (!record.instructor || typeof record.instructor !== 'object') return null
   if (!Array.isArray(record.roster) || !Array.isArray(record.sessions)) return null
   if (!record.billTo || typeof record.billTo !== 'object') return null
-  return record as unknown as MonthSnapshot
+  const snapshot = record as unknown as MonthSnapshot
+  const bank = snapshot.instructor.bankAccountNo
+  if (!bank) return snapshot
+  return { ...snapshot, instructor: { ...snapshot.instructor, bankAccountNo: openField(bank) } }
+}
+
+/**
+ * The snapshot as it is written to the database: the same, with the coach's
+ * bank account number sealed (core/crypto/fields.ts). readSnapshot opens it.
+ */
+export function snapshotForStorage(snapshot: MonthSnapshot): MonthSnapshot {
+  const bank = snapshot.instructor.bankAccountNo
+  if (!bank) return snapshot
+  return { ...snapshot, instructor: { ...snapshot.instructor, bankAccountNo: sealField(bank) } }
 }
 
 /** The sheet's grid, rebuilt from the snapshot rather than from live rows. */

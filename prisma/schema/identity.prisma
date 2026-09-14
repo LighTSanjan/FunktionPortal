@@ -31,6 +31,13 @@ model User {
   claimedStudentId   String?   @map("claimed_student_id")
   claimedStudentIdAt DateTime? @map("claimed_student_id_at")
 
+  /// When and how this account last proved it holds its email — an emailed
+  /// code, or a provider that vouched for the address. Written only by the
+  /// portal in the request that saw the proof; Supabase's email_confirmed_at
+  /// proves nothing while "Confirm email" is off. See core/auth/proof.ts.
+  emailProvenAt  DateTime? @map("email_proven_at")
+  emailProvenVia String?   @map("email_proven_via")
+
   createdAt                 DateTime @default(now()) @map("created_at")
   updatedAt                 DateTime @updatedAt @map("updated_at")
 
@@ -138,4 +145,13 @@ model AccessRequest {
   @@index([orgId, status])
   @@index([userId])
   @@map("access_requests")
+}
+
+/// Sign-in attempts per key, for rate-limiter-flexible. Admin connection only.
+model RateLimit {
+  key    String    @id
+  points Int       @default(0)
+  expire DateTime?
+
+  @@map("rate_limits")
 }

@@ -129,20 +129,31 @@ export async function findRequest(orgId: string, requestId: string) {
   return dbAdmin.accessRequest.findFirst({ where: { id: requestId, orgId } })
 }
 
-/** Settle a request and its membership change atomically. */
+/**
+ * Settle a request, its membership change and its audit row atomically.
+ *
+ * The request is re-read and claimed inside the transaction — pending, in
+ * this organisation, unexpired — so two exco members deciding at once cannot
+ * leave a membership promoted under a request marked refused. The role and
+ * office granted come from that row, never from an earlier read. Returns
+ * false if somebody else settled it first.
+ */
 export async function settleRequest(args: {
   orgId: string
   requestId: string
-  subjectUserId: string
   reviewerUserId: string
   decision: 'APPROVED' | 'REJECTED'
   decisionNote: string | null
-  grantRole: OrgRole
-  grantOffice: ExcoOffice | null
-}): Promise<void> {
-  await dbAdmin.$transaction(async (tx) => {
-    await tx.accessRequest.update({
-      where: { id: args.requestId },
+}): Promise<{ settled: false } | { settled: true; subjectUserId: string; grantRole: OrgRole; grantOffice: ExcoOffice | null }> {
+  return dbAdmin.$transaction(async (tx) => {
+    const claimed = await tx.accessRequest.updateMany({
+      where: {
+        id: args.requestId,
+        orgId: args.orgId,
+        status: 'PENDING',
+        expiresAt: { gt: new Date() },
+        userId: { not: args.reviewerUserId },
+      },
       data: {
         status: args.decision,
         reviewedByUserId: args.reviewerUserId,
@@ -150,12 +161,40 @@ export async function settleRequest(args: {
         decisionNote: args.decisionNote,
       },
     })
+    if (claimed.count !== 1) return { settled: false as const }
 
-    if (args.decision === 'APPROVED') {
+    const request = await tx.accessRequest.findUniqueOrThrow({ where: { id: args.requestId } })
+    const approved = args.decision === 'APPROVED'
+
+    if (approved) {
       await tx.organisationMembership.update({
-        where: { userId_orgId: { userId: args.subjectUserId, orgId: args.orgId } },
-        data: { role: args.grantRole, office: args.grantOffice },
+        where: { userId_orgId: { userId: request.userId, orgId: args.orgId } },
+        data: { role: request.requestedRole, office: request.requestedOffice },
       })
+    }
+
+    await tx.auditLog.create({
+      data: {
+        orgId: args.orgId,
+        actorId: args.reviewerUserId,
+        action: approved ? 'access.approve' : 'access.reject',
+        targetType: 'AccessRequest',
+        targetId: request.id,
+        before: { status: 'PENDING' },
+        after: {
+          status: args.decision,
+          subjectUserId: request.userId,
+          grantedRole: approved ? request.requestedRole : null,
+          grantedOffice: approved ? request.requestedOffice : null,
+        },
+      },
+    })
+
+    return {
+      settled: true as const,
+      subjectUserId: request.userId,
+      grantRole: request.requestedRole,
+      grantOffice: request.requestedOffice,
     }
   })
 }

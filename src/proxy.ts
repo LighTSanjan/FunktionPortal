@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 
 const STATIC_PREFIXES = ['/_next/', '/favicon.ico', '/robots.txt', '/sitemap.xml']
 
-const AUTH_PAGES = ['/sign-in', '/sign-up', '/forgot-password']
+const AUTH_PAGES = ['/sign-in', '/sign-up']
 
 const AUTH_FLOW_PATHS = [
   '/auth/callback',
@@ -24,6 +24,30 @@ function isStaticAsset(pathname: string): boolean {
   return STATIC_PREFIXES.some((prefix) => pathname.startsWith(prefix)) || PUBLIC_FILE.test(pathname)
 }
 
+/**
+ * A fresh nonce per request, and a policy that runs only scripts carrying it.
+ * Next.js stamps the nonce onto its own scripts when it sees it in the
+ * request's policy; the root layout stamps the one inline script it adds.
+ * Without it, 'unsafe-inline' meant any HTML injection anywhere would run.
+ */
+function contentSecurityPolicy(nonce: string): string {
+  const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://*.supabase.co'
+  const devEval = process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${devEval}`,
+    // Style attributes are everywhere in the UI; styles cannot run code.
+    "style-src 'self' 'unsafe-inline'",
+    `img-src 'self' data: blob: ${supabase}`,
+    "font-src 'self' data:",
+    `connect-src 'self' ${supabase}`,
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join('; ')
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -31,13 +55,20 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  return await updateSession(request)
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
+  const policy = contentSecurityPolicy(nonce)
+  request.headers.set('x-nonce', nonce)
+  request.headers.set('Content-Security-Policy', policy)
+
+  const response = await updateSession(request)
+  response.headers.set('Content-Security-Policy', policy)
+  return response
 }
 
 async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
   let supabaseResponse = NextResponse.next({
-    request,
+    request: { headers: request.headers },
   })
 
   const supabase = createServerClient(
@@ -53,7 +84,7 @@ async function updateSession(request: NextRequest) {
             request.cookies.set(name, value)
           )
           supabaseResponse = NextResponse.next({
-            request,
+            request: { headers: request.headers },
           })
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)

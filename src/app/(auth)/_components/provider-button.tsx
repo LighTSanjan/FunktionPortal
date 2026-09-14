@@ -2,8 +2,9 @@
 
 import { useFormStatus } from 'react-dom'
 
-export function GoogleButton({ children }: { children: React.ReactNode }) {
+export function ProviderButton({ provider, children }: { provider: 'google' | 'azure'; children: React.ReactNode }) {
   const { pending } = useFormStatus()
+  const name = provider === 'google' ? 'Google' : 'Microsoft'
 
   return (
     <button
@@ -11,8 +12,8 @@ export function GoogleButton({ children }: { children: React.ReactNode }) {
       disabled={pending}
       className="lapis-press lapis-tap inline-flex h-11 w-full items-center justify-center gap-3 rounded-[var(--radius-md)] border border-border-strong bg-surface text-[14px] font-medium text-text hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
     >
-      <GoogleMark />
-      {pending ? 'Taking you to Google…' : children}
+      {provider === 'google' ? <GoogleMark /> : <MicrosoftMark />}
+      {pending ? `Taking you to ${name}…` : children}
     </button>
   )
 }
@@ -36,6 +37,17 @@ function GoogleMark() {
         fill="#EA4335"
         d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.59C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.96l3 2.33C4.67 5.16 6.66 3.58 9 3.58Z"
       />
+    </svg>
+  )
+}
+
+function MicrosoftMark() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <rect x="0" y="0" width="7.5" height="7.5" fill="#F25022" />
+      <rect x="8.5" y="0" width="7.5" height="7.5" fill="#7FBA00" />
+      <rect x="0" y="8.5" width="7.5" height="7.5" fill="#00A4EF" />
+      <rect x="8.5" y="8.5" width="7.5" height="7.5" fill="#FFB900" />
     </svg>
   )
 }

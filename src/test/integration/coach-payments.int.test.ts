@@ -10,6 +10,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import JSZip from 'jszip'
 import { addInstructorRate, saveInstructor, saveSession, setAttendance } from '@/modules/coach-claim/actions'
+import { openField } from '@/core/crypto/fields'
 import {
   generateMonthlyDocuments,
   markPaid,
@@ -254,6 +255,27 @@ describe('a month of coach payments', () => {
     }
   })
 
+  it('keeps the coach’s bank account number sealed in the database, and readable on the invoice', async () => {
+    // What a leaked backup or a stolen connection string would show.
+    const [column] = await dbAdmin.$queryRaw<Array<{ bank_account_no: string }>>`
+      SELECT bank_account_no FROM instructors WHERE id = ${coachId}`
+    expect(column.bank_account_no).toMatch(/^v1\.aesgcm256\./)
+    expect(column.bank_account_no).not.toContain('00000')
+
+    const [sheet] = await dbAdmin.$queryRaw<Array<{ snapshot: string }>>`
+      SELECT snapshot::text AS snapshot FROM attendance_sheets WHERE org_id = ${org.id}`
+    expect(sheet.snapshot).not.toContain('000-00000-0')
+    expect(sheet.snapshot).toContain('v1.aesgcm256.')
+
+    as(treasurer)
+    const response = await downloadDocument(new Request('http://test/'), {
+      params: Promise.resolve({ orgSlug: org.slug, invoiceId, document: 'invoice.docx' }),
+    })
+    expect(response.status).toBe(200)
+    const zip = await JSZip.loadAsync(Buffer.from(await response.arrayBuffer()))
+    expect(await zip.file('word/document.xml')!.async('string')).toContain('000-00000-0')
+  })
+
   it('shows a member none of the month’s money, even querying directly', async () => {
     // Row-level security is the backstop under every screen: as a member,
     // the invoice tables are simply empty.
@@ -281,7 +303,8 @@ describe('a month of coach payments', () => {
 
     expect(updated.bank.count).toBe(0)
     expect(updated.email.count).toBe(0)
-    expect((await dbAdmin.instructor.findUniqueOrThrow({ where: { id: coachId } })).bankAccountNo).toBe('000-00000-0')
+    const stored = (await dbAdmin.instructor.findUniqueOrThrow({ where: { id: coachId } })).bankAccountNo!
+    expect(openField(stored)).toBe('000-00000-0')
     expect((await dbAdmin.organisationSettings.findUniqueOrThrow({ where: { orgId: org.id } })).submissionEmail).toBe(
       before.submissionEmail
     )

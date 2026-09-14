@@ -55,16 +55,35 @@ services:
       GOTRUE_MAILER_AUTOCONFIRM: ${GOTRUE_MAILER_AUTOCONFIRM:-true}
       GOTRUE_URI_ALLOW_LIST: ${GOTRUE_URI_ALLOW_LIST:-http://localhost:3000/**}
       GOTRUE_SMTP_ADMIN_EMAIL: ${GOTRUE_SMTP_ADMIN_EMAIL:-admin@example.com}
-      GOTRUE_SMTP_HOST: ${GOTRUE_SMTP_HOST:-localhost}
-      GOTRUE_SMTP_PORT: ${GOTRUE_SMTP_PORT:-2500}
+      # Mailpit catches every email locally; read them at http://localhost:8025.
+      GOTRUE_SMTP_HOST: ${GOTRUE_SMTP_HOST:-mailpit}
+      GOTRUE_SMTP_PORT: ${GOTRUE_SMTP_PORT:-1025}
       GOTRUE_SMTP_USER: ${GOTRUE_SMTP_USER:-}
       GOTRUE_SMTP_PASS: ${GOTRUE_SMTP_PASS:-}
       GOTRUE_SMTP_SENDER_NAME: ${GOTRUE_SMTP_SENDER_NAME:-FUNKtion Treasury}
+      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: http://email-templates/sign-in-code.html
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: http://email-templates/sign-in-code.html
+      GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: Your FUNKtion sign-in code
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: Your FUNKtion sign-in code
       GOTRUE_MAILER_URLPATHS_INVITE: /auth/v1/verify
       GOTRUE_MAILER_URLPATHS_CONFIRMATION: /auth/v1/verify
       GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/verify
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: /auth/v1/verify
       GOTRUE_MAILER_URLPATHS_REAUTHENTICATION: /auth/v1/verify
+
+  # Serves supabase/templates to GoTrue, so local emails carry the same sign-in
+  # code the hosted project's templates do.
+  email-templates:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - ./supabase/templates:/usr/share/nginx/html:ro
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:8025:8025'
 
   postgrest:
     image: postgrest/postgrest:v13.0.8

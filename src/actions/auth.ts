@@ -1,43 +1,116 @@
 'use server'
 
+import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createSupabaseServer } from '@/core/auth/supabase-server'
-import { provisionUser } from '@/core/auth/provision'
-import { logAuthEvent, logFailedSignIn } from '@/core/audit/auth-events'
+import { afterSignIn } from '@/core/auth/after-sign-in'
+import { proofFromEmailCode } from '@/core/auth/proof'
+import { mayJoin, normaliseEmail } from '@/core/auth/eligibility'
+import { takeAttempt } from '@/core/auth/throttle'
+import { logAuthEvent } from '@/core/audit/auth-events'
+import { alert } from '@/core/alerts'
 
-export interface AuthState {
+/**
+ * Signing in, without passwords.
+ *
+ * Three ways in: a code emailed to the address, Microsoft (every SUTD
+ * address is a Microsoft 365 account), or Google. There is no password
+ * sign-in because a password is the one credential that proves nothing about
+ * the address it was set against — and while Supabase's "Confirm email" is
+ * off, it is how somebody would take over another person's account. Codes,
+ * not links: Outlook's Safe Links opens every link in an email before the
+ * person does, and a one-time link opened once is spent.
+ */
+export interface CodeState {
   error: string | null
-  /** The account exists but its email has not been confirmed. */
-  needsConfirmation?: boolean
-  /** Sign-up succeeded and the confirmation email is on its way. */
-  awaitingConfirmation?: boolean
-  /** Carried so the page can name the address and offer to resend to it. */
-  email?: string
+  /** The code is on its way to this address; show the code box. */
+  sentTo?: string
 }
 
-function friendlyAuthError(message: string, status?: number): string {
-  const text = message.toLowerCase()
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-  if (status === 429 || text.includes('rate limit')) {
-    return (
-      'Too many confirmation emails have gone out in the last hour — that is a limit on ' +
-      'the mail service, not on you. Wait an hour and try again, or sign up with Google.'
-    )
-  }
-  if (text.includes('already registered') || text.includes('already been registered')) {
-    return 'There is already an account with that email. Sign in instead, or reset your password.'
-  }
-  if (text.includes('invalid email')) {
-    return 'That does not look like a valid email address.'
-  }
-  if (text.includes('password') && text.includes('short')) {
-    return 'That password is too short — use at least 8 characters.'
-  }
-  if (text.includes('signups not allowed') || text.includes('signup is disabled')) {
-    return 'New accounts are turned off at the moment. Ask an exco member to invite you.'
-  }
-  return message
+/**
+ * The caller's IP as the hosting platform saw it. The first X-Forwarded-For
+ * entry is whatever the client chose to send, so it is the last resort.
+ */
+async function clientIp(): Promise<string> {
+  const h = await headers()
+  return (
+    h.get('x-vercel-forwarded-for')?.split(',')[0]?.trim() ??
+    h.get('x-real-ip') ??
+    h.get('x-forwarded-for')?.split(',').at(-1)?.trim() ??
+    'unknown'
+  )
 }
+
+export async function requestEmailCode(_prev: CodeState, formData: FormData): Promise<CodeState> {
+  const email = normaliseEmail(String(formData.get('email') ?? ''))
+  if (!EMAIL.test(email)) return { error: 'That does not look like an email address.' }
+
+  const ip = await clientIp()
+  const allowed = await takeAttempt([
+    { key: `code-send:email:${email}`, max: 5, windowSeconds: 3600 },
+    { key: `code-send:ip:${ip}`, max: 30, windowSeconds: 3600 },
+  ])
+  if (!allowed) {
+    await alert('throttle_tripped', { what: 'code requests', email, ip })
+    return { error: 'Too many codes asked for. Wait an hour, or use Microsoft or Google instead.' }
+  }
+
+  // Only an address that would be let in may create an account. Anybody else
+  // gets the same answer and no email: the page does not say which addresses
+  // have accounts, and Supabase does not fill up with accounts for strangers.
+  const shouldCreateUser = await mayJoin(email)
+
+  const supabase = await createSupabaseServer()
+  const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser } })
+
+  if (error) {
+    if (error.status === 429 || /rate limit|security purposes/i.test(error.message)) {
+      return {
+        error:
+          'The mail service is refusing to send more codes right now. Wait a minute and try again, or use Microsoft or Google.',
+      }
+    }
+    // "Signups not allowed for otp": an address that is neither on the list
+    // nor has an account. Answered exactly like success.
+    if (!/signups? not allowed|user not found/i.test(error.message)) {
+      console.error('[auth] signInWithOtp failed', error.status, error.message)
+      return { error: 'The code could not be sent. Try again in a minute.' }
+    }
+  }
+
+  return { error: null, sentTo: email }
+}
+
+export async function verifyEmailCode(_prev: CodeState, formData: FormData): Promise<CodeState> {
+  const email = normaliseEmail(String(formData.get('email') ?? ''))
+  const token = String(formData.get('code') ?? '').replace(/\s+/g, '')
+  if (!EMAIL.test(email)) return { error: 'Start again with your email address.' }
+  if (!/^\d{6,10}$/.test(token)) return { error: 'The code is the number in the email.', sentTo: email }
+
+  const ip = await clientIp()
+  const allowed = await takeAttempt([
+    { key: `code-verify:email:${email}`, max: 10, windowSeconds: 900 },
+    { key: `code-verify:ip:${ip}`, max: 60, windowSeconds: 900 },
+  ])
+  if (!allowed) {
+    await alert('throttle_tripped', { what: 'wrong codes', email, ip })
+    return { error: 'Too many wrong codes. Wait fifteen minutes and ask for a new one.', sentTo: email }
+  }
+
+  const supabase = await createSupabaseServer()
+  const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'email' })
+  if (error || !data.user) {
+    return { error: 'That code is wrong or has expired. Ask for a new one.', sentTo: email }
+  }
+
+  await afterSignIn(supabase, data.user, proofFromEmailCode())
+  redirect('/')
+}
+
+const PROVIDERS = { google: 'Google', azure: 'Microsoft' } as const
+type Provider = keyof typeof PROVIDERS
 
 function appUrl(): string {
   const configured = process.env.NEXT_PUBLIC_APP_URL
@@ -49,141 +122,29 @@ function appUrl(): string {
   return 'http://localhost:3000'
 }
 
-export async function signIn(
-  _prevState: AuthState,
-  formData: FormData
-): Promise<AuthState> {
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
-
-  if (!email || !password) {
-    return { error: 'Email and password are required' }
-  }
+export async function signInWithProvider(formData: FormData): Promise<never> {
+  const provider = String(formData.get('provider')) as Provider
+  if (!(provider in PROVIDERS)) redirect('/sign-in')
 
   const supabase = await createSupabaseServer()
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  })
-
-  if (error) {
-    await logFailedSignIn(email)
-
-    // Supabase reports this as its own code; without the branch it reads as a
-    // wrong password, which is the single most confusing thing this form can
-    // say to somebody whose password is correct.
-    if (error.code === 'email_not_confirmed' || /not confirmed/i.test(error.message)) {
-      return {
-        error: 'Confirm your email address before signing in.',
-        needsConfirmation: true,
-        email,
-      }
-    }
-
-    return { error: 'That email and password do not match an account.' }
-  }
-
-  // Before anything redirects: "/" resolves membership through
-  // verifySession(), which needs the application user row to exist.
-  await provisionUser(data.user)
-  await logAuthEvent(data.user.id, 'auth.sign_in')
-
-  redirect('/')
-}
-
-export async function signInWithGoogle(): Promise<never> {
-  const supabase = await createSupabaseServer()
-
   const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
+    provider,
     options: {
       redirectTo: `${appUrl()}/auth/callback`,
-      // Without this Google skips its own account chooser once a session
-      // exists, which on a shared exco laptop signs you in as whoever used it
-      // last — and every document then carries their name.
+      // Microsoft hands over no email address without this scope.
+      scopes: provider === 'azure' ? 'openid email profile' : undefined,
+      // Without this the provider skips its own account chooser once a
+      // session exists, which on a shared exco laptop signs you in as whoever
+      // used it last — and every document then carries their name.
       queryParams: { prompt: 'select_account' },
     },
   })
 
   if (error || !data.url) {
-    redirect('/sign-in?error=google_unavailable')
+    redirect(`/sign-in?error=${provider}_unavailable`)
   }
 
   redirect(data.url)
-}
-
-
-export async function signUp(
-  _prevState: AuthState,
-  formData: FormData
-): Promise<AuthState> {
-  const name = formData.get('name') as string
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
-  const confirmPassword = formData.get('confirmPassword') as string
-
-  if (!name || !email || !password) {
-    return { error: 'All fields are required' }
-  }
-
-  // Checked here as well as in the browser. The client-side check is a
-  // courtesy; this is the one that holds when the form is posted directly.
-  if (password !== confirmPassword) {
-    return { error: 'Those passwords do not match' }
-  }
-
-  // Supabase's own minimum is 6. Eight is the form's stated rule, and a rule
-  // the server does not enforce is not a rule.
-  if (password.length < 8) {
-    return { error: 'Use at least 8 characters' }
-  }
-
-  const supabase = await createSupabaseServer()
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { name },
-      emailRedirectTo: `${appUrl()}/auth/confirm`,
-    },
-  })
-
-  if (error) {
-    return { error: friendlyAuthError(error.message, error.status), email }
-  }
-
-  // With email confirmation switched off, Supabase hands back a session and
-  // the account is usable immediately; with it on, there is no session and an
-  // email is on its way. Both are normal configurations, and the difference
-  // decides what the person has to do next — so it is read rather than assumed.
-  if (data.session && data.user) {
-    await provisionUser(data.user)
-    await logAuthEvent(data.user.id, 'auth.sign_in')
-    redirect('/')
-  }
-
-  return { error: null, awaitingConfirmation: true, email }
-}
-
-export async function resendConfirmation(
-  _prevState: AuthState,
-  formData: FormData
-): Promise<AuthState> {
-  const email = (formData.get('email') as string | null)?.trim()
-  if (!email) return { error: 'No address to send to' }
-
-  const supabase = await createSupabaseServer()
-  const { error } = await supabase.auth.resend({
-    type: 'signup',
-    email,
-    options: { emailRedirectTo: `${appUrl()}/auth/confirm` },
-  })
-
-  if (error) {
-    return { error: friendlyAuthError(error.message, error.status), email }
-  }
-
-  return { error: null, awaitingConfirmation: true, email }
 }
 
 export async function signOut(): Promise<void> {
@@ -196,57 +157,4 @@ export async function signOut(): Promise<void> {
     await logAuthEvent(user.id, 'auth.sign_out')
   }
   redirect('/sign-in')
-}
-
-// Do not reveal whether the supplied address has an account.
-export async function requestPasswordReset(
-  _prevState: AuthState,
-  formData: FormData
-): Promise<AuthState> {
-  const email = (formData.get('email') as string | null)?.trim()
-  if (!email) return { error: 'Enter your email address' }
-
-  const supabase = await createSupabaseServer()
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${appUrl()}/auth/confirm`,
-  })
-
-  // Rate limiting is the one failure worth surfacing: it is the mail service
-  // refusing, not the address being wrong, and the person can act on it.
-  if (error && (error.status === 429 || /rate limit/i.test(error.message))) {
-    return { error: friendlyAuthError(error.message, error.status), email }
-  }
-
-  return { error: null, awaitingConfirmation: true, email }
-}
-
-export async function setNewPassword(
-  _prevState: AuthState,
-  formData: FormData
-): Promise<AuthState> {
-  const password = formData.get('password') as string
-  const confirmPassword = formData.get('confirmPassword') as string
-
-  if (!password) return { error: 'Enter a new password' }
-  if (password !== confirmPassword) return { error: 'Those passwords do not match' }
-  if (password.length < 8) return { error: 'Use at least 8 characters' }
-
-  const supabase = await createSupabaseServer()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return {
-      error:
-        'That reset link has expired, or was already used. Ask for a new one and open it from the email.',
-    }
-  }
-
-  const { error } = await supabase.auth.updateUser({ password })
-  if (error) return { error: friendlyAuthError(error.message, error.status) }
-
-  await logAuthEvent(user.id, 'auth.password_reset')
-
-  redirect('/')
 }

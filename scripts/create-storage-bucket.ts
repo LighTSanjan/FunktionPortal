@@ -23,8 +23,17 @@ async function main() {
     throw new Error(`Failed to list buckets: ${listError.message}`)
   }
 
-  if (existing.some((b) => b.id === BUCKET)) {
-    console.log(`Bucket "${BUCKET}" already exists — nothing to do.`)
+  const found = existing.find((b) => b.id === BUCKET)
+  if (found) {
+    // An existing bucket is only fine if it is still private. A public one
+    // serves every signature and payment screenshot to anyone with the path.
+    if (found.public) {
+      const { error } = await client.storage.updateBucket(BUCKET, { public: false })
+      if (error) throw new Error(`Bucket "${BUCKET}" is PUBLIC and could not be made private: ${error.message}`)
+      console.log(`Bucket "${BUCKET}" was public. It is private now.`)
+      return
+    }
+    console.log(`Bucket "${BUCKET}" already exists and is private.`)
     return
   }
 
