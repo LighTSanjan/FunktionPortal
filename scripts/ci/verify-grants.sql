@@ -9,27 +9,15 @@
 -- to a pre-existing table-level GRANT, and a missing user_id grant that broke
 -- every policy referencing it for `authenticated`.
 --
--- ─── Current state ───────────────────────────────────────────────────────
--- The FUNKtion migration set is a clean Prisma init. It creates no roles, no
--- policies and no grants: the HR kernel's hardening migrations did not carry
--- across the schema rewrite. So `app_user` does not exist yet, and this file
--- has nothing to assert against.
---
--- It skips with a NOTICE in that state rather than failing, so CI stays
--- honest about what it is and isn't checking — and every assertion below
--- arms itself automatically the moment the hardening migration lands.
--- src/core/db/client.ts already refuses to run without the role, so the
--- absence is loud at runtime; this is the check that it stays fixed.
 DO $$
 DECLARE
   ok boolean;
 BEGIN
+  -- A check that skips itself is a check that passes. The RLS migration
+  -- refuses to run without app_user, so a missing role here means CI set the
+  -- database up wrong, not that there is nothing to verify.
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
-    RAISE NOTICE 'verify-grants: SKIPPED — role app_user does not exist.';
-    RAISE NOTICE '  The migration set creates no roles, policies or grants yet.';
-    RAISE NOTICE '  dbAs() raises RlsScopeError against this database (by design).';
-    RAISE NOTICE '  These assertions arm themselves once the hardening migration lands.';
-    RETURN;
+    RAISE EXCEPTION 'FAIL: role app_user does not exist';
   END IF;
 
   -- Nothing at all is readable by a raw PostgREST caller. Sign-up is open and

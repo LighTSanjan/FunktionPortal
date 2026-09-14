@@ -63,8 +63,53 @@ jobs:
       - name: Stub the Supabase platform schema (auth/storage/roles)
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/ci/stub-supabase-schema.sql
 
+      # On hosted Supabase this runs once, by hand, before the first deploy. The
+      # RLS migration stops without it, which is what CI was failing on.
+      - name: Create the app_user role
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE ROLE funktion_migrate NOLOGIN"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/db/create-app-user.sql
+
       - name: Apply all migrations
         run: npx prisma migrate deploy
 
       - name: Verify app_user/authenticated grant split
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/ci/verify-grants.sql
+
+  # The whole stack — Postgres, GoTrue, PostgREST, storage, Kong — in Docker,
+  # then the integration tests (including the ones that attack PostgREST
+  # directly) and the browser journeys against it.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Start the test stack
+        run: npm run test:stack
+
+      - name: Integration tests
+        run: npm run test:integration
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser journeys
+        run: npm run test:usability
+
+      - name: Upload Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7

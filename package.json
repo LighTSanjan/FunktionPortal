@@ -19,7 +19,8 @@
     "db:seed": "npx tsx prisma/seed.ts",
     "db:verify-rls": "npx tsx scripts/db/verify-rls.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:stack": "docker compose -p funktion-test -f docker-compose.yml -f docker-compose.test.yml up -d",
+    "test:stack": "scripts/test/prepare-stack.sh",
+    "test:stack:down": "docker compose -p funktion-test -f docker-compose.yml -f docker-compose.test.yml down -v",
     "test:usability": "playwright test --config playwright.usability.config.ts"
   },
   "dependencies": {
