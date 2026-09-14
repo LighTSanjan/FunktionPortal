@@ -4,9 +4,16 @@ import 'server-only'
  * Per-address and per-IP limits on the requests that send email or check a
  * code, on top of Supabase's own per-project limits.
  *
- * rate-limiter-flexible, stored in Postgres through the admin Prisma client,
- * so the limits hold across every serverless instance.
+ * rate-limiter-flexible does the limiting. Its Prisma store reads a row and
+ * then writes it, so concurrent attempts can each read the same count and all
+ * get through; the one method overridden here makes that write a single
+ * atomic upsert. (Its Postgres store is atomic but uses named prepared
+ * statements, which Supabase's transaction pooler does not support.)
+ *
+ * Keys are hashed: the table holds counts, not the addresses and IPs of
+ * everybody who tried to sign in.
  */
+import { createHash } from 'node:crypto'
 import { RateLimiterPrisma, RateLimiterRes } from 'rate-limiter-flexible'
 import { dbAdmin } from '@/core/db/admin'
 
@@ -16,13 +23,37 @@ export interface Limit {
   windowSeconds: number
 }
 
-const limiters = new Map<string, RateLimiterPrisma>()
+class AtomicPrismaLimiter extends RateLimiterPrisma {
+  async _upsert(key: string, points: number, msDuration: number, forceExpire = false) {
+    const now = new Date()
+    const expire = msDuration > 0 ? new Date(now.getTime() + msDuration) : null
+    const [row] = await dbAdmin.$queryRaw<Array<{ points: number; expire: Date | null }>>`
+      INSERT INTO rate_limits (key, points, expire)
+      VALUES (${key}, ${points}, ${expire})
+      ON CONFLICT (key) DO UPDATE SET
+        points = CASE
+          WHEN ${forceExpire} OR rate_limits.expire IS NULL OR rate_limits.expire <= ${now} OR ${expire}::timestamp IS NULL
+          THEN EXCLUDED.points
+          ELSE rate_limits.points + EXCLUDED.points
+        END,
+        expire = CASE
+          WHEN ${forceExpire} OR rate_limits.expire IS NULL OR rate_limits.expire <= ${now} OR ${expire}::timestamp IS NULL
+          THEN EXCLUDED.expire
+          ELSE rate_limits.expire
+        END
+      RETURNING points, expire
+    `
+    return row
+  }
+}
 
-function limiterFor(max: number, windowSeconds: number): RateLimiterPrisma {
+const limiters = new Map<string, AtomicPrismaLimiter>()
+
+function limiterFor(max: number, windowSeconds: number): AtomicPrismaLimiter {
   const id = `${max}/${windowSeconds}`
   let limiter = limiters.get(id)
   if (!limiter) {
-    limiter = new RateLimiterPrisma({
+    limiter = new AtomicPrismaLimiter({
       storeClient: dbAdmin,
       tableName: 'rateLimit',
       points: max,
@@ -37,8 +68,9 @@ function limiterFor(max: number, windowSeconds: number): RateLimiterPrisma {
 export async function takeAttempt(limits: Limit[]): Promise<boolean> {
   let allowed = true
   for (const limit of limits) {
+    const key = createHash('sha256').update(limit.key).digest('base64url')
     try {
-      await limiterFor(limit.max, limit.windowSeconds).consume(limit.key)
+      await limiterFor(limit.max, limit.windowSeconds).consume(key)
     } catch (error) {
       if (error instanceof RateLimiterRes) allowed = false
       else throw error

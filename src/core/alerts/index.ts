@@ -14,6 +14,7 @@
  * as does the job: addresses are masked, and no amounts, account numbers or
  * student IDs are ever included.
  */
+import 'server-only'
 import { Api } from 'grammy'
 
 export type AlertKind =

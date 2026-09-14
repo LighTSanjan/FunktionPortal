@@ -271,4 +271,12 @@ describe('rate limits on codes', () => {
     expect(await takeAttempt(limit(key))).toBe(false)
     expect(await takeAttempt(limit(`${key}:someone-else`))).toBe(true)
   })
+
+  it('holds when the attempts arrive all at once', async () => {
+    const key = `test:${randomUUID()}`
+    const results = await Promise.all(
+      Array.from({ length: 20 }, () => takeAttempt([{ key, max: 5, windowSeconds: 3600 }]))
+    )
+    expect(results.filter(Boolean)).toHaveLength(5)
+  })
 })

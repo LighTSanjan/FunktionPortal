@@ -14,7 +14,10 @@ import { proofFromEmailCode } from '@/core/auth/proof'
 const SIGN_IN_TYPES: EmailOtpType[] = ['email', 'magiclink', 'signup', 'invite']
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = request.nextUrl
+  const { searchParams } = request.nextUrl
+  // Where to send people afterwards comes from configuration, not from the
+  // request's Host header.
+  const origin = (process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin).replace(/\/$/, '')
 
   const tokenHash = searchParams.get('token_hash')
   const type = searchParams.get('type') as EmailOtpType | null

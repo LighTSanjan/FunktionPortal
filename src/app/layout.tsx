@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { BRAND } from '@/core/brand'
@@ -19,11 +20,15 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  // The proxy's per-request nonce: the Content-Security-Policy runs only
+  // scripts carrying it, so the one inline script here has to.
+  const nonce = (await headers()).get('x-nonce') ?? undefined
+
   return (
     <html lang="en" className="light" suppressHydrationWarning>
       <head>
@@ -43,6 +48,10 @@ export default function RootLayout({
           reader would otherwise see a white flash on every navigation.
         */}
         <script
+          nonce={nonce}
+          // Browsers hide a nonce from the DOM once it is read, so the client
+          // always sees an empty one. That is the point of it, not a mismatch.
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html:
               "try{if(localStorage.getItem('funktion-theme')==='dark'){" +

@@ -136,35 +136,18 @@ export async function decideAccessRequest(
     return { error: 'That request has expired. Ask them to raise a new one.' }
   }
 
-  await settleRequest({
+  const outcome = await settleRequest({
     orgId: org.id,
     requestId: request.id,
-    subjectUserId: request.userId,
     reviewerUserId: userId,
     decision: parsed.data.decision,
     decisionNote: parsed.data.decisionNote || null,
-    grantRole: request.requestedRole,
-    grantOffice: request.requestedOffice,
   })
+  if (!outcome.settled) return { error: 'Somebody else has just settled that request.' }
 
   if (parsed.data.decision === 'APPROVED') {
-    await alert('exco_granted', { office: request.requestedOffice, club: org.slug })
+    await alert('exco_granted', { office: outcome.grantOffice, club: org.slug })
   }
-
-  await writeAudit({
-    orgId: org.id,
-    actorId: userId,
-    action: parsed.data.decision === 'APPROVED' ? 'access.approve' : 'access.reject',
-    targetType: 'AccessRequest',
-    targetId: request.id,
-    before: { status: 'PENDING' },
-    after: {
-      status: parsed.data.decision,
-      subjectUserId: request.userId,
-      grantedRole: parsed.data.decision === 'APPROVED' ? request.requestedRole : null,
-      grantedOffice: parsed.data.decision === 'APPROVED' ? request.requestedOffice : null,
-    },
-  })
 
   revalidatePath(`/${orgSlug}/settings/access`)
   return { error: null, ok: true }

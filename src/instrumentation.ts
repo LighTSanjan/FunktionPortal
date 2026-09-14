@@ -20,8 +20,10 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
     route: context.routePath,
     kind: context.routeType,
     method: request.method,
-    // First line only: database errors go on to quote the values involved.
-    error: error instanceof Error ? `${error.name}: ${error.message.split('\n')[0]}` : 'unknown',
+    // The class, not the message: messages quote whatever values were
+    // involved, and this goes to Telegram. The digest finds the full error in
+    // the server log.
+    error: error instanceof Error ? error.name : 'unknown',
     digest,
   })
 }

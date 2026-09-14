@@ -69,6 +69,19 @@ export async function putProof(
 }
 
 /**
+ * Remove a screenshot that never became part of a declaration — the upload
+ * went through but the declaration was refused or failed. A replaced one is
+ * kept (see putProof); this is only for the ones nothing ever pointed at.
+ */
+export async function discardProof(key: string): Promise<void> {
+  try {
+    await getStorageUnscoped().delete(key)
+  } catch (error) {
+    console.error('[proof] could not remove an unused upload', error instanceof Error ? error.message : error)
+  }
+}
+
+/**
  * The screenshot itself, read server-side.
  *
  * Not a signed URL. A signed URL is a bearer token in an address bar: it

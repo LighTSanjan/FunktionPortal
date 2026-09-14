@@ -29,9 +29,18 @@ export interface CodeState {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+/**
+ * The caller's IP as the hosting platform saw it. The first X-Forwarded-For
+ * entry is whatever the client chose to send, so it is the last resort.
+ */
 async function clientIp(): Promise<string> {
   const h = await headers()
-  return h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? h.get('x-real-ip') ?? 'unknown'
+  return (
+    h.get('x-vercel-forwarded-for')?.split(',')[0]?.trim() ??
+    h.get('x-real-ip') ??
+    h.get('x-forwarded-for')?.split(',').at(-1)?.trim() ??
+    'unknown'
+  )
 }
 
 export async function requestEmailCode(_prev: CodeState, formData: FormData): Promise<CodeState> {

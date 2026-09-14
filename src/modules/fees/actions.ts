@@ -11,7 +11,7 @@ import { financialYearOf } from '@/modules/references/format'
 import { addWorkingDays } from '@/modules/coach-claim/deadlines'
 import { amountForTier, tierFor } from './tiers'
 import { splitGst, DEFAULT_GST_BASIS_POINTS } from './money'
-import { validateProof, putProof, ProofRejected, MAX_PROOF_BYTES } from './proof'
+import { validateProof, putProof, discardProof, ProofRejected, MAX_PROOF_BYTES } from './proof'
 import { validateQr, putQr, QrRejected, MAX_QR_BYTES } from './qr'
 
 export interface FeeState {
@@ -125,7 +125,9 @@ export async function declarePayment(
   // storage, and a pooled connection should not be held open across that.
   const proofPath = await putProof(term.id, member.id, bytes, format)
 
-  const late = await dbAs(userId, async (tx) => {
+  let late: 'CLOSED' | 'DECIDED' | null
+  try {
+  late = await dbAs(userId, async (tx) => {
     // Everything the first transaction checked is checked again here, because
     // the upload happened in between and it is not instant. Without this, an
     // exco member confirming during that window has their confirmation undone
@@ -190,6 +192,14 @@ export async function declarePayment(
     )
     return null
   })
+  } catch (error) {
+    await discardProof(proofPath)
+    throw error
+  }
+
+  // The screenshot went up but nothing points at it. It carries the payer's
+  // name and account details, so it does not get to sit in storage forever.
+  if (late) await discardProof(proofPath)
 
   if (late === 'CLOSED') return { error: PROBLEMS.CLOSED }
   if (late === 'DECIDED') {

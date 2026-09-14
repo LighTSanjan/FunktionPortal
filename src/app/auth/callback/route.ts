@@ -5,7 +5,10 @@ import { afterSignIn } from '@/core/auth/after-sign-in'
 import { proofFromProviderSignIn } from '@/core/auth/proof'
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = request.nextUrl
+  const { searchParams } = request.nextUrl
+  // Where to send people afterwards comes from configuration, not from the
+  // request's Host header.
+  const origin = (process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin).replace(/\/$/, '')
 
   const oauthError = searchParams.get('error')
   if (oauthError) {
