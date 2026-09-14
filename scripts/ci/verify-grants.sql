@@ -32,6 +32,25 @@ BEGIN
     RETURN;
   END IF;
 
+  -- Nothing at all is readable by a raw PostgREST caller. Sign-up is open and
+  -- every account joins the club, so `authenticated` means "anybody". These
+  -- five were left readable once, and leaked every member's name and email.
+  FOR ok IN
+    SELECT has_table_privilege('authenticated', t, 'SELECT')
+    FROM unnest(ARRAY['organisations', 'organisation_memberships', 'users', 'members', 'terms']) AS t
+  LOOP
+    IF ok THEN
+      RAISE EXCEPTION 'FAIL: authenticated must NOT have SELECT on any public table';
+    END IF;
+  END LOOP;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.role_table_grants
+    WHERE table_schema = 'public' AND grantee IN ('anon', 'authenticated')
+  ) THEN
+    RAISE EXCEPTION 'FAIL: anon/authenticated hold a grant on a public table';
+  END IF;
+
   -- app_user (the app's own DB role) can read the member roster...
   SELECT has_table_privilege('app_user', 'members', 'SELECT') INTO ok;
   IF NOT ok THEN

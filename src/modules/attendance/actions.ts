@@ -137,13 +137,24 @@ export async function mapDate(
   if (!fields.success) return { error: 'That date could not be assigned' }
   const { importId, iso, instructorId, minutes } = fields.data
 
-  await dbAs(userId, async (tx) => {
+  const problem = await dbAs(userId, async (tx) => {
     const record = await tx.attendanceImport.findFirst({
       where: { id: importId, orgId: org.id },
       select: { id: true, status: true, dateInstructorMap: true },
     })
-    if (!record) throw new Error('Import not found')
-    if (record.status === 'APPLIED') throw new Error('That import has already been applied')
+    if (!record) return 'That import no longer exists'
+    if (record.status === 'APPLIED') return 'That import has already been applied'
+
+    // The coach has to belong to this club. The import is scoped to the org,
+    // but an id posted from the browser is not — and a class session pointing
+    // at another club's coach corrupts both clubs' months.
+    if (instructorId !== SKIP && instructorId !== SELF_PRACTICE) {
+      const coach = await tx.instructor.findFirst({
+        where: { id: instructorId, orgId: org.id },
+        select: { id: true },
+      })
+      if (!coach) return 'That coach is not one of this club’s'
+    }
 
     const overrides = { ...((record.dateInstructorMap ?? {}) as Record<string, unknown>) }
     if (instructorId === SKIP) overrides[iso] = null
@@ -154,7 +165,9 @@ export async function mapDate(
       where: { id: record.id },
       data: { dateInstructorMap: overrides as Prisma.InputJsonValue },
     })
+    return null
   })
+  if (problem) return { error: problem }
 
   revalidatePath(`/${orgSlug}/settings/attendance/${importId}`)
   return { error: null, ok: true }

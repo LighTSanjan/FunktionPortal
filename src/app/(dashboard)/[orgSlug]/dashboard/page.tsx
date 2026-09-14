@@ -357,6 +357,10 @@ export default async function DashboardPage({
         </>
       )}
 
+      {/* Exco only. Roster size, coach count and money owed by OSL are the
+          club's operating figures, not a member's business — and a member
+          account is now something anybody can create. */}
+      {isExco && (
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile
           label="Members on the roster"
@@ -391,6 +395,7 @@ export default async function DashboardPage({
           delayMs={320}
         />
       </div>
+      )}
 
       {!isExco && (
         <section

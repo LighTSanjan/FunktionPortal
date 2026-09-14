@@ -88,6 +88,7 @@ function toTermRow(row: {
   finalCollectionAt: Date | null
   paynowQrPath: string | null
   paynowQrUploadedAt: Date | null
+  closedAt: Date | null
   incomeDeposit: { id: string; submittedToOslAt: Date | null } | null
 }): TermRow {
   return {
@@ -104,7 +105,8 @@ function toTermRow(row: {
     // shown a day early, by the one screen whose job is deadlines.
     collectionOpensAt: row.collectionOpensAt && fromDateColumn(row.collectionOpensAt),
     finalCollectionAt: row.finalCollectionAt && fromDateColumn(row.finalCollectionAt),
-    closed: row.incomeDeposit !== null,
+    // From the term, not from the deposit row: a member cannot see deposits.
+    closed: row.closedAt !== null,
     filed: row.incomeDeposit?.submittedToOslAt != null,
     hasPaynowQr: row.paynowQrPath !== null,
     paynowQrUploadedAt: row.paynowQrUploadedAt,
@@ -123,6 +125,7 @@ const TERM_SELECT = {
   finalCollectionAt: true,
   paynowQrPath: true,
   paynowQrUploadedAt: true,
+  closedAt: true,
   incomeDeposit: { select: { id: true, submittedToOslAt: true } },
 } as const
 

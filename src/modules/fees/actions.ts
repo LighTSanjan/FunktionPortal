@@ -103,11 +103,11 @@ export async function declarePayment(
         fullFeeCents: true,
         halfFeeCents: true,
         exchangeFeeCents: true,
-        incomeDeposit: { select: { id: true } },
+        closedAt: true,
       },
     })
     if (!term) return { problem: 'TERM' as const }
-    if (term.incomeDeposit) return { problem: 'CLOSED' as const }
+    if (term.closedAt) return { problem: 'CLOSED' as const }
 
     const existing = await tx.feePayment.findUnique({
       where: { termId_memberId: { termId: term.id, memberId: member.id } },
@@ -133,9 +133,9 @@ export async function declarePayment(
     // declaration it can no longer bank.
     const still = await tx.term.findFirst({
       where: { id: term.id, orgId: org.id },
-      select: { incomeDeposit: { select: { id: true } } },
+      select: { closedAt: true },
     })
-    if (still?.incomeDeposit) return 'CLOSED' as const
+    if (still?.closedAt) return 'CLOSED' as const
 
     const tier: FeeTier = tierFor(member.rosterLabel).tier ?? 'FULL'
     const amountCents = amountForTier(tier, term)
@@ -759,6 +759,8 @@ export async function closeCollection(
     // The unique key on termId is what actually serialises two treasurers
     // pressing this at once. The precheck above is for the message; this is
     // for the outcome.
+    await tx.term.update({ where: { id: term.id }, data: { closedAt: new Date() } })
+
     const deposit = await tx.incomeDeposit.create({
       data: {
         orgId: org.id,

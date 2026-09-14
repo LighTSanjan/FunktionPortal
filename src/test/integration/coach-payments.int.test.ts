@@ -254,6 +254,39 @@ describe('a month of coach payments', () => {
     }
   })
 
+  it('shows a member none of the month’s money, even querying directly', async () => {
+    // Row-level security is the backstop under every screen: as a member,
+    // the invoice tables are simply empty.
+    const { dbAs } = await import('@/core/db')
+    const seen = await dbAs(member.id, async (tx) => ({
+      invoices: await tx.invoice.count(),
+      lines: await tx.invoiceLine.count(),
+      coaches: await tx.instructor.count(),
+      sheets: await tx.attendanceSheet.count(),
+    }))
+    expect(seen).toEqual({ invoices: 0, lines: 0, coaches: 0, sheets: 0 })
+  })
+
+  it('will not let a member change a coach’s bank details or where documents are sent, even going around the actions', async () => {
+    const { dbAs } = await import('@/core/db')
+    const before = await dbAdmin.organisationSettings.findUniqueOrThrow({ where: { orgId: org.id } })
+
+    const updated = await dbAs(member.id, async (tx) => ({
+      bank: await tx.instructor.updateMany({ where: { id: coachId }, data: { bankAccountNo: '999-attacker' } }),
+      email: await tx.organisationSettings.updateMany({
+        where: { orgId: org.id },
+        data: { submissionEmail: 'attacker@evil.test' },
+      }),
+    }))
+
+    expect(updated.bank.count).toBe(0)
+    expect(updated.email.count).toBe(0)
+    expect((await dbAdmin.instructor.findUniqueOrThrow({ where: { id: coachId } })).bankAccountNo).toBe('000-00000-0')
+    expect((await dbAdmin.organisationSettings.findUniqueOrThrow({ where: { orgId: org.id } })).submissionEmail).toBe(
+      before.submissionEmail
+    )
+  })
+
   it('will not let a member download the documents', async () => {
     as(member)
     const result = await outcome(() =>

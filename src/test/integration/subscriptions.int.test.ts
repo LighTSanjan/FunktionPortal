@@ -354,6 +354,19 @@ describe('a term’s subscription collection', () => {
       expect(response.status).toBe(404)
     })
 
+    it('refuses a late payment in the database, even going around the action', async () => {
+      const cleoRow = await dbAdmin.member.findFirstOrThrow({ where: { studentId: '1000003' } })
+      const { dbAs } = await import('@/core/db')
+      await expect(
+        dbAs(cleo.id, (tx) =>
+          tx.feePayment.updateMany({
+            where: { termId, memberId: cleoRow.id },
+            data: { status: 'DECLARED', paymentReference: 'PN-CLEO-SNEAKY', rejectedReason: null },
+          })
+        )
+      ).rejects.toThrow(/closed/)
+    })
+
     it('refuses declarations against a closed collection', async () => {
       as(cleo)
       const late = await declarePayment(org.slug, { error: null }, form({ termId, reference: 'PN-CLEO-2', proof: pngFile(300, 600) }))

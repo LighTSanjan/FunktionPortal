@@ -480,6 +480,11 @@ model Term {
   /// bucket. A fresh QR is generated per collection, so it is a fact about
   /// the term and not about the club: held once on the organisation, the
   /// second term would quietly show members the first term's code.
+  /// When the collection was closed. A fact on the term, readable by members,
+  /// rather than inferred from an income_deposits row they are not allowed to
+  /// see — inferred, every closed collection looked open to a member.
+  closedAt           DateTime? @map("closed_at")
+
   paynowQrPath       String?   @map("paynow_qr_path")
   paynowQrUploadedAt DateTime? @map("paynow_qr_uploaded_at")
 

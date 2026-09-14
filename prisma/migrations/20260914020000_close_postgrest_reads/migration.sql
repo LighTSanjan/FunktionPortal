@@ -1,0 +1,28 @@
+-- Nothing reachable through PostgREST at all.
+--
+-- The hardening migration left `authenticated` read access to five tables, on
+-- the reasoning that it was "read-only, and nothing carrying money or
+-- evidence". That reasoning assumed the people holding an `authenticated`
+-- token were the club. Sign-up is open and every new account joins the only
+-- organisation as a member, so the people holding one are anybody.
+--
+-- Demonstrated against the real GoTrue and PostgREST in the test stack
+-- (src/test/integration/postgrest.int.test.ts), with a freshly signed-up
+-- account and nothing but the publishable key:
+--
+--   GET /rest/v1/users                     every member's name and email
+--   GET /rest/v1/organisation_memberships  who is exco, and which office
+--   GET /rest/v1/terms                     storage keys for the PayNow QR,
+--                                          Drive file ids for summaries
+--
+-- The portal itself never reads a table through PostgREST — every query runs
+-- on the server as app_user, which holds its own grants on every table and is
+-- unaffected by this. So the grant was never serving the app. It was only
+-- ever serving whoever went around it.
+REVOKE SELECT ON organisations, organisation_memberships, users, members, terms FROM authenticated;
+
+-- Not changed here: the users policy lets somebody see the accounts they share
+-- a club with, including ones that have since been disabled. That is now only
+-- reachable through the app's own server-side queries, which gate it behind
+-- the screens that need it — the audit log names whoever took an action, and a
+-- treasurer who has graduated still took it.

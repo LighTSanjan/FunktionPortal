@@ -26,14 +26,14 @@ export async function GET(
   const term = await dbAs(userId, (tx) =>
     tx.term.findFirst({
       where: { id: termId, orgId: org.id },
-      select: { paynowQrPath: true, incomeDeposit: { select: { id: true } } },
+      select: { paynowQrPath: true, closedAt: true },
     })
   )
 
   // A closed collection has been banked and reconciled. Its QR is a live
   // payment code that nobody is watching any more, and a bookmarked link to
   // this URL would go on serving it indefinitely.
-  if (term?.incomeDeposit) return new NextResponse('Not found', { status: 404 })
+  if (term?.closedAt) return new NextResponse('Not found', { status: 404 })
 
   const { readQr } = await import('@/modules/fees/qr')
   const qr = await readQr(term?.paynowQrPath ?? null)
