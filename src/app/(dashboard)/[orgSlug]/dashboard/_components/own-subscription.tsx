@@ -9,7 +9,7 @@ import { formatSgd } from '@/modules/coach-claim/money'
  * home screen used to leave it out entirely — it offered to widen their
  * access and nothing else. For an exco member it is the one thing of their own
  * in a screen full of the club's, and there was no route to it at all: the
- * sidebar hides "Your subscription" from the exco so it is not confused with
+ * sidebar hides "Your membership fee" from the exco so it is not confused with
  * the collection they run.
  *
  * Quiet when there is nothing to do, so an exco member who has paid does not
@@ -44,7 +44,7 @@ export function OwnSubscription({
           id="own-subscription"
           className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-subtle"
         >
-          Your subscription{fee.term ? ` · ${fee.term.name}` : ''}
+          Your membership fee{fee.term ? ` · ${fee.term.name}` : ''}
         </h2>
         <p className="mt-1 text-[15px] font-semibold text-text">{state.headline}</p>
         {state.detail && (
@@ -92,13 +92,16 @@ function describe(
     return { headline: 'No collection is open', detail: 'Nothing to pay until the exco open one.', needsYou: false }
   }
   if (fee.owesNothing) {
-    return { headline: 'Nothing to pay this term', needsYou: false }
+    return {
+      headline: fee.tier === 'WAIVED' ? 'Your fee is waived this term' : 'Nothing to pay this term',
+      needsYou: false,
+    }
   }
 
   const amount = formatSgd(fee.amountCents)
   switch (fee.payment?.status) {
     case 'CONFIRMED':
-      return { headline: `${amount} paid`, detail: 'Checked against the statement. Nothing more to do.', needsYou: false }
+      return { headline: `${amount} paid`, detail: 'Thank you! Nothing more to do.', needsYou: false }
     case 'DECLARED':
       return {
         headline: `${amount} — waiting on the exco`,
@@ -122,7 +125,7 @@ function describe(
         detail: fee.term.closed
           ? 'This collection has closed. Speak to the treasurer.'
           : fee.term.hasPaynowQr
-            ? 'Pay by PayNow, then attach your confirmation.'
+            ? 'Pay by PayNow, then let us know.'
             : 'The PayNow QR for this collection is not up yet.',
         action: fee.term.closed ? undefined : 'Pay now',
         needsYou: !fee.term.closed,

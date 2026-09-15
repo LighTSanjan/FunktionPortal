@@ -1,9 +1,9 @@
 /** Reading a term's collection, for the member and for the exco. */
 import 'server-only'
-import type { FeeTier, PaymentStatus, FeeRoute } from '@prisma/client'
+import type { FeeTier, PaymentStatus, FeeRoute, PaymentSource } from '@prisma/client'
 import { dbAs } from '@/core/db'
 import { fromDateColumn } from '@/lib/date-only'
-import { tierFor, amountForTier, type TermRates } from './tiers'
+import { resolveFee, tierFor, TIER_LABEL, type TermRates } from './tiers'
 
 export interface TermRow {
   id: string
@@ -45,6 +45,16 @@ export interface PaymentRow {
   routeReason: string | null
   paymentReference: string | null
   hasProof: boolean
+  /** A member's own declaration, or recorded by the exco off the statement. */
+  source: PaymentSource | null
+  /** Whether the fee was decided by the exco, fixed by a payment, or read off the roster. */
+  feeSource: 'payment' | 'exco' | 'roster'
+  /** The exco's own fee for this member this term, if they set one. */
+  arrangement: { tier: FeeTier; amountCents: number | null; note: string | null } | null
+  /** The member has a portal account linked to their roster row. */
+  hasAccount: boolean
+  /** This row is the person looking at the screen. Nobody records their own. */
+  isYou: boolean
   /**
    * Who declared it. The exco screen needs this to stop offering a button
    * that the action will refuse: nobody decides their own payment.
@@ -54,6 +64,8 @@ export interface PaymentRow {
   confirmedAt: Date | null
   confirmedByName: string | null
   rejectedReason: string | null
+  /** What the roster label alone would charge, e.g. "Half term". */
+  rosterFee: string
   /** The roster could not say which tier; somebody should look. */
   tierUncertain: boolean
   tierBecause: string
@@ -185,7 +197,7 @@ export async function listCollection(
   orgId: string,
   termId: string
 ): Promise<{ rows: PaymentRow[]; totals: CollectionTotals }> {
-  const { members, payments, rates } = await dbAs(userId, async (tx) => {
+  const { members, payments, arrangements, rates } = await dbAs(userId, async (tx) => {
     const term = await tx.term.findFirst({
       where: { id: termId, orgId },
       select: { fullFeeCents: true, halfFeeCents: true, exchangeFeeCents: true },
@@ -196,10 +208,16 @@ export async function listCollection(
       // since graduated — while closing the collection still banks their
       // money, so the board would preview a smaller figure than the one that
       // actually goes to OSL.
+      // Anybody the exco set a fee for, too: putting somebody who has left
+      // back on the list is exactly what setting their fee is for.
       members: await tx.member.findMany({
         where: {
           orgId,
-          OR: [{ isActive: true }, { feePayments: { some: { termId } } }],
+          OR: [
+            { isActive: true },
+            { feePayments: { some: { termId } } },
+            { feeArrangements: { some: { termId } } },
+          ],
         },
         orderBy: { fullName: 'asc' },
         select: {
@@ -208,17 +226,23 @@ export async function listCollection(
           studentId: true,
           rosterLabel: true,
           isActive: true,
+          userId: true,
         },
       }),
       payments: await tx.feePayment.findMany({
         where: { orgId, termId },
         include: { confirmedBy: { select: { name: true } } },
       }),
+      arrangements: await tx.feeArrangement.findMany({
+        where: { orgId, termId },
+        select: { memberId: true, tier: true, amountCents: true, note: true },
+      }),
       rates: term,
     }
   })
 
   const byMember = new Map(payments.map((payment) => [payment.memberId, payment]))
+  const arrangementFor = new Map(arrangements.map((row) => [row.memberId, row]))
   const termRates: TermRates = rates ?? {
     fullFeeCents: 0,
     halfFeeCents: 0,
@@ -227,27 +251,48 @@ export async function listCollection(
 
   const rows: PaymentRow[] = []
   for (const member of members) {
-    const reading = tierFor(member.rosterLabel)
     const payment = byMember.get(member.id)
-
+    const arrangement = arrangementFor.get(member.id) ?? null
+    const fee = resolveFee({
+      payment: payment ?? null,
+      arrangement,
+      rosterLabel: member.rosterLabel,
+      isActive: member.isActive,
+      rates: termRates,
+    })
     // Nobody who has left owes anything, and a row for them on the collection
     // screen is a row somebody will chase — unless they already paid, in
     // which case their money is in the total and the row has to be there to
     // explain it.
-    if ((reading.tier === null || !member.isActive) && !payment) continue
-    const tier = payment?.tier ?? reading.tier ?? 'FULL'
+    if (!fee.charged && !payment) continue
+    // A payment fixes the figure, but the question of whether the roster was
+    // sure is still worth asking about a row nobody has decided.
+    const roster = resolveFee({
+      payment: null,
+      arrangement,
+      rosterLabel: member.rosterLabel,
+      isActive: member.isActive,
+      rates: termRates,
+    })
     rows.push({
       id: payment?.id ?? null,
       memberId: member.id,
       memberName: member.fullName,
       studentId: member.studentId,
-      tier,
-      amountCents: payment?.amountCents ?? amountForTier(tier, termRates),
+      tier: fee.tier,
+      amountCents: fee.amountCents,
       status: payment?.status ?? null,
       route: payment?.route ?? 'OFFICIAL',
       routeReason: payment?.routeReason ?? null,
       paymentReference: payment?.paymentReference ?? null,
       hasProof: Boolean(payment?.paymentProofPath),
+      source: payment?.source ?? null,
+      feeSource: fee.source,
+      arrangement: arrangement
+        ? { tier: arrangement.tier, amountCents: arrangement.amountCents, note: arrangement.note }
+        : null,
+      hasAccount: member.userId !== null,
+      isYou: member.userId === userId,
       declaredByUserId: payment?.declaredByUserId ?? null,
       declaredAt: payment?.declaredAt ?? null,
       confirmedAt: payment?.confirmedAt ?? null,
@@ -257,13 +302,19 @@ export async function listCollection(
       // carries the same guess — a member is never asked which tier they are
       // on — so clearing the flag on sight of one would hide the warning at
       // exactly the moment somebody is about to confirm the guessed amount.
-      tierUncertain: !reading.certain,
-      tierBecause: reading.because,
-      onRoster: member.isActive && reading.tier !== null,
+      rosterFee: rosterFeeLabel(member.rosterLabel),
+      tierUncertain: !roster.certain,
+      tierBecause: roster.because,
+      onRoster: roster.charged,
     })
   }
 
   return { rows, totals: totalsFor(rows) }
+}
+
+function rosterFeeLabel(label: string | null): string {
+  const reading = tierFor(label)
+  return reading.tier ? TIER_LABEL[reading.tier] : 'not charged'
 }
 
 function totalsFor(rows: PaymentRow[]): CollectionTotals {
@@ -341,21 +392,33 @@ export async function getOwnFee(
       }
     }
 
-    const payment = await tx.feePayment.findUnique({
-      where: { termId_memberId: { termId: term.id, memberId: member.id } },
+    const [payment, arrangement] = await Promise.all([
+      tx.feePayment.findUnique({
+        where: { termId_memberId: { termId: term.id, memberId: member.id } },
+      }),
+      tx.feeArrangement.findUnique({
+        where: { termId_memberId: { termId: term.id, memberId: member.id } },
+        select: { tier: true, amountCents: true },
+      }),
+    ])
+    const fee = resolveFee({
+      payment,
+      arrangement,
+      rosterLabel: member.rosterLabel,
+      isActive: member.isActive,
+      rates: term,
     })
-    const reading = tierFor(member.rosterLabel)
-    const tier = payment?.tier ?? reading.tier ?? 'FULL'
-    // A null tier is not a missing one: it is the roster saying they have
-    // left, and somebody who has left owes nothing.
-    const owesNothing = !payment && (reading.tier === null || !member.isActive)
+    // Not charged is not a missing fee: it is the roster saying they have
+    // left, and somebody who has left owes nothing. A waived fee is the same
+    // answer reached by a person.
+    const owesNothing = !payment && (!fee.charged || fee.amountCents === 0)
 
     return {
       member: { id: member.id, fullName: member.fullName },
       term,
-      tier,
+      tier: fee.tier,
       owesNothing,
-      amountCents: owesNothing ? 0 : (payment?.amountCents ?? amountForTier(tier, term)),
+      amountCents: owesNothing ? 0 : fee.amountCents,
       payment: payment
         ? {
             id: payment.id,

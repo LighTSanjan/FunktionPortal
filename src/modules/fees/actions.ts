@@ -2,14 +2,15 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import type { FeeTier } from '@prisma/client'
+import type { FeeTier, Prisma } from '@prisma/client'
 import { dbAs } from '@/core/db'
 import { getOrgContext, requirePermission, verifySession } from '@/core/auth/dal'
 import { writeAudit } from '@/core/audit'
 import { allocateReference } from '@/modules/references'
 import { financialYearOf } from '@/modules/references/format'
 import { addWorkingDays } from '@/modules/coach-claim/deadlines'
-import { amountForTier, tierFor } from './tiers'
+import { resolveFee, TIER_LABEL } from './tiers'
+import { matchRosterRow } from '@/core/auth/roster-match'
 import { splitGst, DEFAULT_GST_BASIS_POINTS } from './money'
 import { validateProof, putProof, discardProof, ProofRejected, MAX_PROOF_BYTES } from './proof'
 import { validateQr, putQr, QrRejected, MAX_QR_BYTES } from './qr'
@@ -17,6 +18,21 @@ import { validateQr, putQr, QrRejected, MAX_QR_BYTES } from './qr'
 export interface FeeState {
   error: string | null
   ok?: boolean
+  /** What happened, when it is more than "saved". */
+  message?: string
+}
+
+/**
+ * Take this term's fee lock for the rest of the transaction.
+ *
+ * Every write to a term's fees and payments, and closing it, takes the same
+ * lock, so none of them can interleave: a payment undone while the collection
+ * closes, or a fee changed while a payment is recorded against the old one,
+ * would each leave figures that disagree for good. The volume is a few dozen
+ * writes a term, so serialising them costs nothing anybody will notice.
+ */
+async function lockTermFees(tx: Prisma.TransactionClient, termId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`fees:${termId}`}, 0))`
 }
 
 const declareSchema = z.object({
@@ -81,6 +97,7 @@ export async function declarePayment(
         member: { id: string; rosterLabel: string | null; isActive: boolean }
         term: { id: string; fullFeeCents: number; halfFeeCents: number; exchangeFeeCents: number | null }
         existingId: string | null
+        fee: { tier: FeeTier; amountCents: number }
       }
 
   const context: Context = await dbAs(userId, async (tx) => {
@@ -89,12 +106,6 @@ export async function declarePayment(
       select: { id: true, rosterLabel: true, isActive: true },
     })
     if (!member) return { problem: 'ROSTER' as const }
-    // tierFor returns null for a label like "Graduated", and null means owes
-    // nothing. Replacing it with FULL — which is what `?? 'FULL'` did — would
-    // show a graduated exco member a seventy-dollar bill and take their money.
-    if (!member.isActive || tierFor(member.rosterLabel).tier === null) {
-      return { problem: 'DEPARTED' as const }
-    }
 
     const term = await tx.term.findFirst({
       where: { id: parsed.data.termId, orgId: org.id },
@@ -115,7 +126,25 @@ export async function declarePayment(
     })
     if (existing?.status === 'CONFIRMED') return { problem: 'CONFIRMED' as const }
 
-    return { member, term, existingId: existing?.id ?? null }
+    const arrangement = await tx.feeArrangement.findUnique({
+      where: { termId_memberId: { termId: term.id, memberId: member.id } },
+      select: { tier: true, amountCents: true },
+    })
+    // Priced as if nothing had been paid: a refused declaration is replaced
+    // by this one, and its old figure is not evidence of what is owed.
+    const fee = resolveFee({
+      payment: null,
+      arrangement,
+      rosterLabel: member.rosterLabel,
+      isActive: member.isActive,
+      rates: term,
+    })
+    // Somebody the roster has as having left owes nothing, and replacing that
+    // with a full-term bill would take a graduated exco member's money.
+    if (!fee.charged) return { problem: 'DEPARTED' as const }
+    if (fee.amountCents === 0) return { problem: 'WAIVED' as const }
+
+    return { member, term, existingId: existing?.id ?? null, fee }
   })
 
   if (context.problem) return { error: PROBLEMS[context.problem] }
@@ -133,14 +162,27 @@ export async function declarePayment(
     // exco member confirming during that window has their confirmation undone
     // by the write that follows — and a collection closed during it takes a
     // declaration it can no longer bank.
+    await lockTermFees(tx, term.id)
     const still = await tx.term.findFirst({
       where: { id: term.id, orgId: org.id },
-      select: { closedAt: true },
+      select: { closedAt: true, fullFeeCents: true, halfFeeCents: true, exchangeFeeCents: true },
     })
-    if (still?.closedAt) return 'CLOSED' as const
+    if (!still || still.closedAt) return 'CLOSED' as const
 
-    const tier: FeeTier = tierFor(member.rosterLabel).tier ?? 'FULL'
-    const amountCents = amountForTier(tier, term)
+    // Priced again under the lock: the exco may have changed this member's
+    // fee, or the term's rates, while the screenshot was uploading.
+    const arrangementNow = await tx.feeArrangement.findUnique({
+      where: { termId_memberId: { termId: term.id, memberId: member.id } },
+      select: { tier: true, amountCents: true },
+    })
+    const { tier, amountCents } = resolveFee({
+      payment: null,
+      arrangement: arrangementNow,
+      rosterLabel: member.rosterLabel,
+      isActive: member.isActive,
+      rates: still,
+    })
+    if (amountCents === 0) return 'DECIDED' as const
     const declaredAt = new Date()
 
     // A re-declaration replaces the last one: somebody who paid the wrong
@@ -154,6 +196,7 @@ export async function declarePayment(
       declaredByUserId: userId,
       paymentReference: parsed.data.reference,
       paymentProofPath: proofPath,
+      source: 'DECLARATION' as const,
       rejectedReason: null,
       confirmedAt: null,
       confirmedByUserId: null,
@@ -221,6 +264,7 @@ const PROBLEMS = {
   CONFIRMED: 'Your payment for that term is already confirmed.',
   DEPARTED:
     'The roster has you as having left the club, so there is nothing to pay. If that is wrong, ask an exco member to put it right first.',
+  WAIVED: 'Your fee for this term is waived, so there is nothing to pay.',
 } as const
 
 const decideSchema = z.object({
@@ -361,6 +405,11 @@ export async function confirmPayment(
   }
 
   const problem = await dbAs(userId, async (tx) => {
+    const target = await tx.feePayment.findFirst({
+      where: { id: parsed.data.paymentId, orgId: org.id },
+      select: { termId: true },
+    })
+    if (target) await lockTermFees(tx, target.termId)
     const payment = await tx.feePayment.findFirst({
       where: { id: parsed.data.paymentId, orgId: org.id },
       select: {
@@ -444,11 +493,17 @@ export async function rejectPayment(
   }
 
   const problem = await dbAs(userId, async (tx) => {
+    const target = await tx.feePayment.findFirst({
+      where: { id: parsed.data.paymentId, orgId: org.id },
+      select: { termId: true },
+    })
+    if (target) await lockTermFees(tx, target.termId)
     const payment = await tx.feePayment.findFirst({
       where: { id: parsed.data.paymentId, orgId: org.id },
-      select: { id: true, status: true, declaredByUserId: true },
+      select: { id: true, status: true, declaredByUserId: true, term: { select: { closedAt: true } } },
     })
     if (!payment) return 'That payment no longer exists'
+    if (payment.term.closedAt) return 'That collection is closed.'
     if (payment.declaredByUserId === userId) {
       return 'Somebody else has to decide your own payment.'
     }
@@ -723,6 +778,9 @@ export async function closeCollection(
   await verifySession()
 
   const problem = await dbAs(userId, async (tx) => {
+    // Held until the deposit row is written, so nothing can change what the
+    // total below counted before the collection is marked closed.
+    await lockTermFees(tx, termId)
     const term = await tx.term.findFirst({
       where: { id: termId, orgId: org.id },
       select: {
@@ -970,6 +1028,13 @@ export async function linkMemberAccount(
       where: { orgId: org.id, userId: parsed.data.userId },
       select: { fullName: true },
     })
+    const decided = await tx.feePayment.findFirst({
+      where: { memberId: member.id, confirmedByUserId: parsed.data.userId },
+      select: { id: true },
+    })
+    if (decided) {
+      return 'That account confirmed a payment for this roster row, so linking it would make that its own fee. Undo the payment first.'
+    }
     if (taken) {
       // One account, one roster row. Two would make "what do I owe" ambiguous
       // and let one person hold two subscriptions.
@@ -1000,5 +1065,433 @@ export async function linkMemberAccount(
   if (problem) return { error: problem }
   revalidatePath(`/${orgSlug}/fees`)
   revalidatePath(`/${orgSlug}/fees/collection`)
+  return { error: null, ok: true }
+}
+
+const setFeeSchema = z.object({
+  termId: z.string().min(1),
+  memberIds: z.array(z.string().min(1)).min(1, 'Pick somebody first').max(300),
+  tier: z.enum(['FULL', 'HALF', 'EXCHANGE_DISCOUNT', 'WAIVED', 'CUSTOM', 'ROSTER']),
+  amount: z.string().trim(),
+  note: z.string().trim().max(200, 'Keep the note short'),
+})
+
+/**
+ * Set what one or more members pay this term.
+ *
+ * The fee used to come only from the roster's free-text label, so putting
+ * somebody on half a term meant editing the attendance sheet and importing it
+ * again. This is the exco deciding directly, for everybody ticked at once.
+ * "ROSTER" takes the decision back and lets the label speak again.
+ *
+ * A confirmed payment is left alone: what was paid was paid, and changing the
+ * fee underneath it would restate a figure already counted toward the bank.
+ * A declaration still waiting is repriced with it, so the amount the exco
+ * check the screenshot against is the one they just chose.
+ */
+export async function setMemberFees(
+  orgSlug: string,
+  _prev: FeeState,
+  formData: FormData
+): Promise<FeeState> {
+  const { org } = await getOrgContext(orgSlug)
+  const { userId } = await requirePermission(org.id, 'fee.manage')
+
+  const parsed = setFeeSchema.safeParse({
+    termId: formData.get('termId') ?? '',
+    memberIds: formData.getAll('memberId').map(String),
+    tier: formData.get('tier') ?? '',
+    amount: formData.get('amount') ?? '',
+    note: formData.get('note') ?? '',
+  })
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Pick a fee' }
+  }
+  const { termId, memberIds, tier, note } = parsed.data
+
+  let customCents: number | null = null
+  if (tier === 'CUSTOM') {
+    const dollars = Number(parsed.data.amount)
+    if (!parsed.data.amount || !Number.isFinite(dollars) || dollars <= 0) {
+      return { error: 'Type the amount they should pay. For nothing at all, choose Waived.' }
+    }
+    if (dollars > 10_000) return { error: 'That is more than a membership fee.' }
+    customCents = Math.round(dollars * 100)
+  }
+
+  const outcome = await dbAs(userId, async (tx) => {
+    await lockTermFees(tx, termId)
+    const term = await tx.term.findFirst({
+      where: { id: termId, orgId: org.id },
+      select: {
+        id: true,
+        closedAt: true,
+        fullFeeCents: true,
+        halfFeeCents: true,
+        exchangeFeeCents: true,
+      },
+    })
+    if (!term) return { error: 'That term no longer exists.' }
+    if (term.closedAt) return { error: 'That collection is closed. Its fees are fixed now.' }
+
+    const unique = [...new Set(memberIds)]
+    const members = await tx.member.findMany({
+      where: { orgId: org.id, id: { in: unique } },
+      select: { id: true, fullName: true, rosterLabel: true, isActive: true },
+    })
+    if (members.length !== unique.length) return { error: 'Somebody on that list is not on the roster.' }
+
+    const payments = await tx.feePayment.findMany({
+      where: { termId: term.id, memberId: { in: unique } },
+      select: { id: true, memberId: true, status: true, tier: true, amountCents: true },
+    })
+    const paymentFor = new Map(payments.map((row) => [row.memberId, row]))
+
+    const changed: string[] = []
+    const paid: string[] = []
+    const waiting: string[] = []
+
+    for (const member of members) {
+      const payment = paymentFor.get(member.id)
+      if (payment?.status === 'CONFIRMED') {
+        paid.push(member.fullName)
+        continue
+      }
+
+      const arrangement: { tier: FeeTier; amountCents: number | null } | null =
+        tier === 'ROSTER' ? null : { tier, amountCents: customCents }
+      const fee = resolveFee({
+        payment: null,
+        arrangement,
+        rosterLabel: member.rosterLabel,
+        isActive: member.isActive,
+        rates: term,
+      })
+      if (payment && fee.amountCents === 0) {
+        // They have said they paid. Waiving the fee under a declaration leaves
+        // a claim for money nobody owes; decide the claim first.
+        waiting.push(member.fullName)
+        continue
+      }
+
+      const key = { termId_memberId: { termId: term.id, memberId: member.id } }
+      const before = await tx.feeArrangement.findUnique({
+        where: key,
+        select: { tier: true, amountCents: true, note: true },
+      })
+      if (arrangement) {
+        await tx.feeArrangement.upsert({
+          where: key,
+          create: {
+            orgId: org.id,
+            termId: term.id,
+            memberId: member.id,
+            tier: arrangement.tier,
+            amountCents: customCents,
+            note: note || null,
+            setById: userId,
+          },
+          update: { tier: arrangement.tier, amountCents: customCents, note: note || null, setById: userId },
+        })
+      } else if (before) {
+        await tx.feeArrangement.delete({ where: key })
+      }
+
+      if (payment) {
+        await tx.feePayment.updateMany({
+          where: { id: payment.id, status: { in: ['DECLARED', 'REJECTED'] } },
+          data: { tier: fee.tier, amountCents: fee.amountCents },
+        })
+      }
+
+      await writeAudit(
+        {
+          orgId: org.id,
+          actorId: userId,
+          action: 'fee.set_fee',
+          targetType: 'Member',
+          targetId: member.id,
+          before: before ?? { tier: 'ROSTER' },
+          after: { termId: term.id, tier: fee.tier, amountCents: fee.amountCents, source: fee.source, note: note || null },
+        },
+        tx
+      )
+      changed.push(member.fullName)
+    }
+
+    return { changed, paid, waiting, label: tier === 'ROSTER' ? null : TIER_LABEL[tier] }
+  })
+
+  if ('error' in outcome) return { error: outcome.error ?? 'That could not be saved' }
+
+  const parts: string[] = []
+  if (outcome.changed.length > 0) {
+    parts.push(
+      outcome.label
+        ? `${describePeople(outcome.changed)} ${outcome.changed.length === 1 ? 'is' : 'are'} on ${outcome.label.toLowerCase()} now.`
+        : `${describePeople(outcome.changed)} ${outcome.changed.length === 1 ? 'goes' : 'go'} back to what the roster says.`
+    )
+  }
+  if (outcome.paid.length > 0) {
+    parts.push(`${describePeople(outcome.paid)} already paid, so left as is. Undo the payment first to change it.`)
+  }
+  if (outcome.waiting.length > 0) {
+    parts.push(`${describePeople(outcome.waiting)} said they paid. Check that first.`)
+  }
+
+  revalidatePath(`/${orgSlug}/fees`)
+  revalidatePath(`/${orgSlug}/fees/collection`)
+  revalidatePath(`/${orgSlug}/dashboard`)
+  return { error: null, ok: outcome.changed.length > 0, message: parts.join(' ') }
+}
+
+function describePeople(names: string[]): string {
+  if (names.length === 1) return names[0]
+  if (names.length === 2) return `${names[0]} and ${names[1]}`
+  return `${names.length} people`
+}
+
+const recordSchema = z.object({
+  termId: z.string().min(1),
+  memberId: z.string().min(1),
+  reference: z.string().trim().max(64, 'That is longer than a payment reference'),
+  route: z.enum(['OFFICIAL', 'UNOFFICIAL']).default('OFFICIAL'),
+  reason: z.string().trim().max(300),
+})
+
+/**
+ * Record a payment straight off the bank statement.
+ *
+ * Most members never open the portal, and a payment could only start as
+ * their own declaration — so most of the roster could never be marked as
+ * paid. The bank statement is the evidence here, not a screenshot, which is
+ * the same thing a declaration is checked against anyway.
+ *
+ * Never your own. That is the one control the collection rests on, and the
+ * database refuses it as well.
+ */
+export async function recordPayment(
+  orgSlug: string,
+  _prev: FeeState,
+  formData: FormData
+): Promise<FeeState> {
+  const { org } = await getOrgContext(orgSlug)
+  const { userId } = await requirePermission(org.id, 'fee.manage')
+
+  const parsed = recordSchema.safeParse({
+    termId: formData.get('termId') ?? '',
+    memberId: formData.get('memberId') ?? '',
+    reference: formData.get('reference') ?? '',
+    route: formData.get('route') ?? 'OFFICIAL',
+    reason: formData.get('reason') ?? '',
+  })
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'That payment is not valid' }
+  const { termId, memberId, reference, route } = parsed.data
+  const routeReason = parsed.data.reason || null
+  if (route === 'UNOFFICIAL' && !routeReason) {
+    return { error: 'Say why this one is outside the OSL collection.' }
+  }
+
+  const problem = await dbAs(userId, async (tx) => {
+    await lockTermFees(tx, termId)
+    const term = await tx.term.findFirst({
+      where: { id: termId, orgId: org.id },
+      select: {
+        id: true,
+        closedAt: true,
+        fullFeeCents: true,
+        halfFeeCents: true,
+        exchangeFeeCents: true,
+      },
+    })
+    if (!term) return 'That term no longer exists.'
+    if (term.closedAt) return 'That collection is closed.'
+
+    const member = await tx.member.findFirst({
+      where: { id: memberId, orgId: org.id },
+      select: { id: true, fullName: true, userId: true, rosterLabel: true, isActive: true, email: true, studentId: true },
+    })
+    if (!member) return 'That person is not on the roster.'
+    if (member.userId === userId) return 'Somebody else has to record your own fee.'
+    // Not linked yet, but plainly theirs: the row would be linked to this
+    // account the next time it signs in, turning this into its own payment.
+    const actor = await tx.user.findUnique({ where: { id: userId }, select: { email: true } })
+    if (actor && matchRosterRow(actor.email, [member])) {
+      return 'That roster row looks like yours. Somebody else has to record your own fee.'
+    }
+
+    const key = { termId_memberId: { termId: term.id, memberId: member.id } }
+    const existing = await tx.feePayment.findUnique({
+      where: key,
+      select: { id: true, status: true, declaredByUserId: true, paymentReference: true },
+    })
+    if (existing?.status === 'CONFIRMED') return null
+    if (existing?.declaredByUserId === userId) return 'Somebody else has to decide your own payment.'
+
+    const arrangement = await tx.feeArrangement.findUnique({
+      where: key,
+      select: { tier: true, amountCents: true },
+    })
+    const fee = resolveFee({
+      payment: null,
+      arrangement,
+      rosterLabel: member.rosterLabel,
+      isActive: member.isActive,
+      rates: term,
+    })
+    if (fee.amountCents === 0) return `${member.fullName} owes nothing this term.`
+
+    const now = new Date()
+    const confirmed = {
+      status: 'CONFIRMED' as const,
+      confirmedAt: now,
+      confirmedByUserId: userId,
+      route,
+      routeReason,
+      rejectedReason: null,
+    }
+
+    let paymentId: string
+    if (existing?.status === 'DECLARED') {
+      // Their own declaration, confirmed from the statement rather than the
+      // screenshot. It stays a declaration; only its status moves.
+      const claimed = await tx.feePayment.updateMany({
+        where: { id: existing.id, status: 'DECLARED' },
+        data: { ...confirmed, paymentReference: reference || existing.paymentReference },
+      })
+      if (claimed.count !== 1) return 'Somebody else has just decided that one. Reload the page.'
+      paymentId = existing.id
+    } else if (existing) {
+      const claimed = await tx.feePayment.updateMany({
+        where: { id: existing.id, status: 'REJECTED' },
+        // Still the member's declaration, screenshot and all — so an undo
+        // sends it back to be checked rather than deleting their evidence.
+        data: {
+          ...confirmed,
+          tier: fee.tier,
+          amountCents: fee.amountCents,
+          paymentReference: reference || existing.paymentReference,
+        },
+      })
+      if (claimed.count !== 1) return 'Somebody else has just decided that one. Reload the page.'
+      paymentId = existing.id
+    } else {
+      const created = await tx.feePayment.create({
+        data: {
+          orgId: org.id,
+          termId: term.id,
+          memberId: member.id,
+          tier: fee.tier,
+          amountCents: fee.amountCents,
+          source: 'RECORDED',
+          paymentReference: reference || null,
+          ...confirmed,
+        },
+        select: { id: true },
+      })
+      paymentId = created.id
+    }
+
+    await writeAudit(
+      {
+        orgId: org.id,
+        actorId: userId,
+        action: 'fee.record',
+        targetType: 'FeePayment',
+        targetId: paymentId,
+        before: { status: existing?.status ?? null },
+        after: {
+          status: 'CONFIRMED',
+          tier: fee.tier,
+          amountCents: fee.amountCents,
+          route,
+          routeReason,
+          reference: reference || null,
+        },
+      },
+      tx
+    )
+    return null
+  }).catch((error) => {
+    if (isDuplicateClosure(error)) return 'Somebody else has just recorded that one. Reload the page.'
+    throw error
+  })
+
+  if (problem) return { error: problem }
+  revalidatePath(`/${orgSlug}/fees`)
+  revalidatePath(`/${orgSlug}/fees/collection`)
+  revalidatePath(`/${orgSlug}/dashboard`)
+  return { error: null, ok: true }
+}
+
+/**
+ * Take back a decision about a payment, while the collection is still open.
+ *
+ * A member's own declaration goes back to waiting, screenshot and all, so the
+ * evidence is not lost with the mistake. A payment the exco recorded off the
+ * statement had no existence apart from that record, so it goes. Either way
+ * the audit log keeps what was there.
+ */
+export async function undoPayment(orgSlug: string, paymentId: string): Promise<FeeState> {
+  const { org } = await getOrgContext(orgSlug)
+  const { userId } = await requirePermission(org.id, 'fee.manage')
+
+  const problem = await dbAs(userId, async (tx) => {
+    const target = await tx.feePayment.findFirst({
+      where: { id: paymentId, orgId: org.id },
+      select: { termId: true },
+    })
+    if (target) await lockTermFees(tx, target.termId)
+    const payment = await tx.feePayment.findFirst({
+      where: { id: paymentId, orgId: org.id },
+      select: {
+        id: true,
+        status: true,
+        source: true,
+        amountCents: true,
+        route: true,
+        term: { select: { closedAt: true } },
+      },
+    })
+    if (!payment) return 'That payment no longer exists.'
+    if (payment.term.closedAt) return 'That collection is closed and banked. Its payments are fixed.'
+    if (payment.status === 'DECLARED') return null
+
+    if (payment.source === 'RECORDED') {
+      await tx.feePayment.deleteMany({ where: { id: payment.id, status: payment.status } })
+    } else {
+      const reverted = await tx.feePayment.updateMany({
+        where: { id: payment.id, status: payment.status },
+        data: {
+          status: 'DECLARED',
+          confirmedAt: null,
+          confirmedByUserId: null,
+          rejectedReason: null,
+          route: 'OFFICIAL',
+          routeReason: null,
+        },
+      })
+      if (reverted.count !== 1) return 'Somebody else has just changed that one. Reload the page.'
+    }
+
+    await writeAudit(
+      {
+        orgId: org.id,
+        actorId: userId,
+        action: 'fee.undo',
+        targetType: 'FeePayment',
+        targetId: payment.id,
+        before: { status: payment.status, source: payment.source, amountCents: payment.amountCents, route: payment.route },
+        after: { status: payment.source === 'RECORDED' ? null : 'DECLARED' },
+      },
+      tx
+    )
+    return null
+  })
+
+  if (problem) return { error: problem }
+  revalidatePath(`/${orgSlug}/fees`)
+  revalidatePath(`/${orgSlug}/fees/collection`)
+  revalidatePath(`/${orgSlug}/dashboard`)
   return { error: null, ok: true }
 }

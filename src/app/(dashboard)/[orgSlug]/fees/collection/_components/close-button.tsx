@@ -30,13 +30,8 @@ export function CloseButton({
           {state.error}
         </p>
       )}
-      <p className="max-w-[68ch] text-[13.5px] leading-relaxed text-text-muted">
-        Closing allocates the next INC reference and derives the GST from {bankable} &mdash; the
-        sum of what was actually confirmed on the official route, never a figure anybody types.
-        The form is then due at OSL within one working day of the final collection date.
-      </p>
       <Button type="submit" loading={pending}>
-        Close the collection and raise the deposit form
+        Close the collection and bank {bankable}
       </Button>
     </form>
   )

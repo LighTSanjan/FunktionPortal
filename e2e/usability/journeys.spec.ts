@@ -125,11 +125,32 @@ test('the treasurer raises last month from the home screen, reads it and signs i
 
 test('the treasurer puts this term’s PayNow QR up', async () => {
   const page = await treasurer.newPage()
-  await visit(page, `/${ORG}/fees/collection`)
+  await visit(page, `/${ORG}/fees/collection?tab=setup`)
   const png = Buffer.from(makePng(400, 400))
   await page.locator('input[name="qr"]').setInputFiles({ name: 'qr.png', mimeType: 'image/png', buffer: png })
   await page.getByRole('button', { name: 'Put the QR up' }).click()
   await expect(page.getByText('Saved. Members see it now.')).toBeVisible()
+})
+
+test('the treasurer puts Ben on half a term and records his payment off the bank statement', async () => {
+  const page = await treasurer.newPage()
+  await visit(page, `/${ORG}/fees/collection`)
+  await expect(page.getByRole('link', { name: 'Membership fees' }).first()).toBeVisible()
+
+  const ben = page.getByRole('listitem').filter({ hasText: 'Ben Ong' })
+  await ben.getByRole('button', { name: /Full term/ }).click()
+  await ben.locator('label', { hasText: 'Half term' }).click()
+  await ben.getByRole('button', { name: 'Save fee' }).click()
+  await expect(ben.getByRole('button', { name: 'Save fee' })).toHaveCount(0)
+  await expect(ben.getByRole('button', { name: /\$35\.00 · Half term/ })).toBeVisible()
+
+  await ben.getByRole('button', { name: 'Record payment' }).click()
+  await ben.getByLabel(/Reference on the bank statement/).fill('DBS 1234 BEN')
+  await ben.getByRole('button', { name: 'Save payment' }).click()
+  await expect(ben.getByText('Paid', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: /Paid/ }).first().click()
+  await expect(page.getByRole('listitem').filter({ hasText: 'Ada Lee' })).toHaveCount(0)
 })
 
 test('somebody with no SUTD address and no invitation gets no code and no account', async () => {
@@ -160,7 +181,7 @@ test('the invited member signs in and says which student they are', async () => 
   await expect(page.getByText('Tell the club your student ID')).toBeVisible()
   await page.getByRole('link', { name: 'Give your student ID' }).click()
   await page.waitForURL(new RegExp(`/${ORG}/fees$`))
-  await expect(page.getByText('not matched to the roster yet')).toBeVisible()
+  await expect(page.getByText('can’t find you on the club roster yet')).toBeVisible()
 
   await page.getByPlaceholder(/Student ID/).fill(MEMBER.studentId)
   await page.getByRole('button', { name: 'Send' }).click()

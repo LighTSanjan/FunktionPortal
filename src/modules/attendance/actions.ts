@@ -11,6 +11,7 @@ import { writeAudit } from '@/core/audit'
 import { parseCsv } from './csv'
 import { parseAttendanceSheet, SheetFormatError, type ParsedSheet } from './parse'
 import { applyParsedSheet, type DateOverride } from './apply'
+import { linkRosterToAccounts } from '@/core/auth/roster-link'
 
 export interface ActionState {
   error: string | null
@@ -241,8 +242,16 @@ export async function applyImport(
     return { error: message }
   }
 
+  // New rows can belong to people who signed in before the sheet had them.
+  // Outside the import's transaction: a link that fails is one the exco can
+  // still make by hand, and must not undo a whole trimester's attendance.
+  await linkRosterToAccounts(org.id, userId).catch((error) => {
+    console.error('[attendance] linking accounts to the roster failed', error)
+  })
+
   revalidatePath(`/${orgSlug}/settings/attendance/${importId}`)
   revalidatePath(`/${orgSlug}/sessions`)
+  revalidatePath(`/${orgSlug}/fees/collection`)
   revalidatePath(`/${orgSlug}/dashboard`)
   return { error: null, ok: true }
 }

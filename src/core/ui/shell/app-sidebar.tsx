@@ -52,8 +52,8 @@ function subscribe(callback: () => void): () => void {
 }
 
 /**
- * Prefix matching, with one exception: "Your subscription" is /fees and the
- * exco's "Subscriptions" is /fees/collection, so a plain prefix test lights
+ * Prefix matching, with one exception: "Your membership fee" is /fees and the
+ * exco's "Membership fees" is /fees/collection, so a plain prefix test lights
  * both when you are on the collection screen.
  */
 function isActive(pathname: string, href: string, orgSlug: string): boolean {

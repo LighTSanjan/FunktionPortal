@@ -7,7 +7,7 @@ describe('navigation', () => {
       resolveNavGroups('EXCO').map((group) => [group.label, group.entries.map((e) => e.label)])
     ).toEqual([
       [null, ['Home']],
-      ['Work', ['Coach payments', 'Subscriptions']],
+      ['Work', ['Coach payments', 'Membership fees']],
       ['Records', ['Classes', 'Transactions', 'Coaches']],
       ['You', ['Your access']],
     ])
@@ -18,23 +18,23 @@ describe('navigation', () => {
   })
 
   it('shows members only sections they may open', () => {
-    // Their own subscription and their own access request. Everything else in
+    // Their own membership fee and their own access request. Everything else in
     // the portal reads the roster, the fund balances or the register.
     expect(resolveNav('MEMBER').map((entry) => entry.label)).toEqual([
       'Home',
-      'Your subscription',
+      'Your membership fee',
       'Your access',
     ])
   })
 
-  it('does not offer the exco both subscription screens', () => {
-    // "Subscriptions" is the collection they run; "Your subscription" is the
+  it('does not offer the exco both membership fee screens', () => {
+    // "Membership fees" is the collection they run; "Your membership fee" is the
     // one they owe. Two entries a word apart, pointing at different screens,
     // is the sort of thing that makes somebody click the wrong one twice and
     // stop trusting the sidebar.
     const labels = resolveNav('EXCO').map((entry) => entry.label)
-    expect(labels).toContain('Subscriptions')
-    expect(labels).not.toContain('Your subscription')
+    expect(labels).toContain('Membership fees')
+    expect(labels).not.toContain('Your membership fee')
   })
 
   it('keeps the attendance import out of the sidebar', () => {

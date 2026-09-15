@@ -6,7 +6,7 @@ import { hasPermission } from '@/core/permissions'
  * What the sidebar offers, grouped by what somebody came to do.
  *
  * It used to be a flat list of seven: Your access, Register, Instructors,
- * Classes, Attendance import, Subscription, Monthly run. That is the schema,
+ * Classes, Attendance import, Membership fee, Monthly run. That is the schema,
  * not the job. A treasurer arrives thinking "the coaches need paying for
  * August", which is the monthly run, the classes and the import — three
  * entries of equal weight with nothing to say they belong together, and no
@@ -42,16 +42,16 @@ const GROUPS: readonly { label: string | null; entries: readonly NavEntry[] }[] 
         hint: 'Raise, sign, send',
       },
       {
-        label: 'Subscriptions',
+        label: 'Membership fees',
         href: '/fees/collection',
         icon: 'Wallet',
         permission: 'fee.manage',
-        hint: 'Collect and reconcile',
+        hint: 'Who has paid',
       },
       {
-        // The member's own subscription. Same word, different job, and only
-        // one of the two is ever shown to any given person.
-        label: 'Your subscription',
+        // The member's own fee. Same word, different job, and only one of the
+        // two is ever shown to any given person.
+        label: 'Your membership fee',
         href: '/fees',
         icon: 'Wallet',
         permission: 'fee.declare',
@@ -97,7 +97,7 @@ const GROUPS: readonly { label: string | null; entries: readonly NavEntry[] }[] 
 ]
 
 /**
- * The exco see "Subscriptions"; a member sees "Your subscription". Offering
+ * The exco see "Membership fees"; a member sees "Your membership fee". Offering
  * both to somebody who holds both permissions would be two entries pointing
  * at the same word.
  */
@@ -108,7 +108,7 @@ function suppressDuplicate(role: OrgRole, entries: NavEntry[]): NavEntry[] {
 
 /**
  * Below this, headings cost more than they give: an ordinary member sees
- * Home, their subscription and their access request, and three headings over
+ * Home, their membership fee and their access request, and three headings over
  * three items is a filing system for a drawer with three things in it.
  */
 const GROUPING_WORTHWHILE = 4

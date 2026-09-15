@@ -43,7 +43,7 @@ export default async function ScreensPage({ params }: { params: Promise<{ orgSlu
       blurb: 'You see these with exco extras. Sign in as a member in a private window to see exactly what they get.',
       screens: [
         { label: 'Home', href: `${base}/dashboard` },
-        { label: 'Your subscription', href: `${base}/fees` },
+        { label: 'Your membership fee', href: `${base}/fees` },
         { label: 'Ask for exco access', href: `${base}/access` },
         { label: 'Profile and signature', href: `${base}/settings/profile` },
       ],
@@ -66,10 +66,10 @@ export default async function ScreensPage({ params }: { params: Promise<{ orgSlu
       ],
     },
     {
-      title: 'Subscriptions and money',
+      title: 'Membership fees and money',
       blurb: 'The term’s collection and the club’s books.',
       screens: [
-        { label: 'Collection', href: `${base}/fees/collection` },
+        { label: 'Membership fees', href: `${base}/fees/collection` },
         { label: 'Collection summary', href: `${base}/fees/collection/summary` },
         { label: 'Income deposit form, print view', href: `${base}/fees/collection/deposit-form/print`, newTab: true },
         { label: 'Transaction register', href: `${base}/register` },

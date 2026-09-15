@@ -171,6 +171,7 @@ model Member {
   lastImport   AttendanceImport?   @relation(fields: [lastImportId], references: [id], onDelete: SetNull)
   attendance   SessionAttendance[]
   feePayments  FeePayment[]
+  feeArrangements FeeArrangement[]
   purchaseRequests PurchaseRequest[]
 
   /// Student ID is the only stable key the attendance sheets carry — names
@@ -532,6 +533,7 @@ model Term {
 
   organisation  Organisation       @relation(fields: [orgId], references: [id], onDelete: Cascade)
   feePayments   FeePayment[]
+  feeArrangements FeeArrangement[]
   incomeDeposit IncomeDeposit?
   attendanceImports AttendanceImport[]
 
@@ -559,6 +561,7 @@ model FeePayment {
   routeReason String?  @map("route_reason")
 
   status PaymentStatus @default(DECLARED)
+  source PaymentSource @default(DECLARATION)
 
   declaredAt       DateTime? @map("declared_at")
   declaredByUserId String?   @map("declared_by_user_id")
@@ -590,6 +593,34 @@ model FeePayment {
   @@unique([termId, memberId])
   @@index([orgId, status])
   @@map("fee_payments")
+}
+
+/// What one member is charged for one term, when the exco have said.
+///
+/// Without a row, the charge is read off the roster label — "1/2 term",
+/// "Confirmed; Exchange" — which is a guess at a hand-typed cell. A row is
+/// somebody deciding: half a term, waived, or a figure of their own.
+model FeeArrangement {
+  id       String  @id @default(cuid())
+  orgId    String  @map("org_id")
+  termId   String  @map("term_id")
+  memberId String  @map("member_id")
+  tier     FeeTier
+  /// Only for CUSTOM. Every other tier is priced from the term's rates, so a
+  /// rate corrected mid-collection reaches everybody on it.
+  amountCents Int?    @map("amount_cents")
+  note        String?
+  setById     String? @map("set_by_id")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  term         Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  setBy        User?        @relation(fields: [setById], references: [id], onDelete: SetNull)
+
+  @@unique([termId, memberId])
+  @@index([orgId])
+  @@map("fee_arrangements")
 }
 
 /// DBS Max Income Deposit Form. Due to Student Life within 1 working day of

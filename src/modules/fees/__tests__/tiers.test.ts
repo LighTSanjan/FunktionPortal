@@ -1,6 +1,6 @@
 /** Reading a hand-typed roster label as a fee tier. */
 import { describe, it, expect } from 'vitest'
-import { tierFor, amountForTier } from '../tiers'
+import { tierFor, amountForTier, resolveFee } from '../tiers'
 
 const RATES = { fullFeeCents: 70_00, halfFeeCents: 35_00, exchangeFeeCents: null }
 
@@ -77,5 +77,62 @@ describe('amountForTier', () => {
   it('falls back to the half rate for exchange, and prefers a stated one', () => {
     expect(amountForTier('EXCHANGE_DISCOUNT', RATES)).toBe(35_00)
     expect(amountForTier('EXCHANGE_DISCOUNT', { ...RATES, exchangeFeeCents: 20_00 })).toBe(20_00)
+  })
+})
+
+describe('resolveFee', () => {
+  const base = { payment: null, arrangement: null, rosterLabel: 'Confirmed', isActive: true, rates: RATES }
+
+  it('reads the roster when nobody has decided', () => {
+    expect(resolveFee({ ...base, rosterLabel: '1/2 term' })).toMatchObject({
+      tier: 'HALF',
+      amountCents: 35_00,
+      source: 'roster',
+      charged: true,
+    })
+  })
+
+  it('lets the exco put somebody on a lesser fee, whatever the roster says', () => {
+    const fee = resolveFee({ ...base, arrangement: { tier: 'CUSTOM', amountCents: 20_00 } })
+    expect(fee).toMatchObject({ tier: 'CUSTOM', amountCents: 20_00, source: 'exco', certain: true })
+    expect(resolveFee({ ...base, arrangement: { tier: 'WAIVED', amountCents: null } }).amountCents).toBe(0)
+  })
+
+  it('clears the doubt a hedged label raises once the exco decide', () => {
+    expect(resolveFee({ ...base, rosterLabel: 'May come back?' }).certain).toBe(false)
+    expect(
+      resolveFee({ ...base, rosterLabel: 'May come back?', arrangement: { tier: 'HALF', amountCents: null } }).certain
+    ).toBe(true)
+  })
+
+  it('prices an exco-set tier from the rates, so a corrected rate reaches them', () => {
+    const fee = resolveFee({
+      ...base,
+      arrangement: { tier: 'HALF', amountCents: null },
+      rates: { ...RATES, halfFeeCents: 40_00 },
+    })
+    expect(fee.amountCents).toBe(40_00)
+  })
+
+  it('charges somebody who has left only if the exco say so', () => {
+    expect(resolveFee({ ...base, rosterLabel: 'Graduated' }).charged).toBe(false)
+    expect(resolveFee({ ...base, isActive: false }).charged).toBe(false)
+    expect(
+      resolveFee({ ...base, rosterLabel: 'Graduated', arrangement: { tier: 'FULL', amountCents: null } }).charged
+    ).toBe(true)
+  })
+
+  it('never reprices what was paid', () => {
+    const fee = resolveFee({
+      ...base,
+      payment: { tier: 'FULL', amountCents: 60_00 },
+      arrangement: { tier: 'HALF', amountCents: null },
+    })
+    expect(fee).toMatchObject({ tier: 'FULL', amountCents: 60_00, source: 'payment' })
+  })
+
+  it('prices a custom amount from the arrangement', () => {
+    expect(amountForTier('CUSTOM', RATES, 12_50)).toBe(12_50)
+    expect(amountForTier('CUSTOM', RATES)).toBe(0)
   })
 })

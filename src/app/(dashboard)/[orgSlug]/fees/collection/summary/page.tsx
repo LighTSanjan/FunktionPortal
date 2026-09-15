@@ -30,7 +30,7 @@ export default async function TermSummaryPage({
       <PageHeader
         breadcrumbItems={[
           { label: org.name, href: `/${orgSlug}/dashboard` },
-          { label: 'Subscription', href: `/${orgSlug}/fees` },
+          { label: 'Membership fees', href: `/${orgSlug}/fees/collection` },
           { label: data.termName, href: `/${orgSlug}/fees/collection?term=${termId}` },
           { label: 'Summary' },
         ]}

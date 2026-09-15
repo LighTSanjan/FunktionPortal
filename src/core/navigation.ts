@@ -5,7 +5,7 @@ export interface NavEntry {
   permission: string
   /**
    * Shown under the label in the sidebar for the two entries that are jobs
-   * rather than lists, because "Coach payments" and "Subscriptions" are the
+   * rather than lists, because "Coach payments" and "Membership fees" are the
    * only two things most visits are about and naming them is not enough.
    */
   hint?: string

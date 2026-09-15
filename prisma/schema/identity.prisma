@@ -59,6 +59,7 @@ model User {
   registerSyncsRequested RegisterSync[]
   attendanceImports     AttendanceImport[]
   settledCoachMonths    CoachMonthSettlement[]
+  feeArrangementsSet    FeeArrangement[]
 
   @@index([claimedStudentId])
   @@map("users")

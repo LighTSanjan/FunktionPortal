@@ -27,6 +27,7 @@ model Organisation {
   coachMonthSettlements CoachMonthSettlement[]
   terms              Term[]
   feePayments        FeePayment[]
+  feeArrangements    FeeArrangement[]
   incomeDeposits     IncomeDeposit[]
   purchaseRequests   PurchaseRequest[]
   fundAccounts       FundAccount[]

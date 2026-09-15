@@ -111,6 +111,16 @@ enum FeeTier {
   HALF
   EXCHANGE_DISCOUNT
   WAIVED
+  /// An amount the exco set by hand — somebody who joined halfway, say.
+  CUSTOM
+}
+
+/// How a payment reached the portal. A member saying they paid, with a
+/// screenshot, or an exco member recording it straight off the bank
+/// statement for somebody who never opened the portal.
+enum PaymentSource {
+  DECLARATION
+  RECORDED
 }
 
 /// Official = collected in the bulk term collection and banked in via an

@@ -138,7 +138,7 @@ export default async function DashboardPage({
       // so a step cannot claim to be done when it is not.
       isExco ? coachPaymentsWorkflow(userId, org.id, orgSlug, now) : Promise.resolve(null),
       isExco ? subscriptionWorkflow(userId, org.id, orgSlug, now) : Promise.resolve(null),
-      // Everybody's own subscription, exco included — they pay too.
+      // Everybody's own membership fee, exco included — they pay too.
       getOwnFee(userId, org.id, null),
       dbAs(userId, (tx) =>
         tx.user.findUnique({ where: { id: userId }, select: { claimedStudentId: true } })
@@ -174,7 +174,7 @@ export default async function DashboardPage({
       deadline: fund.submissionDeadline,
       note:
         fund.source === 'INCOME'
-          ? 'Subscriptions and donations. Rolls over.'
+          ? 'Membership fees and donations. Rolls over.'
           : fund.source === 'UNOFFICIAL'
             ? 'Held by the exco. No OSL invoice may be drawn on it.'
             : undefined,
@@ -246,10 +246,10 @@ export default async function DashboardPage({
     alerts.push({
       id: 'payments-declared',
       tone: 'todo',
-      title: `${data.declaredPayments} subscription payment${data.declaredPayments === 1 ? '' : 's'} to confirm`,
+      title: `${data.declaredPayments} membership fee payment${data.declaredPayments === 1 ? '' : 's'} to check`,
       detail:
-        'Members have declared payment and attached their PayNow confirmation. Confirming is an exco act.',
-      href: `/${orgSlug}/fees/collection`,
+        'Members say they have paid and attached their PayNow confirmation. Match each one to the bank statement.',
+      href: `/${orgSlug}/fees/collection?tab=check`,
     })
   }
 
@@ -351,7 +351,7 @@ export default async function DashboardPage({
         >
           <p className="text-[14px] font-medium text-text">No term has been opened yet</p>
           <p className="mt-1.5 max-w-[64ch] text-[13px] leading-relaxed text-text-muted">
-            Subscriptions are collected per term, and the attendance import reads a sheet against
+            Membership fees are collected per term, and the attendance import reads a sheet against
             one — its date headers carry no year. Neither can run until there is a term.
           </p>
           <Link

@@ -14,6 +14,7 @@ import { provisionUser } from '@/core/auth/provision'
 import { proofFromEmailCode, proofFromProviderSignIn } from '@/core/auth/proof'
 import { secureProvenAccount } from '@/core/auth/secure'
 import { takeAttempt } from '@/core/auth/throttle'
+import { linkRosterToAccounts } from '@/core/auth/roster-link'
 import { addRosterMember, createOrganisation, dbAdmin, resetDatabase, type TestOrg } from './harness'
 
 function supabaseUser(email: string, id: string = randomUUID()): SupabaseUser {
@@ -69,6 +70,43 @@ describe('provisioning an account', () => {
     // Signing in again proves nothing new, so nothing is reset twice.
     expect(await provisionUser(ada, CODE)).toEqual({ proven: true, newlyProven: false })
     expect(await provisionUser(ada, null)).toEqual({ proven: true, newlyProven: false })
+  })
+
+  it('links a student-ID address to the row carrying that ID, whatever email the roster has', async () => {
+    await addRosterMember(org, { fullName: 'Kai Named', studentId: '1009153', email: 'kai_named@mymail.sutd.edu.sg' })
+    const kai = supabaseUser('1009153@mymail.sutd.edu.sg')
+    await provisionUser(kai, CODE)
+    expect((await dbAdmin.member.findFirstOrThrow({ where: { studentId: '1009153' } })).userId).toBe(kai.id)
+    const audit = await dbAdmin.auditLog.findFirst({ where: { action: 'member.link_account_auto', actorId: kai.id } })
+    expect(audit?.after).toMatchObject({ rule: 'student_id' })
+  })
+
+  it('does not link a student-ID address nobody has proven', async () => {
+    await addRosterMember(org, { fullName: 'Kai Named', studentId: '1009153' })
+    const impostor = supabaseUser('1009153@mymail.sutd.edu.sg')
+    await provisionUser(impostor, null)
+    expect((await dbAdmin.member.findFirstOrThrow({ where: { studentId: '1009153' } })).userId).toBeNull()
+  })
+
+  it('links people who signed in before the import put them on the roster', async () => {
+    const early = supabaseUser('1002222@mymail.sutd.edu.sg')
+    await provisionUser(early, CODE)
+    expect(await dbAdmin.member.findFirst({ where: { userId: early.id } })).toBeNull()
+
+    // The next attendance import brings their row in.
+    await addRosterMember(org, { fullName: 'Early Bird', studentId: '1002222' })
+    expect(await linkRosterToAccounts(org.id, early.id)).toBe(1)
+    expect((await dbAdmin.member.findFirstOrThrow({ where: { studentId: '1002222' } })).userId).toBe(early.id)
+  })
+
+  it('links nobody to a row two proven accounts both match', async () => {
+    const byId = supabaseUser('1003333@mymail.sutd.edu.sg')
+    const byEmail = supabaseUser('cy_tan@mymail.sutd.edu.sg')
+    await provisionUser(byId, CODE)
+    await provisionUser(byEmail, CODE)
+    await addRosterMember(org, { fullName: 'Cy Tan', studentId: '1003333', email: 'cy_tan@mymail.sutd.edu.sg' })
+    expect(await linkRosterToAccounts(org.id, byId.id)).toBe(0)
+    expect((await dbAdmin.member.findFirstOrThrow({ where: { studentId: '1003333' } })).userId).toBeNull()
   })
 
   it('does not let a proven address from anywhere else join by itself', async () => {

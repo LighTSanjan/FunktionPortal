@@ -8,11 +8,18 @@ import { Badge } from '@/core/ui/badge'
 import { getOwnFee } from '@/modules/fees/queries'
 import { TIER_LABEL } from '@/modules/fees/tiers'
 import { formatSgd } from '@/modules/coach-claim/money'
-import { DeclareForm } from './_components/declare-form'
 import { ClaimForm } from './_components/claim-form'
+import { PayPanel } from './_components/pay-panel'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * A member's own membership fee.
+ *
+ * One card that says what they owe and where it stands, and one thing to do
+ * next. Most of what the old page explained — why a declaration is not a
+ * confirmation — is the exco's concern, not the payer's.
+ */
 export default async function FeesPage({
   params,
 }: {
@@ -33,22 +40,28 @@ export default async function FeesPage({
       )?.claimedStudentId ?? null)
   const canManage = hasPermission(membership.role, 'fee.manage')
 
+  // Already a local calendar date (fromDateColumn); read in UTC it is the day before.
+  const due = fee.term?.finalCollectionAt?.toLocaleDateString('en-SG', {
+    day: 'numeric',
+    month: 'long',
+  })
+  const status = fee.payment?.status ?? null
+
   return (
-    <div className="mx-auto max-w-[720px] space-y-5">
+    <div className="mx-auto max-w-[640px] space-y-5">
       <PageHeader
         breadcrumbItems={[
           { label: org.name, href: `/${orgSlug}/dashboard` },
-          { label: 'Subscription' },
+          { label: 'Your membership fee' },
         ]}
-        title="Your subscription"
-        subtitle="Pay by PayNow, then tell the portal. An exco member checks it against the bank statement — saying you paid and being recorded as having paid are deliberately two different things."
+        title="Your membership fee"
         actions={
           canManage ? (
             <Link
               href={`/${orgSlug}/fees/collection`}
               className="lapis-press inline-flex h-9 items-center rounded-[var(--radius-sm)] border border-border bg-surface px-3.5 text-[13px] font-medium text-text hover:bg-surface-hover"
             >
-              The collection
+              Everyone&rsquo;s fees
             </Link>
           ) : undefined
         }
@@ -56,13 +69,13 @@ export default async function FeesPage({
 
       {!fee.member && (
         <Card>
-          <CardContent className="space-y-4 py-8 text-center">
+          <CardContent className="space-y-4 py-7">
             <div className="space-y-2">
-              <p className="font-medium">Your account is not matched to the roster yet</p>
-              <p className="mx-auto max-w-[52ch] text-[13px] leading-relaxed text-text-muted">
-                The roster comes from the club&rsquo;s attendance sheet, where everybody is
-                identified by student ID. Until your account is matched to your row, the portal
-                cannot tell what you owe.
+              <p className="text-[15px] font-semibold">We can&rsquo;t find you on the club roster yet</p>
+              <p className="max-w-[56ch] text-[13px] leading-relaxed text-text-muted">
+                The quickest fix: sign out and sign in with your student-ID email, like{' '}
+                <span className="font-mono text-text">1001234@mymail.sutd.edu.sg</span>. You&rsquo;ll be
+                matched straight away. Or tell us your student ID and an exco member will match you.
               </p>
             </div>
             <ClaimForm orgSlug={orgSlug} claimed={claimedStudentId} />
@@ -72,154 +85,100 @@ export default async function FeesPage({
 
       {fee.member && !fee.term && (
         <Card>
-          <CardContent className="space-y-2 py-8 text-center">
-            <p className="font-medium">No term is open</p>
-            <p className="mx-auto max-w-[52ch] text-[13px] leading-relaxed text-text-muted">
-              There is nothing to collect until the exco open one.
-            </p>
+          <CardContent className="space-y-1 py-8 text-center">
+            <p className="font-medium">Nothing to pay right now</p>
+            <p className="text-[13px] text-text-muted">The exco haven&rsquo;t opened a term&rsquo;s collection yet.</p>
           </CardContent>
         </Card>
       )}
 
-      {fee.member && fee.term && fee.owesNothing && (
+      {fee.member && fee.term && (
         <Card>
-          <CardContent className="space-y-2 py-8 text-center">
-            <p className="font-medium">Nothing to pay</p>
-            <p className="mx-auto max-w-[52ch] text-[13px] leading-relaxed text-text-muted">
-              The roster has you as having left the club, so no subscription is due for{' '}
-              {fee.term.name}. If that is wrong, ask an exco member to put the roster right and
-              this page will follow.
-            </p>
+          <CardContent className="space-y-5 py-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-subtle">
+                  {fee.term.name}
+                </p>
+                {fee.owesNothing ? (
+                  <p className="mt-1.5 text-[22px] font-semibold leading-tight">Nothing to pay</p>
+                ) : (
+                  <>
+                    <p className="mt-1.5 text-[30px] font-semibold leading-none tabular-nums">
+                      {formatSgd(fee.amountCents)}
+                    </p>
+                    <p className="mt-1.5 text-[12.5px] text-text-muted">
+                      {TIER_LABEL[fee.tier]}
+                      {due && status !== 'CONFIRMED' && ` · please pay by ${due}`}
+                    </p>
+                  </>
+                )}
+              </div>
+              {!fee.owesNothing && <StatusBadge status={status} />}
+            </div>
+
+            {fee.owesNothing && (
+              <p className="text-[13px] leading-relaxed text-text-muted">
+                {fee.tier === 'WAIVED'
+                  ? `Your fee for ${fee.term.name} has been waived.`
+                  : `The roster has you as not taking part in ${fee.term.name}. If that's wrong, let an exco member know.`}
+              </p>
+            )}
+
+            {status === 'CONFIRMED' && (
+              <p className="rounded-[var(--radius-sm)] border border-success/20 bg-success/8 p-3 text-[13px] leading-relaxed">
+                Paid, thank you!
+                {fee.payment?.confirmedAt &&
+                  ` Recorded on ${fee.payment.confirmedAt.toLocaleDateString('en-SG', { day: 'numeric', month: 'long' })}.`}{' '}
+                See you next session!
+              </p>
+            )}
+
+            {status === 'DECLARED' && (
+              <p className="rounded-[var(--radius-sm)] border border-warning/25 bg-warning/8 p-3 text-[13px] leading-relaxed">
+                Got it. An exco member will match your payment to the bank statement, and this changes to
+                Paid once they have.
+              </p>
+            )}
+
+            {status === 'REJECTED' && (
+              <p className="rounded-[var(--radius-sm)] border border-danger/20 bg-danger/8 p-3 text-[13px] leading-relaxed">
+                The exco couldn&rsquo;t match your payment:{' '}
+                <strong className="font-semibold">{fee.payment?.rejectedReason}</strong>. Once it&rsquo;s sorted,
+                send it again below.
+              </p>
+            )}
+
+            {!fee.owesNothing && status !== 'CONFIRMED' && status !== 'DECLARED' && fee.term.closed && (
+              <p className="text-[13px] leading-relaxed text-text-muted">
+                This term&rsquo;s collection has closed. Please speak to the treasurer.
+              </p>
+            )}
+
+            {!fee.owesNothing && status !== 'CONFIRMED' && status !== 'DECLARED' && !fee.term.closed && (
+              <PayPanel
+                orgSlug={orgSlug}
+                termId={fee.term.id}
+                termName={fee.term.name}
+                amount={formatSgd(fee.amountCents)}
+                hasQr={fee.term.hasPaynowQr}
+                redeclaring={fee.payment !== null}
+              />
+            )}
           </CardContent>
         </Card>
       )}
 
-      {fee.member && fee.term && !fee.owesNothing && (
-        <>
-          <Card>
-            <CardContent className="space-y-4 py-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-subtle">
-                    {fee.term.name}
-                  </p>
-                  <p className="mt-1.5 text-[24px] font-semibold leading-none tabular-nums">
-                    {formatSgd(fee.amountCents)}
-                  </p>
-                  <p className="mt-1.5 text-[12.5px] text-text-muted">
-                    {TIER_LABEL[fee.tier]}
-                    {fee.term.finalCollectionAt && (
-                      <>
-                        {' · due by '}
-                        {fee.term.finalCollectionAt.toLocaleDateString('en-SG', {
-                          day: 'numeric',
-                          month: 'long',
-                          timeZone: 'UTC',
-                        })}
-                      </>
-                    )}
-                  </p>
-                </div>
-                <StatusBadge status={fee.payment?.status ?? null} />
-              </div>
-
-              {fee.payment?.status === 'CONFIRMED' && (
-                <p className="text-[13px] leading-relaxed text-text-muted">
-                  Confirmed against the bank statement
-                  {fee.payment.confirmedAt
-                    ? ` on ${fee.payment.confirmedAt.toLocaleDateString('en-SG', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                      })}`
-                    : ''}
-                  . Nothing more to do.
-                </p>
-              )}
-
-              {fee.payment?.status === 'DECLARED' && (
-                <p className="text-[13px] leading-relaxed text-text-muted">
-                  Sent. The exco reconcile declarations against the bank statement, usually once
-                  the collection closes. Reference{' '}
-                  <span className="font-mono text-[12.5px]">{fee.payment.paymentReference}</span>.
-                </p>
-              )}
-
-              {fee.payment?.status === 'REJECTED' && (
-                <p className="rounded-[var(--radius-sm)] border border-danger/20 bg-danger/8 p-3 text-[13px] leading-relaxed">
-                  The exco could not match that against the statement:{' '}
-                  <strong className="font-semibold">{fee.payment.rejectedReason}</strong>. Declare
-                  it again below once it is sorted.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {fee.term.closed ? (
-            <Card>
-              <CardContent className="py-5 text-[13px] leading-relaxed text-text-muted">
-                This collection has been closed and banked in, so the portal cannot take a new
-                declaration for it. Speak to the treasurer.
-              </CardContent>
-            </Card>
-          ) : (
-            fee.payment?.status !== 'CONFIRMED' && (
-              <>
-                <Card>
-                  <CardContent className="space-y-3 py-5">
-                    <p className="text-[14px] font-semibold">Pay by PayNow</p>
-                    {fee.term.hasPaynowQr ? (
-                      <>
-                        {/* Streamed by a route that re-checks membership, and
-                            never cached: a QR replaced mid-collection must not
-                            keep resolving to the superseded code.
-                            eslint-disable-next-line @next/next/no-img-element */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={`/${orgSlug}/fees/qr/${fee.term.id}`}
-                          alt={`PayNow QR for the ${fee.term.name} subscription`}
-                          className="max-h-[240px] rounded-[var(--radius-sm)] border border-border bg-white p-2"
-                        />
-                        <p className="max-w-[62ch] text-[12.5px] leading-relaxed text-text-muted">
-                          Transfer {formatSgd(fee.amountCents)} exactly. A different amount is one
-                          the exco cannot match to you without asking.
-                        </p>
-                      </>
-                    ) : (
-                      // A blank space where a QR should be is a member who
-                      // cannot tell whether the club has not put it up or
-                      // their own browser has failed. Say which.
-                      <p className="max-w-[62ch] text-[12.5px] leading-relaxed text-text-muted">
-                        The QR for this collection is not up yet — a new one is generated for
-                        each term. Ask the treasurer for it, and do not reuse last term&rsquo;s:
-                        it collects into an account nobody is reconciling against this roster.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="py-6">
-                    <DeclareForm
-                      orgSlug={orgSlug}
-                      termId={fee.term.id}
-                      amount={formatSgd(fee.amountCents)}
-                      redeclaring={fee.payment !== null}
-                    />
-                  </CardContent>
-                </Card>
-              </>
-            )
-          )}
-        </>
-      )}
+      <p className="text-center text-[12px] text-text-subtle">
+        FUNKtion - SUTD&rsquo;s Ultimate Popping &amp; Locking Dance Club!
+      </p>
     </div>
   )
 }
 
 function StatusBadge({ status }: { status: string | null }) {
-  if (status === 'CONFIRMED') return <Badge variant="success">Confirmed</Badge>
-  if (status === 'DECLARED') return <Badge variant="warning">Waiting on the exco</Badge>
-  if (status === 'REJECTED') return <Badge variant="danger">Not matched</Badge>
+  if (status === 'CONFIRMED') return <Badge variant="success">Paid</Badge>
+  if (status === 'DECLARED') return <Badge variant="warning">Being checked</Badge>
+  if (status === 'REJECTED') return <Badge variant="danger">Couldn&rsquo;t match</Badge>
   return <Badge variant="neutral">Not paid</Badge>
 }

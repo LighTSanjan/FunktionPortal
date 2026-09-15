@@ -56,8 +56,10 @@ export async function subscriptionWorkflow(
   ])
 
   const href = `/${orgSlug}/fees/collection?term=${term.id}`
+  const tabHref = (tab: string) => `${href}&tab=${tab}`
   const owing = rows.filter((row) => row.amountCents > 0)
   const declared = owing.filter((row) => row.status !== null)
+  const paid = owing.filter((row) => row.status === 'CONFIRMED')
   const toCheck = owing.filter((row) => row.status === 'DECLARED')
   const decided = owing.filter((row) => row.status === 'CONFIRMED' || row.status === 'REJECTED')
   // A refused declaration is checked, but it is not money. The member has to
@@ -104,22 +106,26 @@ export async function subscriptionWorkflow(
       label: 'Rates and dates',
       complete: ratesSet,
       note: ratesSet ? undefined : 'OSL need two weeks’ notice before a collection opens.',
-      action: { label: 'Set the rates and the dates', href },
+      href: tabHref('setup'),
+      action: { label: 'Set the rates and the dates', href: tabHref('setup') },
     },
     {
       key: 'qr',
       label: 'PayNow QR up',
       complete: term.hasPaynowQr,
       note: term.hasPaynowQr ? undefined : 'Members can see what they owe and cannot pay it.',
-      action: { label: 'Put this term’s QR up', href },
+      href: tabHref('setup'),
+      action: { label: 'Put this term’s QR up', href: tabHref('setup') },
     },
     {
       key: 'declared',
-      label: 'Members declared',
+      label: 'Members paid',
+      // Done once everybody has something against their name — paid, said
+      // they paid, or been refused. Refused still owe; the close step says so.
       complete: owing.length > 0 && declared.length >= owing.length,
-      detail: owing.length > 0 ? count(declared.length, owing.length) : undefined,
-      // Deliberately no action. Chasing forty-five people is not a button,
-      // and the step below it is the one the treasurer can actually move.
+      detail: owing.length > 0 ? count(paid.length, owing.length) : undefined,
+      // Deliberately no action. Chasing forty-five people is not a button;
+      // recording what the statement shows is done from the list itself.
     },
     {
       key: 'check',
@@ -127,11 +133,12 @@ export async function subscriptionWorkflow(
       complete: declared.length > 0 && decided.length >= declared.length,
       detail: declared.length > 0 ? count(decided.length, declared.length) : undefined,
       note: toCheck.length > 0 ? 'Nobody decides their own.' : undefined,
+      href: tabHref('check'),
       action:
         toCheck.length > 0
           ? {
               label: `Check ${toCheck.length} declaration${toCheck.length === 1 ? '' : 's'}`,
-              href,
+              href: tabHref('check'),
             }
           : undefined,
     },
@@ -144,14 +151,15 @@ export async function subscriptionWorkflow(
           ? `${unpaid.length} ${unpaid.length === 1 ? 'member has' : 'members have'} still not paid. Closing banks what has been confirmed and leaves them owing.`
           : undefined,
       noteWhenCurrent: true,
-      action: { label: 'Close the collection', href },
+      href: tabHref('close'),
+      action: { label: 'Close the collection', href: tabHref('close') },
     },
     {
       key: 'deposit',
       label: 'Deposit form filed',
       complete: filed,
-      href: term.closed ? `${href}#deposit` : href,
-      action: { label: 'Download and file the deposit form', href },
+      href: tabHref('close'),
+      action: { label: 'Download and file the deposit form', href: tabHref('close') },
     },
   ]
 
@@ -172,6 +180,16 @@ export async function subscriptionWorkflow(
     })
   }
 
+  // Waiting on members is not a reason to hide work the exco can do now.
+  if (next === null && !term.closed && toCheck.length > 0) {
+    next = { label: `Check ${toCheck.length} declaration${toCheck.length === 1 ? '' : 's'}`, href: tabHref('check') }
+  }
+  // Past the final collection, somebody who never paid is not going to, and
+  // the collection still has to be closed.
+  if (next === null && !term.closed && open && term.finalCollectionAt && term.finalCollectionAt < now) {
+    next = { label: 'Close the collection', href: tabHref('close') }
+  }
+
   // Which deadline is live depends on where the job is. Before closing, it is
   // the final collection date; after, the form is due one working day later.
   const dueAt = term.closed
@@ -184,7 +202,7 @@ export async function subscriptionWorkflow(
 
   return {
     id: 'subscription',
-    title: 'Subscription collection',
+    title: 'Membership fees',
     subject: term.name,
     href,
     steps,
@@ -210,9 +228,9 @@ export async function subscriptionWorkflow(
     if (open && owing.length === 0) {
       return 'Nobody on the roster is being charged for this term. Check the rates if that is wrong.'
     }
-    if (next === null && toCheck.length === 0 && declared.length < owing.length) {
-      const waiting = owing.length - declared.length
-      return `Waiting on ${waiting} member${waiting === 1 ? '' : 's'} to declare.`
+    if (next === null && toCheck.length === 0 && paid.length < owing.length) {
+      const waiting = owing.length - paid.length
+      return `Waiting on ${waiting} member${waiting === 1 ? '' : 's'} to pay.`
     }
     return null
   }

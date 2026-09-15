@@ -4,6 +4,7 @@ import type { User as SupabaseUser } from '@supabase/supabase-js'
 import { dbAdmin } from '@/core/db/admin'
 import type { EmailProof } from './proof'
 import { isAllowedDomain, normaliseEmail, pendingInvitation } from './eligibility'
+import { linkAccountToRoster } from './roster-link'
 
 export interface ProvisionResult {
   /** The address is proven for this account, now or from an earlier sign-in. */
@@ -83,56 +84,10 @@ export async function provisionUser(
 
   if (proven) {
     await joinClub(authUser.id, email)
-    await linkRosterMember(authUser.id, email)
+    await linkAccountToRoster(authUser.id, email)
   }
 
   return { proven, newlyProven: proven && !provenBefore }
-}
-
-/** Organisations this account actually belongs to. */
-async function activeOrgIds(userId: string): Promise<string[]> {
-  const memberships = await dbAdmin.organisationMembership.findMany({
-    where: { userId, isActive: true },
-    select: { orgId: true },
-  })
-  return memberships.map((row) => row.orgId)
-}
-
-/**
- * Attach a signed-in account to its roster row, by email.
- *
- * A User is somebody who can sign in; a Member is somebody on the club roster.
- * Most members never sign in, and some users are not on the roster at all, so
- * the two are separate — but a member opening the portal to pay their
- * subscription has to be recognised as themselves.
- *
- * Only ever called for a proven address. Where the roster has no email for
- * somebody, they claim their student ID instead and an exco member confirms
- * it. It is matched case-insensitively and only where exactly one unlinked row
- * carries it, so a shared or duplicated address links nobody and the exco is
- * left to sort it out.
- */
-async function linkRosterMember(userId: string, email: string): Promise<void> {
-  const already = await dbAdmin.member.findFirst({ where: { userId }, select: { id: true } })
-  if (already) return
-
-  // Only rosters this account belongs to. Searching every organisation would
-  // attach somebody to a club they have never joined.
-  const orgIds = await activeOrgIds(userId)
-  if (orgIds.length === 0) return
-
-  const candidates = await dbAdmin.member.findMany({
-    where: {
-      orgId: { in: orgIds },
-      email: { equals: email, mode: 'insensitive' },
-      userId: null,
-    },
-    select: { id: true },
-    take: 2,
-  })
-  if (candidates.length !== 1) return
-
-  await dbAdmin.member.update({ where: { id: candidates[0].id }, data: { userId } })
 }
 
 /**

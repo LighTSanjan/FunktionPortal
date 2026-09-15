@@ -72,7 +72,7 @@ export interface TermRates {
  * separate field so that a club charging exchange students something else can
  * say so rather than have it inferred here.
  */
-export function amountForTier(tier: FeeTier, rates: TermRates): number {
+export function amountForTier(tier: FeeTier, rates: TermRates, customCents?: number | null): number {
   switch (tier) {
     case 'FULL':
       return rates.fullFeeCents
@@ -82,6 +82,8 @@ export function amountForTier(tier: FeeTier, rates: TermRates): number {
       return rates.exchangeFeeCents ?? rates.halfFeeCents
     case 'WAIVED':
       return 0
+    case 'CUSTOM':
+      return customCents ?? 0
   }
 }
 
@@ -90,4 +92,73 @@ export const TIER_LABEL: Record<FeeTier, string> = {
   HALF: 'Half term',
   EXCHANGE_DISCOUNT: 'Exchange',
   WAIVED: 'Waived',
+  CUSTOM: 'Custom amount',
+}
+
+/** The order the exco are offered them in. */
+export const TIER_CHOICES: readonly FeeTier[] = ['FULL', 'HALF', 'EXCHANGE_DISCOUNT', 'CUSTOM', 'WAIVED']
+
+export interface ResolvedFee {
+  tier: FeeTier
+  amountCents: number
+  /** Whether a person has decided this, or the portal read it off the roster. */
+  source: 'payment' | 'exco' | 'roster'
+  /** False when the roster label was a guess nobody has confirmed. */
+  certain: boolean
+  because: string
+  /**
+   * Whether this member is charged for the term at all. False for somebody
+   * the roster has as having left, unless the exco set a fee or they paid.
+   */
+  charged: boolean
+}
+
+/**
+ * What one member owes for one term, and why.
+ *
+ * A payment fixes it: whatever was confirmed or declared is what was paid.
+ * Otherwise the exco's own decision, and only then the roster label — which
+ * is a hand-typed cell, read generously and flagged when unsure.
+ */
+export function resolveFee(input: {
+  payment: { tier: FeeTier; amountCents: number } | null
+  arrangement: { tier: FeeTier; amountCents: number | null } | null
+  rosterLabel: string | null
+  isActive: boolean
+  rates: TermRates
+}): ResolvedFee {
+  const { payment, arrangement, rosterLabel, isActive, rates } = input
+
+  if (payment) {
+    return {
+      tier: payment.tier,
+      amountCents: payment.amountCents,
+      source: 'payment',
+      certain: true,
+      because: 'what was paid',
+      charged: true,
+    }
+  }
+
+  if (arrangement) {
+    return {
+      tier: arrangement.tier,
+      amountCents: amountForTier(arrangement.tier, rates, arrangement.amountCents),
+      source: 'exco',
+      certain: true,
+      because: 'set by the exco',
+      charged: true,
+    }
+  }
+
+  const reading = tierFor(rosterLabel)
+  const tier = reading.tier ?? 'FULL'
+  return {
+    tier,
+    amountCents: amountForTier(tier, rates),
+    source: 'roster',
+    certain: reading.certain,
+    because: reading.because,
+    charged: reading.tier !== null && isActive,
+  }
 }
