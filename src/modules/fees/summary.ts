@@ -61,7 +61,7 @@ export async function buildTermSummary(
     unofficialCents: totals.confirmedCents - totals.bankableCents,
     outstandingCents: totals.owedCents,
     referenceNumber: deposit?.referenceNumber ?? undefined,
-    finalCollectionAt: term.finalCollectionAt ?? undefined,
+    finalCollectionAt: deposit?.finalCollectionAt ?? term.finalCollectionAt ?? undefined,
     branding: settings?.brandBandColors?.length
       ? { bandColors: settings.brandBandColors }
       : undefined,

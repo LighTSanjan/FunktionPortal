@@ -34,7 +34,7 @@ async function termNeedingWork(userId: string, orgId: string): Promise<TermRow |
 
   const unfiled = [...terms]
     .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
-    .find((term) => !term.closed || !term.filed)
+    .find((term) => !term.closed || !(term.filed || !term.hasDeposit))
 
   return unfiled ?? running ?? terms[0] ?? null
 }
@@ -69,8 +69,13 @@ export async function subscriptionWorkflow(
   // pay again, so they still owe — and a collection closed while they do is a
   // real decision, not a step that quietly completed itself.
   const unpaid = owing.filter((row) => row.status !== 'CONFIRMED')
+  const bankLabel = totals.bankableCents > 0 || toCheck.length > 0 ? 'Bank it in' : 'Close the collection'
 
-  const filed = term.filed
+  // Closed with nothing on the OSL route: no money was banked, so there is
+  // no deposit form to file and the job is over at closing.
+  const closed = term.closed
+  const nothingToFile = closed && !term.hasDeposit
+  const filed = term.filed || nothingToFile
 
   // Both collection dates, not just the final one. OSL want two weeks'
   // notice before a collection opens, which is a date the treasurer has to
@@ -107,16 +112,19 @@ export async function subscriptionWorkflow(
     {
       key: 'rates',
       label: 'Rates and dates',
-      complete: ratesSet,
-      note: ratesSet ? undefined : 'OSL need two weeks’ notice before a collection opens.',
+      // Everything before banking in is over once it is banked in: a term
+      // closed with no dates set used the day it closed, and nobody is going
+      // to put a QR up for a collection that has ended.
+      complete: closed || ratesSet,
+      note: ratesSet || closed ? undefined : 'OSL need two weeks’ notice before a collection opens.',
       href: tabHref('form'),
       action: { label: 'Set the rates and the dates', href: tabHref('form') },
     },
     {
       key: 'qr',
       label: 'PayNow QR up',
-      complete: term.hasPaynowQr,
-      note: term.hasPaynowQr ? undefined : 'Members can see what they owe and cannot pay it.',
+      complete: closed || term.hasPaynowQr,
+      note: term.hasPaynowQr || closed ? undefined : 'Members can see what they owe and cannot pay it.',
       href: tabHref('form'),
       action: { label: 'Put this term’s QR up', href: tabHref('form') },
     },
@@ -127,7 +135,7 @@ export async function subscriptionWorkflow(
       // deciding they have enough responses, not a step going undone.
       // So does money already coming in some other way.
       complete: form.openedAt !== null || term.closed || rows.some((row) => row.status !== null),
-      note: form.openedAt === null ? 'Members can’t fill it in until you open it.' : undefined,
+      note: form.openedAt === null && !closed ? 'Members can’t fill it in until you open it.' : undefined,
       href: tabHref('form'),
       action: { label: 'Open the membership form', href: tabHref('form') },
     },
@@ -136,15 +144,23 @@ export async function subscriptionWorkflow(
       label: 'Members paid',
       // Done once everybody has something against their name — paid, said
       // they paid, or been refused. Refused still owe; the close step says so.
-      complete: owing.length > 0 && declared.length >= owing.length,
+      // Or banked in: nobody can pay into a closed collection, so waiting on
+      // them is over and the step is not what stands between the treasurer
+      // and the deposit form. Who still owes stays in the note.
+      complete: term.closed || (owing.length > 0 && declared.length >= owing.length),
       detail: owing.length > 0 ? count(paid.length, owing.length) : undefined,
+      note:
+        term.closed && unpaid.length > 0
+          ? `${unpaid.length} still ${unpaid.length === 1 ? 'owes' : 'owe'}. The collection closed without them.`
+          : undefined,
       // Deliberately no action. Chasing forty-five people is not a button;
       // recording what the statement shows is done from the list itself.
     },
     {
       key: 'check',
       label: 'Checked against the statement',
-      complete: declared.length > 0 && decided.length >= declared.length,
+      // A collection cannot close with a payment undecided.
+      complete: term.closed || (declared.length > 0 && decided.length >= declared.length),
       detail: declared.length > 0 ? count(decided.length, declared.length) : undefined,
       note: toCheck.length > 0 ? 'Nobody decides their own.' : undefined,
       href: tabHref('payments', 'check'),
@@ -158,20 +174,22 @@ export async function subscriptionWorkflow(
     },
     {
       key: 'close',
-      label: 'Banked in',
+      label: nothingToFile ? 'Closed' : 'Banked in',
       complete: term.closed,
+      detail: nothingToFile ? 'Nothing through OSL' : undefined,
       note:
         !term.closed && unpaid.length > 0
-          ? `${unpaid.length} ${unpaid.length === 1 ? 'member has' : 'members have'} still not paid. Banking in takes what has been confirmed and leaves them owing.`
+          ? `${unpaid.length} ${unpaid.length === 1 ? 'member has' : 'members have'} still not paid. Closing takes what has been confirmed and leaves them owing.`
           : undefined,
       noteWhenCurrent: true,
       href: tabHref('deposit'),
-      action: { label: 'Bank it in', href: tabHref('deposit') },
+      action: { label: bankLabel, href: tabHref('deposit') },
     },
     {
       key: 'deposit',
       label: 'Deposit form filed',
       complete: filed,
+      detail: nothingToFile ? 'None needed' : undefined,
       href: tabHref('deposit'),
       action: { label: 'Download and file the deposit form', href: tabHref('deposit') },
     },
@@ -201,7 +219,7 @@ export async function subscriptionWorkflow(
   // Past the final collection, somebody who never paid is not going to, and
   // the collection still has to be closed.
   if (next === null && !term.closed && open && term.finalCollectionAt && term.finalCollectionAt < now) {
-    next = { label: 'Bank it in', href: tabHref('deposit') }
+    next = { label: bankLabel, href: tabHref('deposit') }
   }
 
   // Which deadline is live depends on where the job is. Before closing, it is
@@ -232,9 +250,10 @@ export async function subscriptionWorkflow(
     if (settled) {
       const stillOwing = unpaid.length
       const paid = `${totals.confirmed} member${totals.confirmed === 1 ? '' : 's'} paid`
+      const done = nothingToFile ? 'Closed, with nothing to bank through OSL.' : 'Filed with OSL.'
       return stillOwing > 0
-        ? `Filed with OSL. ${paid}; ${stillOwing} did not, and still owe.`
-        : `Filed with OSL. ${paid}.`
+        ? `${done} ${paid}; ${stillOwing} did not, and still owe.`
+        : `${done} ${paid}.`
     }
     // Nothing to collect at all: every roster row is charged nothing, which
     // happens when a rate is zero or everybody on the roster has left. Saying
@@ -242,7 +261,7 @@ export async function subscriptionWorkflow(
     if (open && owing.length === 0) {
       return 'Nobody on the roster is being charged for this term. Check the rates if that is wrong.'
     }
-    if (next === null && toCheck.length === 0 && paid.length < owing.length) {
+    if (!closed && next === null && toCheck.length === 0 && paid.length < owing.length) {
       const waiting = owing.length - paid.length
       return `Waiting on ${waiting} member${waiting === 1 ? '' : 's'} to pay.`
     }

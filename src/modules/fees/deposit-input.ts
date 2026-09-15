@@ -3,6 +3,7 @@ import 'server-only'
 import { dbAs } from '@/core/db'
 import { OFFICE_LABELS } from '@/core/access'
 import { NO_OFFICE } from '@/modules/coach-claim/documents'
+import { longDate } from '@/modules/coach-claim/theme'
 import { TIER_LABEL } from './tiers'
 import { listCollection, getTerm, getDeposit } from './queries'
 import { DEFAULT_GST_BASIS_POINTS } from './money'
@@ -85,7 +86,10 @@ export async function depositFormInput(
     referenceNumber: deposit.referenceNumber,
     organisationName: orgName,
     eventName: `${term.name} membership subscriptions`,
-    eventDate: printedDate(term.finalCollectionAt ?? term.endDate),
+    // The day the collection was banked in as, which is what the reference
+    // number and the due date were worked out from. A term with no final
+    // collection date was closed as of the day it was banked, not its end.
+    eventDate: longDate(deposit.finalCollectionAt ?? term.finalCollectionAt ?? term.endDate),
     description: `Membership subscriptions collected from members for ${term.name}`,
     wbsElement: deposit.wbsElement,
     lines: [...groups.values()].sort((a, b) => b.unitPriceCents - a.unitPriceCents),
@@ -99,13 +103,4 @@ export async function depositFormInput(
     },
     gstBasisPoints: settings?.gstBasisPoints ?? DEFAULT_GST_BASIS_POINTS,
   }
-}
-
-function printedDate(value: Date): string {
-  return value.toLocaleDateString('en-SG', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
 }

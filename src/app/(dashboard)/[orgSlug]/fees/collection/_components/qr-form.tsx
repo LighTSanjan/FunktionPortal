@@ -52,10 +52,14 @@ export function QrForm({
             />
             {uploadedAt && (
               <p className="text-[11.5px] text-text-subtle">
+                {/* Singapore time on both sides: the server and the browser
+                    otherwise disagree about the day, and React throws the
+                    server's render away over it. */}
                 Up since {uploadedAt.toLocaleDateString('en-SG', {
                   day: 'numeric',
                   month: 'short',
                   year: 'numeric',
+                  timeZone: 'Asia/Singapore',
                 })}
               </p>
             )}

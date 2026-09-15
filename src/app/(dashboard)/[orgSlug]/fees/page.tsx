@@ -5,14 +5,14 @@ import { hasPermission } from '@/core/permissions'
 import { studentIdFromEmail } from '@/core/auth/roster-match'
 import { PageHeader } from '@/core/ui/page-header'
 import { Badge } from '@/core/ui/badge'
-import { currentTerm, getTerm } from '@/modules/fees/queries'
+import { currentTerm, getTerm, listOwnTerms, type OwnTerm } from '@/modules/fees/queries'
 import { amountForTier, resolveFee, TIER_LABEL } from '@/modules/fees/tiers'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { formIsFor, getForm, getOwnResponse } from '@/modules/membership-form/queries'
 import { answerText } from '@/modules/membership-form/questions'
 import { MembershipForm, type MembershipFormProps } from './_components/membership-form'
 import { PayPanel } from './_components/pay-panel'
-import { Notice, linkButtonClass } from './_components/ui'
+import { Notice, linkButtonClass, pillClass } from './_components/ui'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,26 +40,36 @@ export default async function FeesPage({
   const canManage = hasPermission(membership.role, 'fee.manage')
   const preview = canManage && Boolean(query.preview)
 
-  const term = query.term ? await getTerm(userId, org.id, query.term) : await currentTerm(userId, org.id)
+  const [ownTerms, picked] = await Promise.all([
+    listOwnTerms(userId, org.id),
+    query.term ? getTerm(userId, org.id, query.term) : currentTerm(userId, org.id),
+  ])
+  // Between terms with nothing coming up, the last term they took part in
+  // rather than a blank page.
+  const fallback = !picked && !query.term && ownTerms[0] ? await getTerm(userId, org.id, ownTerms[0].id) : null
+  const term = picked ?? fallback
 
   const header = (
-    <PageHeader
-      breadcrumbItems={[
-        { label: org.name, href: `/${orgSlug}/dashboard` },
-        { label: 'Your membership fee' },
-      ]}
-      title="Your membership"
-      actions={
-        canManage ? (
-          <Link
-            href={`/${orgSlug}/fees/collection${term ? `?term=${term.id}` : ''}`}
-            className={linkButtonClass('secondary')}
-          >
-            Everyone&rsquo;s fees
-          </Link>
-        ) : undefined
-      }
-    />
+    <>
+      <PageHeader
+        breadcrumbItems={[
+          { label: org.name, href: `/${orgSlug}/dashboard` },
+          { label: 'Your membership fee' },
+        ]}
+        title="Your membership"
+        actions={
+          canManage ? (
+            <Link
+              href={`/${orgSlug}/fees/collection${term ? `?term=${term.id}` : ''}`}
+              className={linkButtonClass('secondary')}
+            >
+              Everyone&rsquo;s fees
+            </Link>
+          ) : undefined
+        }
+      />
+      {!preview && <TermSwitcher orgSlug={orgSlug} terms={ownTerms} showing={term?.id ?? null} />}
+    </>
   )
 
   if (!term) {
@@ -144,7 +154,7 @@ export default async function FeesPage({
   }
 
   const heroLine = term.closed
-    ? 'This term has been banked in.'
+    ? 'This term’s collection has closed.'
     : form.state === 'OPEN'
       ? due
         ? `Open until ${due}`
@@ -348,6 +358,30 @@ export default async function FeesPage({
         </section>
       )}
     </Shell>
+  )
+}
+
+/**
+ * The terms somebody can look back at. Shown only when there is somewhere
+ * else to go: one term needs no switcher.
+ */
+function TermSwitcher({ orgSlug, terms, showing }: { orgSlug: string; terms: OwnTerm[]; showing: string | null }) {
+  if (terms.length === 0 || (terms.length === 1 && terms[0].id === showing)) return null
+  return (
+    <nav aria-label="Your terms" className="flex flex-wrap items-center gap-2">
+      <span className="text-[12px] font-medium text-text-subtle">Your terms</span>
+      {terms.map((term) => (
+        <Link
+          key={term.id}
+          href={`/${orgSlug}/fees?term=${term.id}`}
+          aria-current={term.id === showing ? 'page' : undefined}
+          className={pillClass(term.id === showing)}
+        >
+          {term.name}
+          {term.current && <span className="text-text-subtle">· now</span>}
+        </Link>
+      ))}
+    </nav>
   )
 }
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { toDateColumn, fromDateColumn } from '../date-only'
+import { toDateColumn, fromDateColumn, singaporeDay } from '../date-only'
+import { isoDate } from '@/modules/coach-claim/theme'
 
 /**
  * The property that matters: a calendar date written to a `date` column and
@@ -32,5 +33,20 @@ describe('date-only columns', () => {
 
   it('reads a UTC-midnight column as the same day locally', () => {
     expect(ymd(fromDateColumn(new Date('2026-09-15T00:00:00Z')))).toEqual([2026, 9, 15])
+  })
+
+  it('fills a date field with the day that was stored, not the day before', () => {
+    // A term's final collection on the 30th, read back as a local calendar
+    // date. toISOString() east of UTC gave the 29th and saving wrote it back.
+    expect(isoDate(fromDateColumn(new Date('2026-09-30T00:00:00Z')))).toBe('2026-09-30')
+  })
+
+  it('reads an instant as the Singapore day it falls on', () => {
+    // 7am on the 30th in Singapore is still the 29th in UTC.
+    expect(ymd(singaporeDay(new Date('2026-09-29T23:00:00Z')))).toEqual([2026, 9, 30])
+    // A date column's UTC midnight is 8am the same day in Singapore.
+    expect(ymd(singaporeDay(new Date('2026-09-30T00:00:00Z')))).toEqual([2026, 9, 30])
+    expect(ymd(singaporeDay(new Date('2026-09-30T15:59:00Z')))).toEqual([2026, 9, 30])
+    expect(ymd(singaporeDay(new Date('2026-09-30T16:00:00Z')))).toEqual([2026, 10, 1])
   })
 })

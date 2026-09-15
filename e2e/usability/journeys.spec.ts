@@ -276,3 +276,27 @@ test('the treasurer, who is on the roster too, fills in the form like everybody 
   // And from the sidebar, under "You", away from the collection they run.
   await expect(page.getByRole('link', { name: 'Your membership fee' }).first()).toBeVisible()
 })
+
+test('a shared link to the form, opened signed out, lands on the form after signing in', async ({ browser }) => {
+  const fresh = await browser.newContext()
+  const page = await fresh.newPage()
+  await page.goto(`/${ORG}/fees?edit=1`)
+  await page.waitForURL(/\/sign-in/)
+  await expect(page.getByText('Sign in and you’ll go straight back to the page you opened.')).toBeVisible()
+
+  await page.locator('#email').fill(MEMBER.email)
+  const since = Date.now()
+  await page.getByRole('button', { name: 'Email me a code' }).click()
+  await expect(page.locator('#code')).toBeVisible()
+  await page.locator('#code').fill(await latestCode(MEMBER.email, since))
+  await page.getByRole('button', { name: 'Sign in' }).click()
+
+  // The page they opened, query and all — not the home screen.
+  await page.waitForURL(new RegExp(`/${ORG}/fees\\?edit=1$`))
+  await expect(page.getByText('Changing the response you sent')).toBeVisible()
+
+  // And only once: the next visit to the home screen goes home.
+  await page.goto('/')
+  await page.waitForURL(new RegExp(`/${ORG}/dashboard$`))
+  await fresh.close()
+})

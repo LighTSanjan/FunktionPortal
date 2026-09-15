@@ -158,6 +158,7 @@ export function RunCard({
                       day: 'numeric',
                       month: 'short',
                       year: 'numeric',
+                      timeZone: 'Asia/Singapore',
                     })}
                     {overdue && ' — passed'}
                   </dd>

@@ -2,7 +2,7 @@
 import 'server-only'
 import type { FeeTier, FormState, PaymentStatus, FeeRoute, PaymentSource } from '@prisma/client'
 import { dbAs } from '@/core/db'
-import { fromDateColumn } from '@/lib/date-only'
+import { fromDateColumn, singaporeDay, toDateColumn } from '@/lib/date-only'
 import { resolveFee, tierFor, TIER_LABEL, type TermRates } from './tiers'
 
 export interface TermRow {
@@ -23,6 +23,8 @@ export interface TermRow {
    * unfiled form is the one OSL are waiting on.
    */
   filed: boolean
+  /** Exco only. Closed with nothing on the OSL route leaves no deposit to file. */
+  hasDeposit: boolean
   /**
    * Whether this collection has a PayNow QR uploaded. Never the key itself —
    * the bytes come from a route that checks membership on every request, so
@@ -120,6 +122,9 @@ function toTermRow(row: {
     // From the term, not from the deposit row: a member cannot see deposits.
     closed: row.closedAt !== null,
     filed: row.incomeDeposit?.submittedToOslAt != null,
+    // Exco only: a member's session cannot see deposits, so to them this is
+    // always false. A closed term without one had nothing to bank in.
+    hasDeposit: row.incomeDeposit !== null,
     hasPaynowQr: row.paynowQrPath !== null,
     paynowQrUploadedAt: row.paynowQrUploadedAt,
   }
@@ -171,6 +176,47 @@ export async function currentTerm(userId: string, orgId: string): Promise<TermRo
     })
     return next ? toTermRow(next) : null
   })
+}
+
+export interface OwnTerm {
+  id: string
+  name: string
+  /** A term running now or about to start, which is the one shown by default. */
+  current: boolean
+}
+
+/**
+ * The terms somebody has something in — a response they sent or a payment
+ * against their roster row — plus the current one, newest first.
+ *
+ * "Your membership fee" opens on the current term, so without this a receipt
+ * or a refused payment from last term was unreachable the day the next term
+ * began, unless somebody had kept the link.
+ */
+export async function listOwnTerms(userId: string, orgId: string): Promise<OwnTerm[]> {
+  const [current, rows] = await Promise.all([
+    currentTerm(userId, orgId),
+    dbAs(userId, (tx) =>
+      tx.term.findMany({
+        where: {
+          orgId,
+          OR: [
+            { membershipResponses: { some: { userId } } },
+            { feePayments: { some: { member: { userId } } } },
+          ],
+        },
+        orderBy: { startDate: 'desc' },
+        select: { id: true, name: true, startDate: true },
+      })
+    ),
+  ])
+  const terms = rows.map((row) => ({ id: row.id, name: row.name, startDate: row.startDate, current: row.id === current?.id }))
+  if (current && !terms.some((term) => term.current)) {
+    terms.push({ id: current.id, name: current.name, startDate: toDateColumn(current.startDate), current: true })
+  }
+  return terms
+    .sort((a, b) => b.startDate.getTime() - a.startDate.getTime())
+    .map(({ id, name, current }) => ({ id, name, current }))
 }
 
 export async function getTerm(
@@ -515,7 +561,7 @@ export async function getDeposit(
     grossCents: row.grossCents,
     netCents: row.netCents,
     gstCents: row.gstCents,
-    finalCollectionAt: row.finalCollectionAt,
+    finalCollectionAt: row.finalCollectionAt && singaporeDay(row.finalCollectionAt),
     submissionDueAt: row.submissionDueAt,
     submittedToOslAt: row.submittedToOslAt,
   }

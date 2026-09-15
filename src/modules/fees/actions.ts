@@ -9,6 +9,7 @@ import { writeAudit } from '@/core/audit'
 import { allocateReference } from '@/modules/references'
 import { financialYearOf } from '@/modules/references/format'
 import { addWorkingDays } from '@/modules/coach-claim/deadlines'
+import { singaporeDay, toDateColumn } from '@/lib/date-only'
 import { resolveFee, TIER_LABEL } from './tiers'
 import { matchRosterRow } from '@/core/auth/roster-match'
 import { splitGst, DEFAULT_GST_BASIS_POINTS } from './money'
@@ -183,7 +184,7 @@ const PROBLEMS = {
   ROSTER:
     'You are not on the club roster yet, so there is nothing to pay against. Ask an exco member to add you.',
   TERM: 'That term no longer exists.',
-  CLOSED: 'That collection has been closed and banked in. Speak to the treasurer.',
+  CLOSED: 'That collection has closed. Speak to the treasurer.',
   CONFIRMED: 'Your payment for that term is already confirmed.',
   DEPARTED:
     'The roster has you as having left the club, so there is nothing to pay. If that is wrong, ask an exco member to put it right first.',
@@ -249,12 +250,12 @@ export async function uploadPaynowQr(
   const term = await dbAs(userId, (tx) =>
     tx.term.findFirst({
       where: { id: termId, orgId: org.id },
-      select: { id: true, name: true, incomeDeposit: { select: { id: true } } },
+      select: { id: true, name: true, closedAt: true },
     })
   )
   if (!term) return { error: 'That collection no longer exists.' }
-  if (term.incomeDeposit) {
-    return { error: 'That collection is closed and banked in. Its QR cannot be changed.' }
+  if (term.closedAt) {
+    return { error: 'That collection is closed. Its QR cannot be changed.' }
   }
 
   const key = await putQr(term.id, bytes, format)
@@ -266,11 +267,11 @@ export async function uploadPaynowQr(
   const raced = await dbAs(userId, async (tx) => {
     // The lock closing takes, so the two cannot pass each other.
     await lockTermFees(tx, term.id)
-    const deposit = await tx.incomeDeposit.findFirst({
-      where: { termId: term.id, orgId: org.id },
+    const closed = await tx.term.findFirst({
+      where: { id: term.id, orgId: org.id, closedAt: { not: null } },
       select: { id: true },
     })
-    if (deposit) return true
+    if (closed) return true
 
     await tx.term.update({
       where: { id: term.id },
@@ -343,11 +344,11 @@ export async function confirmPayment(
         declaredByUserId: true,
         paymentProofPath: true,
         amountCents: true,
-        term: { select: { incomeDeposit: { select: { id: true } } } },
+        term: { select: { closedAt: true } },
       },
     })
     if (!payment) return 'That payment no longer exists'
-    if (payment.term.incomeDeposit) return 'That collection has already been banked in.'
+    if (payment.term.closedAt) return 'That collection is closed. Its payments are fixed.'
     if (payment.status === 'CONFIRMED') return null
     if (payment.declaredByUserId === userId) {
       return 'Somebody else has to confirm your own payment.'
@@ -648,13 +649,13 @@ export async function updateTerm(
     await lockTermFees(tx, parsed.data.termId)
     const term = await tx.term.findFirst({
       where: { id: parsed.data.termId, orgId: org.id },
-      select: { id: true, incomeDeposit: { select: { id: true } } },
+      select: { id: true, closedAt: true },
     })
     if (!term) return 'That term no longer exists'
-    if (term.incomeDeposit) {
+    if (term.closedAt) {
       // Changing a rate after the money is banked would restate what people
       // owed against a figure that has already gone to OSL.
-      return 'That collection has been banked in. Its rates are fixed now.'
+      return 'That collection is closed. Its rates are fixed now.'
     }
 
     await tx.term.update({
@@ -715,12 +716,13 @@ export async function closeCollection(
         id: true,
         name: true,
         finalCollectionAt: true,
+        closedAt: true,
         incomeDeposit: { select: { id: true } },
       },
     })
 
     if (!term) return 'That term no longer exists'
-    if (term.incomeDeposit) return 'That collection is already closed.'
+    if (term.incomeDeposit || term.closedAt) return 'That collection is already closed.'
 
     const pending = await tx.feePayment.count({
       where: { orgId: org.id, termId: term.id, status: 'DECLARED' },
@@ -743,8 +745,29 @@ export async function closeCollection(
       _sum: { amountCents: true },
     })
     const grossCents = confirmed._sum.amountCents ?? 0
+
+    // Nothing came in through OSL — a free term, or everything was paid to
+    // the exco directly. There is no money to bank and no Income Deposit Form
+    // to raise, so a reference number would be spent on nothing. The
+    // collection still has to end, or it sits on the home screen for ever.
     if (grossCents === 0) {
-      return 'Nothing has been confirmed on the official route, so there is nothing to bank in.'
+      await tx.membershipForm.updateMany({
+        where: { termId: term.id, state: { not: 'CLOSED' } },
+        data: { state: 'CLOSED', closedAt: new Date() },
+      })
+      await tx.term.update({ where: { id: term.id }, data: { closedAt: new Date() } })
+      await writeAudit(
+        {
+          orgId: org.id,
+          actorId: userId,
+          action: 'fee.close_collection',
+          targetType: 'Term',
+          targetId: term.id,
+          after: { termId: term.id, grossCents: 0, depositForm: false },
+        },
+        tx
+      )
+      return null
     }
 
     const settings = await tx.organisationSettings.findUnique({
@@ -753,7 +776,10 @@ export async function closeCollection(
     })
     const split = splitGst(grossCents, settings?.gstBasisPoints ?? DEFAULT_GST_BASIS_POINTS)
 
-    const finalCollectionAt = term.finalCollectionAt ?? new Date()
+    // Today in Singapore, as a date, when nobody set one: the deposit form
+    // prints this day, and a bare instant stamped before 8am would print as
+    // yesterday on a server running in UTC.
+    const finalCollectionAt = term.finalCollectionAt ?? toDateColumn(singaporeDay(new Date()))
     const reference = await allocateReference(tx, {
       orgId: org.id,
       series: 'INC',
@@ -1087,13 +1113,25 @@ export async function setMemberFees(
 
     const payments = await tx.feePayment.findMany({
       where: { termId: term.id, memberId: { in: unique } },
-      select: { id: true, memberId: true, status: true, tier: true, amountCents: true },
+      select: {
+        id: true,
+        memberId: true,
+        status: true,
+        tier: true,
+        amountCents: true,
+        paymentReference: true,
+        paymentProofPath: true,
+        rejectedReason: true,
+      },
     })
     const paymentFor = new Map(payments.map((row) => [row.memberId, row]))
 
     const changed: string[] = []
     const paid: string[] = []
     const waiting: string[] = []
+    /** Screenshots of refused claims that waiving made moot, removed after commit. */
+    const discarded: string[] = []
+    const cleared: string[] = []
 
     for (const member of members) {
       const payment = paymentFor.get(member.id)
@@ -1111,12 +1149,16 @@ export async function setMemberFees(
         isActive: member.isActive,
         rates: term,
       })
-      if (payment && fee.amountCents === 0) {
+      if (payment?.status === 'DECLARED' && fee.amountCents === 0) {
         // They have said they paid. Waiving the fee under a declaration leaves
         // a claim for money nobody owes; decide the claim first.
         waiting.push(member.fullName)
         continue
       }
+      // A claim the exco already refused is decided. Waiving the fee ends it:
+      // nothing is owed, so there is nothing left to pay again, and a refused
+      // row left under a waiver would keep telling the member to.
+      const refusedClaim = payment?.status === 'REJECTED' && fee.amountCents === 0 ? payment : null
 
       const key = { termId_memberId: { termId: term.id, memberId: member.id } }
       const before = await tx.feeArrangement.findUnique({
@@ -1141,7 +1183,11 @@ export async function setMemberFees(
         await tx.feeArrangement.delete({ where: key })
       }
 
-      if (payment) {
+      if (refusedClaim) {
+        await tx.feePayment.deleteMany({ where: { id: refusedClaim.id, status: 'REJECTED' } })
+        if (refusedClaim.paymentProofPath) discarded.push(refusedClaim.paymentProofPath)
+        cleared.push(member.fullName)
+      } else if (payment) {
         await tx.feePayment.updateMany({
           where: { id: payment.id, status: { in: ['DECLARED', 'REJECTED'] } },
           data: { tier: fee.tier, amountCents: fee.amountCents },
@@ -1156,17 +1202,35 @@ export async function setMemberFees(
           targetType: 'Member',
           targetId: member.id,
           before: before ?? { tier: 'ROSTER' },
-          after: { termId: term.id, tier: fee.tier, amountCents: fee.amountCents, source: fee.source, note: note || null },
+          after: {
+            termId: term.id,
+            tier: fee.tier,
+            amountCents: fee.amountCents,
+            source: fee.source,
+            note: note || null,
+            // What the waiver cleared away, so the log still shows the claim.
+            // The reference and the reason, never the screenshot.
+            ...(refusedClaim
+              ? {
+                  clearedRefusedClaim: {
+                    reference: refusedClaim.paymentReference,
+                    amountCents: refusedClaim.amountCents,
+                    rejectedReason: refusedClaim.rejectedReason,
+                  },
+                }
+              : {}),
+          },
         },
         tx
       )
       changed.push(member.fullName)
     }
 
-    return { changed, paid, waiting, label: tier === 'ROSTER' ? null : TIER_LABEL[tier] }
+    return { changed, paid, waiting, discarded, cleared, label: tier === 'ROSTER' ? null : TIER_LABEL[tier] }
   })
 
   if ('error' in outcome) return { error: outcome.error ?? 'That could not be saved' }
+  for (const key of outcome.discarded) await discardProof(key)
 
   const parts: string[] = []
   if (outcome.changed.length > 0) {
@@ -1174,6 +1238,11 @@ export async function setMemberFees(
       outcome.label
         ? `${describePeople(outcome.changed)} ${outcome.changed.length === 1 ? 'is' : 'are'} on ${outcome.label.toLowerCase()} now.`
         : `${describePeople(outcome.changed)} ${outcome.changed.length === 1 ? 'goes' : 'go'} back to what the roster says.`
+    )
+  }
+  if (outcome.cleared.length > 0) {
+    parts.push(
+      `The payment you couldn’t match from ${describePeople(outcome.cleared)} is cleared, since there’s nothing to pay now.`
     )
   }
   if (outcome.paid.length > 0) {

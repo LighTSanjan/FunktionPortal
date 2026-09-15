@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { RETURN_PATH_COOKIE, RETURN_PATH_MAX_AGE_SECONDS, readReturnPath } from '@/core/auth/return-path'
 
 const STATIC_PREFIXES = ['/_next/', '/favicon.ico', '/robots.txt', '/sitemap.xml']
 
@@ -65,6 +66,10 @@ export async function proxy(request: NextRequest) {
   return response
 }
 
+function isPrefetch(request: NextRequest): boolean {
+  return request.headers.has('next-router-prefetch') || request.headers.get('purpose') === 'prefetch'
+}
+
 async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
   let supabaseResponse = NextResponse.next({
@@ -105,11 +110,30 @@ async function updateSession(request: NextRequest) {
   if (!user && !matches(pathname, AUTH_PAGES)) {
     const signInUrl = new URL('/sign-in', request.url)
     signInUrl.searchParams.set('callbackUrl', pathname)
-    return NextResponse.redirect(signInUrl)
+    const response = NextResponse.redirect(signInUrl)
+    // Remembered across every step of getting in, so the page they opened is
+    // the page they land on. See return-path.ts.
+    const returnTo = readReturnPath(`${pathname}${request.nextUrl.search}`)
+    if (returnTo && !isPrefetch(request)) {
+      response.cookies.set(RETURN_PATH_COOKIE, returnTo, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: request.nextUrl.protocol === 'https:',
+        path: '/',
+        maxAge: RETURN_PATH_MAX_AGE_SECONDS,
+      })
+    }
+    return response
   }
 
   if (user && matches(pathname, AUTH_PAGES)) {
     return NextResponse.redirect(new URL('/', request.url))
+  }
+
+  // Arrived somewhere real: whatever they were on their way to is either
+  // this page or no longer wanted. A prefetch is not arriving.
+  if (user && request.cookies.has(RETURN_PATH_COOKIE) && readReturnPath(pathname) && !isPrefetch(request)) {
+    supabaseResponse.cookies.delete(RETURN_PATH_COOKIE)
   }
 
   return supabaseResponse

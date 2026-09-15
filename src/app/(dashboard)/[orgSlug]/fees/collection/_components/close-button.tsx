@@ -6,16 +6,23 @@ import type { FeeState } from '@/modules/fees/actions'
 import { Button } from '@/core/ui/button'
 import { Notice } from '../../_components/ui'
 
-/** Banking in. Asked twice, because it cannot be undone. */
+/**
+ * Banking in. Asked twice, because it cannot be undone.
+ *
+ * With nothing on the OSL route it is closing rather than banking: the same
+ * freeze, no deposit form, and worded as what it is.
+ */
 export function CloseButton({
   orgSlug,
   termId,
   bankable,
+  nothingToBank = false,
 }: {
   orgSlug: string
   termId: string
   /** What will be banked in, already formatted. */
   bankable: string
+  nothingToBank?: boolean
 }) {
   const [sure, setSure] = useState(false)
   const [state, close, pending] = useActionState<FeeState, FormData>(
@@ -32,9 +39,13 @@ export function CloseButton({
       )}
       {sure ? (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[13px] text-text">This can&rsquo;t be undone. Bank in {bankable}?</span>
+          <span className="text-[13px] text-text">
+            {nothingToBank
+              ? 'This can’t be undone. Close it with nothing to bank in?'
+              : `This can’t be undone. Bank in ${bankable}?`}
+          </span>
           <Button type="submit" variant="danger" loading={pending}>
-            Yes, bank it in
+            {nothingToBank ? 'Yes, close it' : 'Yes, bank it in'}
           </Button>
           <Button type="button" variant="ghost" onClick={() => setSure(false)}>
             Not yet
@@ -42,7 +53,7 @@ export function CloseButton({
         </div>
       ) : (
         <Button type="button" onClick={() => setSure(true)}>
-          Bank in {bankable}
+          {nothingToBank ? 'Close the collection' : `Bank in ${bankable}`}
         </Button>
       )}
     </form>

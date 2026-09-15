@@ -109,8 +109,13 @@ export default async function DashboardPage({
       _count: true,
       _sum: { totalCents: true },
     }),
-    declaredPayments: await tx.feePayment.count({
+    // By term, because each alert opens one term's queue. A single count
+    // across terms opened the current term, which could be empty while the
+    // payments waiting sat in last term's.
+    declaredPayments: await tx.feePayment.groupBy({
+      by: ['termId'],
       where: { orgId: org.id, status: 'DECLARED' },
+      _count: { _all: true },
     }),
     // Accounts that have said which student they are and are waiting on a
     // person to confirm it. Each one is a member who cannot see what they owe.
@@ -123,8 +128,15 @@ export default async function DashboardPage({
     }),
     // Membership form responses from people not on the roster yet. Any payment
     // they made is held until somebody matches them.
-    unmatchedResponses: await tx.membershipResponse.count({
+    unmatchedResponses: await tx.membershipResponse.groupBy({
+      by: ['termId'],
       where: { orgId: org.id, memberId: null, term: { closedAt: null } },
+      _count: { _all: true },
+    }),
+    termNames: await tx.term.findMany({
+      where: { orgId: org.id },
+      select: { id: true, name: true, startDate: true },
+      orderBy: { startDate: 'asc' },
     }),
     currentTerm: await tx.term.findFirst({
       where: { orgId: org.id, startDate: { lte: now }, endDate: { gte: now } },
@@ -244,14 +256,29 @@ export default async function DashboardPage({
     })
   }
 
-  if (isExco && data.declaredPayments > 0) {
+  // One alert per term, oldest term first, each opening that term's queue.
+  // The term is named only when there is more than one, where it tells them
+  // apart.
+  const termOrder = new Map(data.termNames.map((term, index) => [term.id, index]))
+  const termName = new Map(data.termNames.map((term) => [term.id, term.name]))
+  const perTerm = (rows: { termId: string; _count: { _all: number } }[]) =>
+    rows
+      .filter((row) => row._count._all > 0)
+      .sort((a, b) => (termOrder.get(a.termId) ?? 0) - (termOrder.get(b.termId) ?? 0))
+      .map((row) => ({
+        termId: row.termId,
+        count: row._count._all,
+        suffix: rows.length > 1 ? ` for ${termName.get(row.termId) ?? 'another term'}` : '',
+      }))
+
+  for (const { termId, count, suffix } of isExco ? perTerm(data.declaredPayments) : []) {
     alerts.push({
-      id: 'payments-declared',
+      id: `payments-declared-${termId}`,
       tone: 'todo',
-      title: `${data.declaredPayments} membership fee payment${data.declaredPayments === 1 ? '' : 's'} to check`,
+      title: `${count} membership fee payment${count === 1 ? '' : 's'} to check${suffix}`,
       detail:
         'Members say they have paid and attached their PayNow confirmation. Match each one to the bank statement.',
-      href: `/${orgSlug}/fees/collection?tab=payments&show=check`,
+      href: `/${orgSlug}/fees/collection?term=${termId}&tab=payments&show=check`,
     })
   }
 
@@ -266,14 +293,14 @@ export default async function DashboardPage({
     })
   }
 
-  if (isExco && data.unmatchedResponses > 0) {
+  for (const { termId, count, suffix } of isExco ? perTerm(data.unmatchedResponses) : []) {
     alerts.push({
-      id: 'form-responses-unmatched',
+      id: `form-responses-unmatched-${termId}`,
       tone: 'todo',
-      title: `${data.unmatchedResponses} membership form response${data.unmatchedResponses === 1 ? '' : 's'} to put on the roster`,
+      title: `${count} membership form response${count === 1 ? '' : 's'} to put on the roster${suffix}`,
       detail:
         'People who filled in the form and aren’t linked to the roster yet. Match each to their row, or add them as new — any payment they made is held until you do.',
-      href: `/${orgSlug}/fees/collection?tab=responses`,
+      href: `/${orgSlug}/fees/collection?term=${termId}&tab=responses`,
     })
   }
 

@@ -420,7 +420,7 @@ describe('the membership form', () => {
       await ok(() => closeCollection(org.slug, termId))
       expect((await getForm(treasurer.id, org.id, termId)).state).toBe('CLOSED')
       const reopen = await setFormState(org.slug, termId, 'OPEN')
-      expect(reopen.error).toMatch(/banked in/)
+      expect(reopen.error).toMatch(/collection has closed/)
       const record = await recordPayment(org.slug, blank, form({ termId, memberId: rows.ada, reference: '', route: 'OFFICIAL', reason: '' }))
       expect(record.error).toBeTruthy()
     })

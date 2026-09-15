@@ -13,7 +13,7 @@ import {
 } from '@/modules/fees/queries'
 import { splitGst, DEFAULT_GST_BASIS_POINTS } from '@/modules/fees/money'
 import { formatSgd } from '@/modules/coach-claim/money'
-import { longDate } from '@/modules/coach-claim/theme'
+import { isoDate, longDate } from '@/modules/coach-claim/theme'
 import { getForm, listResponses } from '@/modules/membership-form/queries'
 import { TermForm } from './_components/term-form'
 import { QrForm } from './_components/qr-form'
@@ -50,9 +50,13 @@ const OLD_TABS: Record<string, { tab: Tab; show?: Filter }> = {
 
 const SGT = 'Asia/Singapore'
 
-/** `2026-01-05` for a date input, in the calendar the date was stored in. */
+/**
+ * `2026-01-05` for a date input. The local calendar, never `toISOString()`:
+ * east of UTC a local midnight is still the day before, so the field would
+ * show the 29th for the 30th and saving would write the 29th back.
+ */
 function dateValue(value: Date | null): string {
-  return value ? value.toISOString().slice(0, 10) : ''
+  return value ? isoDate(value) : ''
 }
 
 export default async function CollectionPage({
@@ -118,6 +122,9 @@ export default async function CollectionPage({
   const charged = rows.filter((row) => row.status === 'CONFIRMED' || (row.onRoster && row.amountCents > 0))
   const paid = rows.filter((row) => row.status === 'CONFIRMED')
   const toCheck = rows.filter((row) => row.status === 'DECLARED')
+  // Nothing on the OSL route and nothing that could still land on it: the
+  // collection closes with no money to bank and no deposit form.
+  const nothingToBank = !term.closed && totals.bankableCents === 0 && toCheck.length === 0
   const unmatched = responses.filter((row) => !row.memberId)
   const collectedCents = totals.confirmedCents
   const expectedCents = collectedCents + totals.owedCents
@@ -180,12 +187,16 @@ export default async function CollectionPage({
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-subtle">
               {term.name} membership form
             </p>
-            <FormStateBadge state={form.state} banked={term.closed} />
+            <FormStateBadge state={form.state} banked={term.closed} bankedAs={deposit ? 'Banked in' : 'Collection closed'} />
             {!term.closed && stateLine && <p className="text-[12px] text-text-muted">{stateLine}</p>}
           </div>
           {term.closed ? (
             <p className="text-[13px] text-text-muted">
-              {deposit?.submittedToOslAt ? 'Deposit form filed with OSL.' : 'Banked in. The deposit form still needs filing.'}
+              {!deposit
+                ? 'Nothing came in through OSL, so there’s no deposit form to file.'
+                : deposit.submittedToOslAt
+                  ? 'Deposit form filed with OSL.'
+                  : 'Banked in. The deposit form still needs filing.'}
             </p>
           ) : (
             <FormControls orgSlug={orgSlug} termId={term.id} state={form.state} banked={term.closed} blockers={blockers} />
@@ -336,8 +347,12 @@ export default async function CollectionPage({
       {tab === 'deposit' && (
         <div className="space-y-5">
           <Panel
-            title={term.closed ? 'Banked in' : 'Before you bank in'}
-            description="Banking in closes the form for good, freezes this term’s fees and payments, and raises the Income Deposit Form from what was paid through the OSL collection. It’s due at OSL one working day after the final collection."
+            title={term.closed ? (deposit ? 'Banked in' : 'Closed') : nothingToBank ? 'Before you close it' : 'Before you bank in'}
+            description={
+              nothingToBank
+                ? 'Nothing has been paid through the OSL collection, so there’s no money to bank and no Income Deposit Form to raise. Closing still closes the form for good and freezes this term’s fees and payments.'
+                : 'Banking in closes the form for good, freezes this term’s fees and payments, and raises the Income Deposit Form from what was paid through the OSL collection. It’s due at OSL one working day after the final collection.'
+            }
           >
             <ul className="space-y-2 text-[13px]">
               <Check
@@ -383,10 +398,27 @@ export default async function CollectionPage({
             </dl>
             {!term.closed && (
               <div className="mt-4">
-                <CloseButton orgSlug={orgSlug} termId={term.id} bankable={formatSgd(totals.bankableCents)} />
+                <CloseButton
+                  orgSlug={orgSlug}
+                  termId={term.id}
+                  bankable={formatSgd(totals.bankableCents)}
+                  nothingToBank={nothingToBank}
+                />
               </div>
             )}
           </Panel>
+
+          {term.closed && !deposit && (
+            <Panel
+              id="deposit"
+              title="No deposit form needed"
+              description="Nothing came in through the OSL collection, so there was nothing to bank and nothing to send OSL. This term is finished."
+            >
+              <Link href={`/${orgSlug}/fees/collection/summary?term=${term.id}`} className={linkButtonClass('secondary')}>
+                The club&rsquo;s own record of who paid
+              </Link>
+            </Panel>
+          )}
 
           {deposit && (
             <Panel

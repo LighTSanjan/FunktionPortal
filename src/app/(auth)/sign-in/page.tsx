@@ -3,6 +3,7 @@ import { enabledProviders } from '@/core/auth/providers'
 import { AuthCardShell } from '../_components/auth-card-shell'
 import { ProviderButton } from '../_components/provider-button'
 import { EmailCodeForm } from '../_components/email-code-form'
+import { readReturnPath } from '@/core/auth/return-path'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,8 +17,13 @@ const REDIRECT_ERRORS: Record<string, string> = {
   access_denied: 'Sign-in was cancelled.',
 }
 
-export default async function SignInPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const { error: code } = await searchParams
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; callbackUrl?: string }>
+}) {
+  const { error: code, callbackUrl } = await searchParams
+  const returning = readReturnPath(callbackUrl) !== null
   const error = code ? (REDIRECT_ERRORS[code] ?? 'Something went wrong signing you in.') : null
   const providers = await enabledProviders()
 
@@ -26,6 +32,12 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
       title="Welcome!"
       subtitle="For SUTD students and alumni. Instructors and anyone else: ask the exco to invite your email first."
     >
+      {returning && !error && (
+        <p className="mb-5 rounded-[var(--radius-sm)] border border-border bg-surface px-3 py-2.5 text-[13px] leading-relaxed text-text-muted">
+          Sign in and you&rsquo;ll go straight back to the page you opened.
+        </p>
+      )}
+
       {error && (
         <div className="mb-5 rounded-[var(--radius-sm)] border border-danger/20 bg-danger/8 p-3 text-[13px] text-danger" role="alert">
           {error}

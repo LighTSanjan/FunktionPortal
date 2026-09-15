@@ -38,6 +38,38 @@ describe('proxy', () => {
     expect(location).toContain(`callbackUrl=${encodeURIComponent('/acme/dashboard')}`)
   })
 
+  it('remembers the page and its query across signing in', async () => {
+    const res = await proxy(makeRequest('/acme/fees?term=t1&edit=1'))
+    const cookie = res.cookies.get('funktion-return-to')
+    expect(cookie?.value).toBe('/acme/fees?term=t1&edit=1')
+    expect(cookie?.httpOnly).toBe(true)
+  })
+
+  it('does not remember a prefetch', async () => {
+    const request = makeRequest('/acme/fees')
+    request.headers.set('next-router-prefetch', '1')
+    const res = await proxy(request)
+    expect(res.cookies.get('funktion-return-to')).toBeUndefined()
+  })
+
+  it('forgets the page once a signed-in visitor arrives somewhere real', async () => {
+    mockUser = { id: 'user-1' }
+    const request = makeRequest('/acme/fees')
+    request.cookies.set('funktion-return-to', '/acme/fees')
+    const res = await proxy(request)
+    expect(res.headers.get('set-cookie')).toMatch(/funktion-return-to=;/)
+  })
+
+  it('keeps the page while a signed-in visitor is still getting in', async () => {
+    mockUser = { id: 'user-1' }
+    for (const path of ['/verify-email', '/onboarding']) {
+      const request = makeRequest(path)
+      request.cookies.set('funktion-return-to', '/acme/fees')
+      const res = await proxy(request)
+      expect(res.headers.get('set-cookie') ?? '', path).not.toMatch(/funktion-return-to/)
+    }
+  })
+
   it('does not redirect the sign-in page itself when unauthenticated', async () => {
     const res = await proxy(makeRequest('/sign-in'))
     expect(res.headers.get('location')).toBeNull()

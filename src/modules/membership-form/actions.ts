@@ -65,7 +65,7 @@ export async function setFormState(
       select: { id: true, name: true, closedAt: true, fullFeeCents: true, paynowQrPath: true },
     })
     if (!term) return 'That term no longer exists.'
-    if (term.closedAt) return `${term.name} has been banked in. Its form stays closed.`
+    if (term.closedAt) return `${term.name}’s collection has closed. Its form stays closed.`
 
     const form = await ensureForm(tx, org.id, term.id)
     if (form.state === next) return null
@@ -444,7 +444,7 @@ export async function submitMembershipForm(
 
   const { user, form, term, member, response, payment, arrangement } = context
   if (!user || !term) return { error: 'That form no longer exists.' }
-  if (term.closedAt) return { error: 'This term has been banked in, so the form is closed. Speak to the treasurer.' }
+  if (term.closedAt) return { error: 'This term’s collection has closed, so the form has too. Speak to the treasurer.' }
   if (!form || form.state !== 'OPEN') return { error: 'This form is not taking responses right now.' }
   if (form.audience === 'CHOSEN' && !(member && form.recipients.some((row) => row.memberId === member.id))) {
     return { error: 'This form was sent to particular people, and you aren’t one of them. Speak to the treasurer if you think you should be.' }

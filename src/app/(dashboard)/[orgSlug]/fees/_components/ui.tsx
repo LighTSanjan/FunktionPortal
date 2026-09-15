@@ -110,9 +110,18 @@ export function Figure({ label, value, sub }: { label: string; value: React.Reac
 }
 
 /** The dot-and-word for a form's state, the same wherever it appears. */
-export function FormStateBadge({ state, banked }: { state: 'DRAFT' | 'OPEN' | 'CLOSED'; banked?: boolean }) {
+export function FormStateBadge({
+  state,
+  banked,
+  bankedAs = 'Banked in',
+}: {
+  state: 'DRAFT' | 'OPEN' | 'CLOSED'
+  banked?: boolean
+  /** A collection closed with nothing to bank is not "banked in". */
+  bankedAs?: string
+}) {
   const look = banked
-    ? { dot: 'bg-text-subtle', text: 'Banked in' }
+    ? { dot: 'bg-text-subtle', text: bankedAs }
     : state === 'OPEN'
       ? { dot: 'bg-success', text: 'Open for responses' }
       : state === 'CLOSED'
