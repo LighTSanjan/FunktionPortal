@@ -11,6 +11,7 @@
  * the same rows the screens read, so it cannot claim a step is done that is
  * not.
  */
+import { singaporeDay } from '@/lib/date-only'
 
 export type StepState =
   /** Finished. */
@@ -92,12 +93,17 @@ export function deadline(dueAt: Date | null, now: Date): { label: string | null;
   return { label: `Due ${printed(dueAt)}`, urgency: 'normal' }
 }
 
+/**
+ * The Singapore day, whatever the server's clock is set to. On a server in
+ * UTC, half past midnight in Singapore is still yesterday, and every deadline
+ * read a day further off than it is.
+ */
 function startOfDay(value: Date): number {
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime()
+  return singaporeDay(value).getTime()
 }
 
 function printed(value: Date): string {
-  return value.toLocaleDateString('en-SG', { day: 'numeric', month: 'long' })
+  return value.toLocaleDateString('en-SG', { day: 'numeric', month: 'long', timeZone: 'Asia/Singapore' })
 }
 
 /** "3 of 4", or "4" when everything is accounted for. */

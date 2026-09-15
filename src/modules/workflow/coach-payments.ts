@@ -36,10 +36,8 @@ export interface MonthState {
   /** Classes recorded, coached or not. */
   sessions: number
   /**
-   * Documents raised and then voided. The reference stays issued and the
-   * unique key on (org, coach, month) stays occupied, so the month cannot
-   * simply be raised again — saying "raise it" here would be an instruction
-   * the portal itself refuses.
+   * Documents raised and then voided. Their numbers stay issued; the month is
+   * raised again with new ones, so a void is a reason to raise, not a block.
    */
   voided: number
   /** The earliest submission deadline among raised, unsent documents. */
@@ -63,41 +61,27 @@ export interface MonthState {
  * The oldest one in the window that is not finished, because the oldest is
  * the one closest to being late. When everything is settled it falls back to
  * last month, which is the one a claim would be for.
+ *
+ * With `month`, that month instead: the strip at the top of the payment board
+ * describes the month the board is showing, not a different one.
  */
 export async function coachPaymentsWorkflow(
   userId: string,
   orgId: string,
   orgSlug: string,
-  now: Date
+  now: Date,
+  month?: { year: number; month: number }
 ): Promise<Workflow> {
   const earliest = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - MONTHS_OF_SESSIONS, 1)
   )
 
-  const { sessions, invoices, instructors, settlements } = await dbAs(userId, async (tx) => ({
-    settlements: await tx.coachMonthSettlement.findMany({
-      where: { orgId },
-      select: { periodYear: true, periodMonth: true },
-    }),
-    instructors: await tx.instructor.findMany({
-      where: { orgId },
-      select: {
-        id: true,
-        fullName: true,
-        bankName: true,
-        bankAccountNo: true,
-        rates: { select: { id: true }, take: 1 },
-      },
-    }),
-    sessions: await tx.classSession.findMany({
-      where: { orgId, heldOn: { gte: earliest } },
-      select: { heldOn: true, instructorId: true },
-    }),
-    // Every invoice in the window, plus every unpaid invoice at any age. An
-    // unpaid claim from eighteen months ago is still money the club is owed
-    // and still a row OSL can ask about; it must not fall off the end of a
-    // window chosen for a different purpose.
-    invoices: await tx.invoice.findMany({
+  const { sessions, invoices, instructors, settlements } = await dbAs(userId, async (tx) => {
+    // Every invoice in the window, plus every unpaid invoice at any age, plus
+    // the month asked about. An unpaid claim from eighteen months ago is still
+    // money the club is owed and still a row OSL can ask about; it must not
+    // fall off the end of a window chosen for a different purpose.
+    const invoices = await tx.invoice.findMany({
       where: {
         orgId,
         OR: [
@@ -108,9 +92,11 @@ export async function coachPaymentsWorkflow(
             })),
           },
           { status: { notIn: ['VOID', 'PAID'] } },
+          ...(month ? [{ periodYear: month.year, periodMonth: month.month }] : []),
         ],
       },
       select: {
+        instructorId: true,
         periodYear: true,
         periodMonth: true,
         status: true,
@@ -119,8 +105,47 @@ export async function coachPaymentsWorkflow(
         paidAt: true,
         submissionDueAt: true,
       },
-    }),
-  }))
+    })
+
+    // The classes behind every month that will be looked at — including an
+    // old month reached only through its unpaid invoice. Without them that
+    // month counted nobody as having taught, and a month where nobody taught
+    // is a finished month.
+    const older = new Map<string, { year: number; month: number }>()
+    for (const key of [...invoices.map((i) => ({ year: i.periodYear, month: i.periodMonth })), ...(month ? [month] : [])]) {
+      if (Date.UTC(key.year, key.month - 1, 1) < earliest.getTime()) older.set(`${key.year}-${key.month}`, key)
+    }
+
+    return {
+      invoices,
+      settlements: await tx.coachMonthSettlement.findMany({
+        where: { orgId },
+        select: { periodYear: true, periodMonth: true },
+      }),
+      instructors: await tx.instructor.findMany({
+        where: { orgId },
+        select: {
+          id: true,
+          fullName: true,
+          bankName: true,
+          bankAccountNo: true,
+          rates: { select: { id: true }, take: 1 },
+        },
+      }),
+      sessions: await tx.classSession.findMany({
+        where: {
+          orgId,
+          OR: [
+            { heldOn: { gte: earliest } },
+            ...[...older.values()].map(({ year, month }) => ({
+              heldOn: { gte: new Date(Date.UTC(year, month - 1, 1)), lt: new Date(Date.UTC(year, month, 1)) },
+            })),
+          ],
+        },
+        select: { heldOn: true, instructorId: true },
+      }),
+    }
+  })
 
   const states = new Map<string, MonthState>()
   const state = (year: number, month: number): MonthState => {
@@ -184,6 +209,15 @@ export async function coachPaymentsWorkflow(
       row.voided += 1
       continue
     }
+    // A live document is somebody being paid to teach that month, whether or
+    // not their classes are still in view.
+    const key = `${invoice.periodYear}-${invoice.periodMonth}`
+    const set = coaches.get(key) ?? new Set<string>()
+    if (!set.has(invoice.instructorId)) {
+      set.add(invoice.instructorId)
+      coaches.set(key, set)
+      row.taught = set.size
+    }
     row.raised += 1
     if (invoice.signedAt) row.signed += 1
     if (invoice.submittedToOslAt) row.sent += 1
@@ -214,11 +248,9 @@ export async function coachPaymentsWorkflow(
     .filter((row) => `${row.year}-${row.month}` !== current)
     .sort((a, b) => a.year - b.year || a.month - b.month)
 
-  const unfinished = considered.find((row) => !isFinished(row))
-  const previous = previousMonth(now)
-  const chosen = unfinished ?? considered[considered.length - 1] ?? {
-    year: previous.year,
-    month: previous.month,
+  const empty = (year: number, month: number): MonthState => ({
+    year,
+    month,
     taught: 0,
     raised: 0,
     signed: 0,
@@ -228,7 +260,15 @@ export async function coachPaymentsWorkflow(
     voided: 0,
     dueAt: null,
     blocked: [],
+  })
+
+  if (month) {
+    return describeMonth(states.get(`${month.year}-${month.month}`) ?? empty(month.year, month.month), orgSlug, now)
   }
+
+  const unfinished = considered.find((row) => !isFinished(row))
+  const previous = previousMonth(now)
+  const chosen = unfinished ?? considered[considered.length - 1] ?? empty(previous.year, previous.month)
 
   return describeMonth(chosen, orgSlug, now)
 }
@@ -237,10 +277,6 @@ export function isFinished(row: MonthState): boolean {
   // Paid outside the portal, on somebody's word. Documents raised here as
   // well still have to be seen through, so this only covers what was not.
   if (row.settledOutside) return row.raised === 0 || row.paid === row.raised
-  // A month whose documents were voided is unresolved whatever else is true
-  // of it: the reference is spent, the unique key is occupied, and somebody
-  // has to decide what replaces it.
-  if (row.voided > 0 && row.raised < row.taught) return false
   // Nobody was paid to teach: there is nothing to claim and nothing to chase.
   if (row.taught === 0) return true
   return row.raised === row.taught && row.paid === row.raised
@@ -332,18 +368,16 @@ export function describeMonth(row: MonthState, orgSlug: string, now: Date): Work
     }
   }
 
-  // A coach missing bank details or a rate cannot be invoiced at all, and a
-  // month whose documents were voided cannot simply be raised again — the
-  // reference is spent and the unique key on (org, coach, month) is still
-  // occupied. Both are blocked rather than merely unfinished, because the
-  // button the step would otherwise offer refuses every time.
+  // A coach missing bank details or a rate cannot be invoiced at all: blocked
+  // rather than merely unfinished, because the button the step would
+  // otherwise offer refuses every time.
   const blockedByDetails = row.blocked.length > 0 && row.raised + row.blocked.length >= row.taught
-  const blockedByVoid = row.voided > 0 && row.raised < row.taught
+  const reraise = row.voided > 0 && row.raised < row.taught
 
-  const raiseNote = blockedByVoid
-    ? `${row.voided === 1 ? 'A document for this month was' : `${row.voided} documents for this month were`} voided. Re-raising a voided month is not built yet — the reference is spent and the replacement needs a fresh one.`
-    : row.blocked.length
-      ? row.blocked.map((entry) => `${entry.name} has no ${entry.missing.join(', ')}`).join(' · ')
+  const raiseNote = row.blocked.length
+    ? row.blocked.map((entry) => `${entry.name} has no ${entry.missing.join(', ')}`).join(' · ')
+    : reraise
+      ? `${row.voided === 1 ? 'A document was' : `${row.voided} documents were`} voided. Raise ${row.voided === 1 ? 'it' : 'them'} again with a new number.`
       : undefined
 
   /**
@@ -369,22 +403,20 @@ export function describeMonth(row: MonthState, orgSlug: string, now: Date): Work
       label: 'Documents raised',
       done: row.raised,
       total: row.taught,
-      blocked: blockedByDetails || blockedByVoid,
+      blocked: blockedByDetails,
       note: raiseNote,
-      action: blockedByVoid
-        ? { label: 'Look at the voided month', href: runHref }
-        : blockedByDetails
-          ? {
-              label:
-                row.blocked.length === 1
-                  ? `Fill in ${firstName(row.blocked[0].name)}’s details`
-                  : `Fill in ${row.blocked.length} coaches’ details`,
-              href: `/${orgSlug}/instructors`,
-            }
-          : {
-              label: row.raised === 0 ? `Raise ${subject}’s documents` : 'Raise the rest',
-              href: runHref,
-            },
+      action: blockedByDetails
+        ? {
+            label:
+              row.blocked.length === 1
+                ? `Fill in ${firstName(row.blocked[0].name)}’s details`
+                : `Fill in ${row.blocked.length} coaches’ details`,
+            href: `/${orgSlug}/instructors`,
+          }
+        : {
+            label: reraise && row.raised === 0 ? 'Raise it again' : row.raised === 0 ? `Raise ${subject}’s documents` : 'Raise the rest',
+            href: runHref,
+          },
     },
     {
       key: 'sign',
@@ -433,8 +465,10 @@ export function describeMonth(row: MonthState, orgSlug: string, now: Date): Work
   }
 
   const settled = isFinished(row)
-  // Everything has gone; what is left is OSL's to do.
-  const withOsl = row.raised > 0 && row.sent === row.raised && row.paid < row.raised
+  // Everything has gone; what is left is OSL's to do. Every coach who taught,
+  // not just every document raised: with one of two coaches sent and the other
+  // not raised, the month is not with OSL and its deadline still stands.
+  const withOsl = row.raised > 0 && row.raised >= row.taught && row.sent === row.raised && row.paid < row.raised
 
   return {
     id: 'coach-payments',

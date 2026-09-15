@@ -115,6 +115,9 @@ async function main() {
       `${DIM}Self-practice, nobody billed: ${result.selfPracticeDates.join(', ')}${OFF}`
     )
   }
+  if (result.coachChangedDates.length > 0) {
+    console.log(`Coach corrected on: ${result.coachChangedDates.join(', ')}`)
+  }
   if (result.lockedDates.length > 0) {
     console.log(
       `${YELLOW}!${OFF} Not written, month already raised: ${result.lockedDates.join(', ')}`

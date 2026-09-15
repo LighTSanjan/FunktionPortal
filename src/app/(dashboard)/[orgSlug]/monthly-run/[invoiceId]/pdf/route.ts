@@ -53,6 +53,14 @@ export async function GET(
   const storage = getStorageUnscoped()
   let pdf: Buffer | null = await storage.download(cacheKey).catch(() => null)
   if (!pdf) {
+    // Checked before printing, so a storage hiccup is a retry rather than a
+    // signed month printed with an empty signature rule.
+    if (loaded.signaturePath && (await readSignature(loaded.signaturePath)) === null) {
+      return new NextResponse('The signature on this month could not be loaded just now. Try again in a moment.', {
+        status: 503,
+        headers: { 'Retry-After': '5' },
+      })
+    }
     pdf = await printPageToPdf({
       appOrigin: appOrigin(),
       path: `/${orgSlug}/monthly-run/${invoiceId}/print`,
@@ -62,15 +70,11 @@ export async function GET(
         .filter((cookie) => cookie.name.startsWith('sb-'))
         .map(({ name, value }) => ({ name, value })),
     })
-    // Kept only when the signature it should carry could be read: a copy
-    // printed during a storage hiccup would otherwise be served unsigned for
-    // good.
-    const stampOk = !loaded.signaturePath || (await readSignature(loaded.signaturePath)) !== null
-    if (stampOk) {
-      await storage.upload(cacheKey, pdf, 'application/pdf').catch((error) => {
-        console.error('[pdf] could not keep a copy', error instanceof Error ? error.message : error)
-      })
-    }
+    // The print page refuses to render a month whose signature it cannot
+    // read, so what was printed carries the signature it should.
+    await storage.upload(cacheKey, pdf, 'application/pdf').catch((error) => {
+      console.error('[pdf] could not keep a copy', error instanceof Error ? error.message : error)
+    })
   }
 
   const { summary } = loaded

@@ -41,6 +41,11 @@ export interface ApplyResult {
    */
   lockedDates: string[]
   /**
+   * Dates whose class an earlier import recorded under a different coach — or
+   * as self-practice — and which now carry the coach the sheet says.
+   */
+  coachChangedDates: string[]
+  /**
    * Dates that produced nothing: either nobody attended, or the sheet names a
    * coach the portal does not have and a human has not resolved it.
    */
@@ -134,6 +139,7 @@ export async function applyParsedSheet(
   let sessionsUpdated = 0
   let marksImported = 0
   const lockedDates: string[] = []
+  const coachChangedDates: string[] = []
 
   // Months whose documents have already been raised. A trimester sheet spans
   // several months and a re-import is routine, so without this an import
@@ -148,10 +154,46 @@ export async function applyParsedSheet(
       continue
     }
 
-    const existing = await tx.classSession.findFirst({
+    // A sheet has one class a date. A class an earlier import wrote for this
+    // date under another coach — or as self-practice — is the same class with
+    // the coach corrected, not a second one: left alone, both coaches were
+    // billed for one evening. Classes somebody recorded by hand are theirs
+    // and are never touched here.
+    const stale = await tx.classSession.findMany({
+      where: {
+        orgId,
+        heldOn,
+        importId: { not: null },
+        // Spelled out: in SQL "not this coach" never matches a NULL coach.
+        ...(instructorId === null
+          ? { instructorId: { not: null } }
+          : { OR: [{ instructorId: null }, { instructorId: { not: instructorId } }] }),
+      },
+      select: { id: true, instructorId: true },
+    })
+    if (stale.some((row) => isLocked(raisedMonths, iso, row.instructorId))) {
+      // The old coach's month is already raised: changing the class would
+      // change a document that exists. Void that month first.
+      lockedDates.push(iso)
+      continue
+    }
+
+    let existing = await tx.classSession.findFirst({
       where: { orgId, instructorId, heldOn },
       select: { id: true },
     })
+    for (const row of stale) {
+      if (existing) {
+        await tx.classSession.delete({ where: { id: row.id } })
+      } else {
+        existing = await tx.classSession.update({
+          where: { id: row.id },
+          data: { instructorId },
+          select: { id: true },
+        })
+      }
+    }
+    if (stale.length > 0) coachChangedDates.push(iso)
 
     const session = existing
       ? await tx.classSession.update({
@@ -185,6 +227,7 @@ export async function applyParsedSheet(
     sessionsUpdated,
     marksImported,
     lockedDates,
+    coachChangedDates: coachChangedDates.sort(),
     selfPracticeDates: [...plan.entries()]
       .filter(([iso, entry]) => entry.instructorId === null && !lockedDates.includes(iso))
       .map(([iso]) => iso)

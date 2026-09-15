@@ -7,6 +7,8 @@ import { getMonthlyRun } from '@/modules/coach-claim/monthly-run'
 import { invoiceDateFor } from '@/modules/coach-claim/claim'
 import { financialYearOf } from '@/modules/references/format'
 import { formatSgd } from '@/modules/coach-claim/money'
+import { addWorkingDays, OSL_SUBMISSION_WORKING_DAYS } from '@/modules/coach-claim/deadlines'
+import { longDate } from '@/modules/coach-claim/theme'
 import { coachPaymentsWorkflow } from '@/modules/workflow/coach-payments'
 import { WorkflowStrip } from '@/modules/workflow/ui'
 import { MonthNav } from '../sessions/_components/month-nav'
@@ -32,10 +34,13 @@ export default async function MonthlyRunPage({
   const { year, monthIndex } = parseMonth(month)
   const run = await getMonthlyRun(userId, org.id, year, monthIndex + 1)
 
-  // The same progress the home screen shows, on the screen that advances it.
-  // Arriving here from a bookmark or the back button should still answer
-  // where in the sequence you are.
-  const workflow = await coachPaymentsWorkflow(userId, org.id, orgSlug, new Date())
+  // The same progress the home screen shows, for the month on screen. It used
+  // to describe the oldest unfinished month wherever you were, so the strip
+  // and the cards below it could be talking about different months.
+  const workflow = await coachPaymentsWorkflow(userId, org.id, orgSlug, new Date(), {
+    year,
+    month: monthIndex + 1,
+  })
 
   const settlement = await dbAs(userId, (tx) =>
     tx.coachMonthSettlement.findUnique({
@@ -63,6 +68,11 @@ export default async function MonthlyRunPage({
   )
 
   const period = `${year}-${String(monthIndex + 1).padStart(2, '0')}`
+  // One rule, said the way it is counted: dated the 15th, due three working
+  // days later. "By the 15th" was a different deadline from the one every
+  // card and the home screen count down to.
+  const invoiceDate = invoiceDateFor(year, monthIndex + 1)
+  const dueAt = addWorkingDays(invoiceDate, OSL_SUBMISSION_WORKING_DAYS)
   const label = new Date(Date.UTC(year, monthIndex, 1)).toLocaleDateString('en-SG', {
     month: 'long',
     year: 'numeric',
@@ -90,7 +100,7 @@ export default async function MonthlyRunPage({
           { label: 'Coach payments' },
         ]}
         title="Coach payments"
-        subtitle="One invoice and one attendance sheet per coach, both due at OSL by the 15th of the following month. Both are built from the classes recorded for the month, so they cannot disagree."
+        subtitle={`One invoice and one attendance sheet per coach, built from the classes recorded for the month so they cannot disagree. The invoices are dated ${longDate(invoiceDate)} and have to reach OSL within three working days, by ${longDate(dueAt)}.`}
       />
 
       <WorkflowStrip workflow={workflow} />

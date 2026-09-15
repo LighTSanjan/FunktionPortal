@@ -17,6 +17,7 @@ import {
   type TermRow,
 } from '@/modules/fees/queries'
 import { getForm } from '@/modules/membership-form/queries'
+import { dbAs } from '@/core/db'
 import { addWorkingDays } from '@/modules/coach-claim/deadlines'
 
 /**
@@ -51,10 +52,13 @@ export async function subscriptionWorkflow(
     : await termNeedingWork(userId, orgId)
   if (!term) return null
 
-  const [{ rows, totals }, deposit, form] = await Promise.all([
+  const [{ rows, totals }, deposit, form, heldResponses] = await Promise.all([
     listCollection(userId, orgId, term.id),
     getDeposit(userId, orgId, term.id),
     getForm(userId, orgId, term.id),
+    dbAs(userId, (tx) =>
+      tx.membershipResponse.count({ where: { orgId, termId: term.id, heldProofPath: { not: null } } })
+    ),
   ])
 
   const href = `/${orgSlug}/fees/collection?term=${term.id}`
@@ -69,7 +73,10 @@ export async function subscriptionWorkflow(
   // pay again, so they still owe — and a collection closed while they do is a
   // real decision, not a step that quietly completed itself.
   const unpaid = owing.filter((row) => row.status !== 'CONFIRMED')
-  const bankLabel = totals.bankableCents > 0 || toCheck.length > 0 ? 'Bank it in' : 'Close the collection'
+  // "Close" only when nothing could still reach the OSL route: no payment
+  // waiting to be checked, and none held on a form response off the roster.
+  const bankLabel =
+    totals.bankableCents > 0 || toCheck.length > 0 || heldResponses > 0 ? 'Bank it in' : 'Close the collection'
 
   // Closed with nothing on the OSL route: no money was banked, so there is
   // no deposit form to file and the job is over at closing.

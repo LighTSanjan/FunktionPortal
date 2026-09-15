@@ -65,7 +65,10 @@ export interface Claim {
   hasBillableSessions: boolean
 }
 
-/** The OSL deadline for the coach's documents: the 15th of the month after. */
+/**
+ * The date on the coach's invoice: the 15th of the month after the classes.
+ * It has to reach OSL within three working days of it — see deadlines.ts.
+ */
 export function invoiceDateFor(periodYear: number, periodMonth: number): Date {
   const year = periodMonth === 12 ? periodYear + 1 : periodYear
   const month = periodMonth === 12 ? 1 : periodMonth + 1

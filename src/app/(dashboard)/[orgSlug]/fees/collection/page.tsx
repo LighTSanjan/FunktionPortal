@@ -14,6 +14,7 @@ import {
 import { splitGst, DEFAULT_GST_BASIS_POINTS } from '@/modules/fees/money'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { isoDate, longDate } from '@/modules/coach-claim/theme'
+import { singaporeDay } from '@/lib/date-only'
 import { getForm, listResponses } from '@/modules/membership-form/queries'
 import { TermForm } from './_components/term-form'
 import { QrForm } from './_components/qr-form'
@@ -88,7 +89,7 @@ export default async function CollectionPage({
           subtitle="Each term has its own membership form and fees. Give it a name, its dates and what a full and half term cost — you can change any of it later."
         />
         <Panel>
-          <NewTermForm orgSlug={orgSlug} suggestion={suggestTerm(new Date())} />
+          <NewTermForm orgSlug={orgSlug} suggestion={suggestTerm(singaporeDay(new Date()))} />
         </Panel>
       </div>
     )
@@ -122,10 +123,11 @@ export default async function CollectionPage({
   const charged = rows.filter((row) => row.status === 'CONFIRMED' || (row.onRoster && row.amountCents > 0))
   const paid = rows.filter((row) => row.status === 'CONFIRMED')
   const toCheck = rows.filter((row) => row.status === 'DECLARED')
+  const unmatched = responses.filter((row) => !row.memberId)
   // Nothing on the OSL route and nothing that could still land on it: the
   // collection closes with no money to bank and no deposit form.
-  const nothingToBank = !term.closed && totals.bankableCents === 0 && toCheck.length === 0
-  const unmatched = responses.filter((row) => !row.memberId)
+  const nothingToBank =
+    !term.closed && totals.bankableCents === 0 && toCheck.length === 0 && !unmatched.some((row) => row.held)
   const collectedCents = totals.confirmedCents
   const expectedCents = collectedCents + totals.owedCents
   const progress = expectedCents > 0 ? Math.min(100, Math.round((collectedCents / expectedCents) * 100)) : 0
@@ -375,7 +377,7 @@ export default async function CollectionPage({
                 text={
                   totals.owedCents === 0
                     ? 'Everybody charged has paid'
-                    : `${charged.length - paid.length} still owe ${formatSgd(totals.owedCents)}. Banking in leaves them owing.`
+                    : `${charged.length - paid.length} still owe ${formatSgd(totals.owedCents)}. ${nothingToBank || (term.closed && !deposit) ? 'Closing' : 'Banking in'} leaves them owing.`
                 }
               />
               <Check
@@ -385,10 +387,14 @@ export default async function CollectionPage({
               />
             </ul>
             <dl className="mt-4 grid max-w-[420px] grid-cols-[1fr_auto] gap-x-6 gap-y-1 text-[13px]">
-              <dt className="text-text-muted">To bank in</dt>
-              <dd className="m-0 text-right font-semibold tabular-nums">{formatSgd(totals.bankableCents)}</dd>
-              <dt className="text-text-muted">of which GST</dt>
-              <dd className="m-0 text-right tabular-nums">{formatSgd(split.gstCents)}</dd>
+              {!(nothingToBank || (term.closed && !deposit)) && (
+                <>
+                  <dt className="text-text-muted">{term.closed ? 'Banked in' : 'To bank in'}</dt>
+                  <dd className="m-0 text-right font-semibold tabular-nums">{formatSgd(totals.bankableCents)}</dd>
+                  <dt className="text-text-muted">of which GST</dt>
+                  <dd className="m-0 text-right tabular-nums">{formatSgd(split.gstCents)}</dd>
+                </>
+              )}
               {totals.confirmedCents > totals.bankableCents && (
                 <>
                   <dt className="text-text-muted">Paid outside OSL</dt>
@@ -549,7 +555,7 @@ function FormTab({
       <details className="rounded-[var(--radius-md)] border border-border bg-surface p-5">
         <summary className="cursor-pointer text-[15px] font-semibold">Start a new term</summary>
         <div className="mt-4">
-          <NewTermForm orgSlug={orgSlug} suggestion={suggestTerm(new Date())} />
+          <NewTermForm orgSlug={orgSlug} suggestion={suggestTerm(singaporeDay(new Date()))} />
         </div>
       </details>
     </div>

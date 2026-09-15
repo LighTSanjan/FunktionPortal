@@ -53,23 +53,22 @@ export async function generateMonthlyDocuments(
       return 'That month is marked as paid outside the portal. Undo that first if it really needs raising here.'
     }
 
+    // A voided one does not count: it keeps its reference number — the gap in
+    // the series is the audit trail — and the replacement is a new row with a
+    // new number. Only one live document per coach per month, which a partial
+    // unique index holds in the database as well.
     const existing = await tx.invoice.findFirst({
       where: {
         orgId: org.id,
         instructorId: parsed.data.instructorId,
         periodYear,
         periodMonth,
+        status: { not: 'VOID' },
       },
-      select: { id: true, status: true },
+      select: { id: true },
     })
-    if (existing && existing.status !== 'VOID') {
-      return 'That month is already raised for this coach. Download it, or void it first.'
-    }
     if (existing) {
-      // A voided invoice keeps its reference number — the gap in the series is
-      // the audit trail — so re-raising means a new row and a new number, and
-      // the unique key on (org, coach, month) has to be cleared first.
-      return 'That month was voided. Re-raising a voided month is not built yet.'
+      return 'That month is already raised for this coach. Open it, or void it first.'
     }
 
     const context = await buildClaimContext(tx, {
@@ -328,6 +327,104 @@ export async function signMonth(orgSlug: string, invoiceId: string): Promise<Act
   revalidatePath(`/${orgSlug}/monthly-run`)
   revalidatePath(`/${orgSlug}/monthly-run/${invoiceId}`)
   return { error: null, ok: true }
+}
+
+const voidSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(5, 'Say why it is being voided. The reason stays with its reference number.')
+    .max(300, 'Keep the reason short'),
+})
+
+/**
+ * Void a raised month so it can be raised again.
+ *
+ * For a month raised with a mistake in it — a wrong class, a wrong fund, a
+ * coach's changed bank details. The invoice and its attendance sheet stop
+ * counting, the classes under them can be corrected, and the month goes back
+ * to "Ready to raise" with a fresh reference number. The old number stays
+ * issued with the reason beside it, so the gap in the series answers itself.
+ *
+ * A month already sent to OSL can be voided — OSL do send them back — but the
+ * portal cannot tell OSL, so the confirmation says to. A month recorded as
+ * paid cannot: money moved against it. Take the payment back first.
+ */
+export async function voidMonth(
+  orgSlug: string,
+  invoiceId: string,
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const { org } = await getOrgContext(orgSlug)
+  const { userId } = await requirePermission(org.id, 'claim.generate')
+
+  const parsed = voidSchema.safeParse({ reason: formData.get('reason') ?? '' })
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Say why it is being voided' }
+
+  let back: string | null = null
+  const problem = await dbAs(userId, async (tx) => {
+    const invoice = await tx.invoice.findFirst({
+      where: { id: invoiceId, orgId: org.id },
+      select: {
+        id: true,
+        status: true,
+        periodYear: true,
+        periodMonth: true,
+        attendanceSheetId: true,
+        referenceNumberId: true,
+        submittedToOslAt: true,
+        referenceNumber: { select: { formatted: true } },
+      },
+    })
+    if (!invoice) return 'That month no longer exists'
+    if (invoice.status === 'VOID') return 'That month is already void.'
+    if (invoice.status === 'PAID') {
+      return 'That month is recorded as paid. Take the payment back first — money moved against it.'
+    }
+
+    const voidedAt = new Date()
+    // Conditional on still being live, so two people voiding at once cannot
+    // both be told they did it.
+    const claimed = await tx.invoice.updateMany({
+      where: { id: invoice.id, status: { not: 'VOID' } },
+      data: { status: 'VOID', voidedAt },
+    })
+    if (claimed.count !== 1) return 'Somebody else changed that month a moment ago. Reload to see it.'
+
+    if (invoice.attendanceSheetId) {
+      await tx.attendanceSheet.update({ where: { id: invoice.attendanceSheetId }, data: { voidedAt } })
+    }
+    if (invoice.referenceNumberId) {
+      await tx.referenceNumber.update({
+        where: { id: invoice.referenceNumberId },
+        data: { voidedAt, voidReason: parsed.data.reason },
+      })
+    }
+
+    await writeAudit(
+      {
+        orgId: org.id,
+        actorId: userId,
+        action: 'claim.void',
+        targetType: 'Invoice',
+        targetId: invoice.id,
+        before: { status: invoice.status, sentToOsl: invoice.submittedToOslAt !== null },
+        after: { status: 'VOID', reference: invoice.referenceNumber?.formatted ?? null, reason: parsed.data.reason },
+      },
+      tx
+    )
+    back = `${invoice.periodYear}-${String(invoice.periodMonth).padStart(2, '0')}`
+    return null
+  })
+
+  if (problem) return { error: problem }
+
+  revalidatePath(`/${orgSlug}/monthly-run`)
+  revalidatePath(`/${orgSlug}/monthly-run/${invoiceId}`)
+  revalidatePath(`/${orgSlug}/dashboard`)
+  revalidatePath(`/${orgSlug}/sessions`)
+  return { error: null, ok: true, message: back ?? undefined }
 }
 
 /**

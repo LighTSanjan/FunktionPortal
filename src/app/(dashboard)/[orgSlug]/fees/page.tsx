@@ -378,7 +378,7 @@ function TermSwitcher({ orgSlug, terms, showing }: { orgSlug: string; terms: Own
           className={pillClass(term.id === showing)}
         >
           {term.name}
-          {term.current && <span className="text-text-subtle">· now</span>}
+          {term.current && <span className="text-text-subtle">{term.upcoming ? '· next' : '· now'}</span>}
         </Link>
       ))}
     </nav>

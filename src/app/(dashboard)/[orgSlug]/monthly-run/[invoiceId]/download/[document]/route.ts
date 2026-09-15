@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getOrgContext, requirePermission, verifySession } from '@/core/auth/dal'
 import { dbAs } from '@/core/db'
-import { loadMonthDocuments, withSignature } from '@/modules/coach-claim/documents'
+import { loadMonthDocuments, withSignature, SignatureUnavailableError } from '@/modules/coach-claim/documents'
 import { MonthNotFrozenError } from '@/modules/coach-claim/snapshot'
 import { renderInvoice } from '@/modules/coach-claim/invoice'
 import { renderAttendanceSheet } from '@/modules/coach-claim/attendance-sheet'
@@ -38,7 +38,17 @@ export async function GET(
   })
   if (!loaded) return new NextResponse('Not found', { status: 404 })
 
-  const { summary, invoice, sheet } = await withSignature(loaded)
+  const documents = await withSignature(loaded).catch((error) => {
+    if (error instanceof SignatureUnavailableError) return null
+    throw error
+  })
+  if (!documents) {
+    return new NextResponse('The signature on this month could not be loaded just now. Try again in a moment.', {
+      status: 503,
+      headers: { 'Retry-After': '5' },
+    })
+  }
+  const { summary, invoice, sheet } = documents
 
   const month = `${summary.periodYear}-${String(summary.periodMonth).padStart(2, '0')}`
   const body =

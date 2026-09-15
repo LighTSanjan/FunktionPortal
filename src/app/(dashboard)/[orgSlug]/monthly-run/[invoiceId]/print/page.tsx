@@ -38,6 +38,8 @@ export default async function PrintMonthPage({
   })
   if (!loaded) notFound()
 
+  // Thrown on, rather than printed without the signature: the error page is
+  // not a PDF anybody would send, and a blank signature rule would be.
   const { summary, invoice, sheet } = await withSignature(loaded)
   const period = `${MONTHS[summary.periodMonth - 1]} ${summary.periodYear}`
 

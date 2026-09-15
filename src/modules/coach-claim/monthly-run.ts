@@ -46,6 +46,10 @@ export interface RunEntry {
   fundSource: FundSource | null
   submittedToOslAt: Date | null
   submissionDueAt: Date | null
+  /** False for a coach who has stopped, shown only for a month they have in. */
+  isActive: boolean
+  /** Documents raised for this month and voided, oldest first. */
+  voided: { invoiceId: string; referenceNumber: string | null; reason: string | null; voidedAt: Date | null }[]
 }
 
 export interface MonthlyRun {
@@ -63,7 +67,13 @@ export function periodRange(periodYear: number, periodMonth: number): { from: Da
   }
 }
 
-/** Return every active coach and the state of their selected month. */
+/**
+ * Every coach with something in the selected month, and the state of it.
+ *
+ * Active coaches, plus anybody no longer active who taught that month or has
+ * a document for it. A coach who stopped in June still has May to be paid
+ * for, and filtering on "active" hid both the classes and the unpaid invoice.
+ */
 export async function getMonthlyRun(
   userId: string,
   orgId: string,
@@ -73,12 +83,6 @@ export async function getMonthlyRun(
   const { from, to } = periodRange(periodYear, periodMonth)
 
   return dbAs(userId, async (tx) => {
-    const instructors = await tx.instructor.findMany({
-      where: { orgId, isActive: true },
-      orderBy: { fullName: 'asc' },
-      include: { rates: { orderBy: { effectiveFrom: 'asc' } } },
-    })
-
     const sessions = await tx.classSession.findMany({
       where: { orgId, heldOn: { gte: from, lt: to } },
       orderBy: { heldOn: 'asc' },
@@ -86,14 +90,35 @@ export async function getMonthlyRun(
 
     const invoices = await tx.invoice.findMany({
       where: { orgId, periodYear, periodMonth },
-      include: { referenceNumber: { select: { formatted: true } } },
+      orderBy: { generatedAt: 'asc' },
+      include: { referenceNumber: { select: { formatted: true, voidReason: true } } },
+    })
+
+    const involved = [
+      ...sessions.map((s) => s.instructorId).filter((id): id is string => id !== null),
+      ...invoices.map((i) => i.instructorId),
+    ]
+    const instructors = await tx.instructor.findMany({
+      where: { orgId, OR: [{ isActive: true }, { id: { in: involved } }] },
+      orderBy: { fullName: 'asc' },
+      include: { rates: { orderBy: { effectiveFrom: 'asc' } } },
     })
 
     const rosterSize = await tx.member.count({ where: { orgId, isActive: true } })
 
     const entries: RunEntry[] = instructors.map((instructor) => {
       const mine = sessions.filter((s) => s.instructorId === instructor.id)
-      const invoice = invoices.find((i) => i.instructorId === instructor.id)
+      // The live document, if any. Voided ones are history: the month can be
+      // raised again, and they are listed so the spent numbers are explained.
+      const invoice = invoices.find((i) => i.instructorId === instructor.id && i.status !== 'VOID')
+      const voided = invoices
+        .filter((i) => i.instructorId === instructor.id && i.status === 'VOID')
+        .map((i) => ({
+          invoiceId: i.id,
+          referenceNumber: i.referenceNumber?.formatted ?? null,
+          reason: i.referenceNumber?.voidReason ?? null,
+          voidedAt: i.voidedAt,
+        }))
 
       const row = toRow(instructor)
       const blockers = missingForInvoice(row)
@@ -153,6 +178,8 @@ export async function getMonthlyRun(
         fundSource: (invoice?.fundSource as FundSource | undefined) ?? null,
         submittedToOslAt: invoice?.submittedToOslAt ?? null,
         submissionDueAt: invoice?.submissionDueAt ?? null,
+        isActive: instructor.isActive,
+        voided,
       }
     })
 
@@ -244,8 +271,14 @@ export async function buildClaimContext(
     include: { attendance: { where: { present: true }, select: { memberId: true } } },
   })
 
+  // Everybody on the roster now, and everybody who came that month even if
+  // they have left since. A sheet for March raised in May is a record of
+  // March: somebody who graduated in April was still in the room, and leaving
+  // them off made the attendance counts disagree with the names — which the
+  // claim rightly refused to build.
+  const attended = [...new Set(sessions.flatMap((s) => s.attendance.map((a) => a.memberId)))]
   const members = await tx.member.findMany({
-    where: { orgId: args.orgId, isActive: true },
+    where: { orgId: args.orgId, OR: [{ isActive: true }, { id: { in: attended } }] },
     orderBy: { fullName: 'asc' },
     select: { id: true, fullName: true },
   })

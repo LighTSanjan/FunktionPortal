@@ -13,6 +13,7 @@ import { deriveShortCode } from './instructor'
 export interface ActionState {
   error: string | null
   ok?: boolean
+  message?: string
 }
 
 /** Store blank optional form values as null. */
@@ -379,7 +380,9 @@ export async function deleteSession(
   const problem = await dbAs(userId, async (tx) => {
     const session = await tx.classSession.findFirst({
       where: { id: sessionId, orgId: org.id },
-      include: { invoiceLines: { select: { id: true } } },
+      // Lines on a voided invoice do not hold the class: voiding is exactly
+      // how a month with a wrong class in it gets corrected.
+      include: { invoiceLines: { where: { invoice: { status: { not: 'VOID' } } }, select: { id: true } } },
     })
     if (!session) return 'That class no longer exists'
 

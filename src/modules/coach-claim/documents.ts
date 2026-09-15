@@ -232,6 +232,21 @@ function toSheetDoc(
 }
 
 /**
+ * A month was signed with a stored specimen that could not be read back.
+ *
+ * Thrown rather than rendering without it: the summary still says the month
+ * was stamped, so the "sign it by hand" warning would stay hidden over a
+ * document with an empty signature rule — the one copy the Office of Finance
+ * checks for a signature.
+ */
+export class SignatureUnavailableError extends Error {
+  constructor() {
+    super('The signature on this month could not be loaded just now. Try again in a moment.')
+    this.name = 'SignatureUnavailableError'
+  }
+}
+
+/**
  * Fetch the stamped specimen and put it on both documents.
  *
  * Separate from the load because it leaves the database for object storage,
@@ -242,6 +257,7 @@ export async function withSignature(loaded: Loaded): Promise<MonthDocuments> {
     readSignature(loaded.signaturePath),
     readLogo(loaded.logoKey),
   ])
+  if (loaded.signaturePath && !signature) throw new SignatureUnavailableError()
   const sheet: AttendanceSheetDocData = logo
     ? { ...loaded.sheet, branding: { ...loaded.sheet.branding, logo } }
     : loaded.sheet

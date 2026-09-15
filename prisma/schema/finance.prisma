@@ -374,6 +374,9 @@ model AttendanceSheet {
   /// these rows on every download, and one downloaded twice must not differ
   /// from itself — a replaced signature would otherwise rewrite history.
   signatureImagePath String?    @map("signature_image_path")
+  /// Set with its invoice's. Only one live sheet per coach-month; see the
+  /// partial unique index in the void_and_replace migration.
+  voidedAt         DateTime?   @map("voided_at")
   generatedDocUrl  String?     @map("generated_doc_url")
   /// Drive file id once filed. Refiling overwrites this file rather than
   /// creating a second one, so a regenerated month leaves one document
@@ -386,7 +389,8 @@ model AttendanceSheet {
   verifiedBy   User?        @relation(fields: [verifiedByUserId], references: [id])
   invoice      Invoice?
 
-  @@unique([orgId, instructorId, periodYear, periodMonth])
+  /// Unique WHERE voided_at IS NULL, in SQL: a voided month can be raised again.
+  @@index([orgId, instructorId, periodYear, periodMonth])
   @@map("attendance_sheets")
 }
 
@@ -427,6 +431,9 @@ model Invoice {
   /// invoiceDate + 3 working days (§3.1.2).
   submissionDueAt  DateTime?     @map("submission_due_at")
   paidAt           DateTime?     @map("paid_at")
+  /// When it was voided. The reason is on its reference number, which stays
+  /// issued. A database trigger refuses to clear it.
+  voidedAt         DateTime?     @map("voided_at")
 
   organisation    Organisation     @relation(fields: [orgId], references: [id], onDelete: Cascade)
   instructor      Instructor       @relation(fields: [instructorId], references: [id])
@@ -434,7 +441,8 @@ model Invoice {
   attendanceSheet AttendanceSheet? @relation(fields: [attendanceSheetId], references: [id])
   lines           InvoiceLine[]
 
-  @@unique([orgId, instructorId, periodYear, periodMonth])
+  /// Unique WHERE voided_at IS NULL, in SQL: a voided month can be raised again.
+  @@index([orgId, instructorId, periodYear, periodMonth])
   @@index([orgId, status])
   @@map("invoices")
 }

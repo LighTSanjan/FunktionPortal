@@ -146,22 +146,18 @@ describe('exactly one step is live', () => {
 })
 
 describe('a month whose documents were voided', () => {
-  it('does not tell the treasurer to raise it again', () => {
-    // The reference is spent and the unique key on (org, coach, month) is
-    // still occupied, so the generate action refuses. Saying "raise it" would
-    // be an instruction the portal itself will not carry out.
+  it('asks for it to be raised again, with a new number', () => {
+    // A voided document keeps its reference; the replacement gets a fresh one.
     const row = month({ taught: 1, raised: 0, voided: 1 })
     const workflow = describeMonth(row, 'acme', NOW)
 
     expect(isFinished(row)).toBe(false)
-    expect(stateOf(workflow, 'raise')).toBe('blocked')
-    expect(workflow.steps.find((s) => s.key === 'raise')?.note).toContain(
-      'A document for this month was voided'
-    )
+    expect(stateOf(workflow, 'raise')).toBe('current')
+    expect(workflow.steps.find((s) => s.key === 'raise')?.note).toContain('A document was voided')
+    expect(workflow.next?.label).toBe('Raise it again')
     // Nothing has been raised, so there is nothing for the later steps to
     // count. "Signed 0" there reads as a tally rather than an absence.
     expect(workflow.steps.find((s) => s.key === 'sign')?.detail).toBeUndefined()
-    expect(workflow.next?.label).not.toContain('Raise')
   })
 
   it('is finished once a replacement has been raised', () => {
@@ -230,5 +226,15 @@ describe('a month paid outside the portal', () => {
 
   it('is unfinished without the mark', () => {
     expect(isFinished(month({ year: 2026, month: 1 }))).toBe(false)
+  })
+})
+
+describe('one coach sent, another not raised', () => {
+  it('is not "with OSL", and keeps its deadline', () => {
+    const row = month({ taught: 2, raised: 1, signed: 1, sent: 1 })
+    const workflow = describeMonth(row, 'acme', NOW)
+    expect(workflow.restingState ?? '').not.toMatch(/With OSL/)
+    expect(workflow.dueAt).not.toBeNull()
+    expect(workflow.next?.label).toBe('Raise the rest')
   })
 })

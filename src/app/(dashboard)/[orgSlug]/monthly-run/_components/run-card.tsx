@@ -63,7 +63,10 @@ export function RunCard({
     >
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-4">
         <div className="min-w-0">
-          <p className="text-[15px] font-semibold text-text">{entry.fullName}</p>
+          <p className="text-[15px] font-semibold text-text">
+            {entry.fullName}
+            {!entry.isActive && <span className="ml-2 text-[12px] font-medium text-text-subtle">No longer coaching</span>}
+          </p>
           <p className="mt-0.5 text-[12.5px] text-text-muted">
             {entry.sessionCount} {entry.sessionCount === 1 ? 'class' : 'classes'} ·{' '}
             {formatHours(entry.totalMinutes)} hr
@@ -127,8 +130,9 @@ export function RunCard({
             </div>
 
             <p className="text-[12px] leading-relaxed text-text-subtle">
-              This allocates the next IV reference number. The number is issued once and kept
-              even if the invoice is later voided, so a gap in the series stays answerable.
+              {entry.voided.length > 0
+                ? 'Raising it again gives the new documents the next IV reference number. The voided one keeps its number, with its reason.'
+                : 'This allocates the next IV reference number. The number is issued once and kept even if the invoice is later voided, so a gap in the series stays answerable.'}
             </p>
           </form>
         )}
@@ -203,6 +207,24 @@ export function RunCard({
               />
             )}
           </div>
+        )}
+
+        {/* The numbers this month has already spent, and why. Kept visible so
+            a gap in the IV series is answered where somebody would look. */}
+        {entry.voided.length > 0 && (
+          <ul className="mt-4 space-y-1 border-t border-border pt-3 text-[12.5px] text-text-muted">
+            {entry.voided.map((old) => (
+              <li key={old.invoiceId}>
+                <Link
+                  href={`/${orgSlug}/monthly-run/${old.invoiceId}`}
+                  className="font-mono text-[12px] text-text-subtle line-through underline-offset-4 hover:underline"
+                >
+                  {old.referenceNumber ?? 'Unnumbered'}
+                </Link>{' '}
+                voided{old.reason ? `: ${old.reason}` : ''}
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </article>

@@ -183,11 +183,14 @@ export interface OwnTerm {
   name: string
   /** A term running now or about to start, which is the one shown by default. */
   current: boolean
+  /** The current term has not started yet. */
+  upcoming: boolean
 }
 
 /**
- * The terms somebody has something in — a response they sent or a payment
- * against their roster row — plus the current one, newest first.
+ * The terms somebody has something in — a response they sent, a payment
+ * against their roster row, or a fee the exco set for them — plus the current
+ * one, newest first.
  *
  * "Your membership fee" opens on the current term, so without this a receipt
  * or a refused payment from last term was unreachable the day the next term
@@ -203,6 +206,7 @@ export async function listOwnTerms(userId: string, orgId: string): Promise<OwnTe
           OR: [
             { membershipResponses: { some: { userId } } },
             { feePayments: { some: { member: { userId } } } },
+            { feeArrangements: { some: { member: { userId } } } },
           ],
         },
         orderBy: { startDate: 'desc' },
@@ -214,9 +218,10 @@ export async function listOwnTerms(userId: string, orgId: string): Promise<OwnTe
   if (current && !terms.some((term) => term.current)) {
     terms.push({ id: current.id, name: current.name, startDate: toDateColumn(current.startDate), current: true })
   }
+  const upcoming = current !== null && current.startDate.getTime() > Date.now()
   return terms
     .sort((a, b) => b.startDate.getTime() - a.startDate.getTime())
-    .map(({ id, name, current }) => ({ id, name, current }))
+    .map(({ id, name, current }) => ({ id, name, current, upcoming: current && upcoming }))
 }
 
 export async function getTerm(

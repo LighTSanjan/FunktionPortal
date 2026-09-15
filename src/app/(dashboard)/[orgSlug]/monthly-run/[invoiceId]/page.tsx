@@ -5,7 +5,7 @@ import { dbAs } from '@/core/db'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
 import { Badge } from '@/core/ui/badge'
-import { loadMonthDocuments, withSignature } from '@/modules/coach-claim/documents'
+import { loadMonthDocuments, withSignature, SignatureUnavailableError } from '@/modules/coach-claim/documents'
 import { MonthNotFrozenError } from '@/modules/coach-claim/snapshot'
 import { InvoicePreview } from '@/modules/coach-claim/preview/invoice-preview'
 import { AttendanceSheetPreview } from '@/modules/coach-claim/preview/attendance-preview'
@@ -15,6 +15,7 @@ import { NO_OFFICE } from '@/modules/coach-claim/documents'
 import { OFFICE_LABELS } from '@/core/access'
 import { SignPanel } from './_components/sign-panel'
 import { SendPanel } from './_components/send-panel'
+import { VoidPanel } from './_components/void-panel'
 import { coachPaymentEmail } from '@/modules/coach-claim/osl-email'
 import { PaidToggle } from '../_components/paid-toggle'
 
@@ -43,7 +44,7 @@ export default async function MonthDocumentsPage({
     if (documents === 'NOT_FROZEN') return 'NOT_FROZEN' as const
     if (!documents) return null
 
-    const [user, settings, membership, monthInvoices] = await Promise.all([
+    const [user, settings, membership, monthInvoices, voiding] = await Promise.all([
       tx.user.findUnique({ where: { id: userId }, select: { signatureImagePath: true } }),
       tx.organisationSettings.findUnique({
         where: { orgId: org.id },
@@ -64,6 +65,10 @@ export default async function MonthDocumentsPage({
         orderBy: { documentNo: 'asc' },
         select: { instructor: { select: { fullName: true, shortCode: true } } },
       }),
+      tx.invoice.findFirst({
+        where: { id: invoiceId, orgId: org.id },
+        select: { voidedAt: true, referenceNumber: { select: { voidReason: true } } },
+      }),
     ])
     return {
       documents,
@@ -72,6 +77,8 @@ export default async function MonthDocumentsPage({
       oslContactName: settings?.oslContactName ?? null,
       monthCoaches: monthInvoices.map((row) => row.instructor),
       viewerOffice: membership?.office ?? null,
+      voidedAt: voiding?.voidedAt ?? null,
+      voidReason: voiding?.referenceNumber?.voidReason ?? null,
     }
   })
 
@@ -99,7 +106,42 @@ export default async function MonthDocumentsPage({
     )
   }
 
-  const { summary, invoice, sheet } = await withSignature(loaded.documents)
+  const withStamp = await withSignature(loaded.documents).catch((error) => {
+    if (error instanceof SignatureUnavailableError) return null
+    throw error
+  })
+  if (!withStamp) {
+    const { summary: brief } = loaded.documents
+    return (
+      <div className="mx-auto max-w-[720px] space-y-4">
+        <PageHeader
+          breadcrumbItems={[
+            { label: org.name, href: `/${orgSlug}/dashboard` },
+            { label: 'Coach payments', href: `/${orgSlug}/monthly-run` },
+            { label: `${brief.instructorName}, ${MONTHS[brief.periodMonth - 1]} ${brief.periodYear}` },
+          ]}
+          title="The signature didn’t load"
+        />
+        <Card>
+          <CardContent className="space-y-3 py-6 text-[13.5px] leading-relaxed text-text-muted">
+            <p>
+              This month was signed, but the stored signature couldn&rsquo;t be fetched just now. The
+              documents aren&rsquo;t shown without it, so nobody downloads a copy with an empty
+              signature line.
+            </p>
+            <Link
+              href={`/${orgSlug}/monthly-run/${invoiceId}`}
+              className="inline-block font-medium text-accent-600 underline-offset-4 hover:underline"
+            >
+              Try again
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+  const { summary, invoice, sheet } = withStamp
+  const monthHref = `/${orgSlug}/monthly-run?month=${summary.periodYear}-${String(summary.periodMonth).padStart(2, '0')}`
   const period = `${MONTHS[summary.periodMonth - 1]} ${summary.periodYear}`
   const signed = Boolean(summary.verifiedAt)
   const submitted = Boolean(summary.submittedToOslAt)
@@ -120,7 +162,7 @@ export default async function MonthDocumentsPage({
           { label: org.name, href: `/${orgSlug}/dashboard` },
           {
             label: 'Coach payments',
-            href: `/${orgSlug}/monthly-run?month=${summary.periodYear}-${String(summary.periodMonth).padStart(2, '0')}`,
+            href: monthHref,
           },
           { label: `${summary.instructorName}, ${period}` },
         ]}
@@ -142,11 +184,30 @@ export default async function MonthDocumentsPage({
               <Fact label="Due" value={longDate(summary.submissionDueAt)} />
             )}
           </dl>
-          <Badge variant={submitted ? 'success' : signed ? 'neutral' : 'warning'}>
-            {submitted ? 'Sent' : signed ? 'Signed, not sent' : 'Awaiting signature'}
+          <Badge variant={summary.status === 'VOID' ? 'neutral' : submitted ? 'success' : signed ? 'neutral' : 'warning'}>
+            {summary.status === 'VOID' ? 'Void' : submitted ? 'Sent' : signed ? 'Signed, not sent' : 'Awaiting signature'}
           </Badge>
         </CardContent>
       </Card>
+
+      {summary.status === 'VOID' && (
+        <Card>
+          <CardContent className="space-y-2 py-5">
+            <p className="text-[14px] font-semibold">
+              {summary.referenceNumber} was voided
+              {loaded.voidedAt ? ` on ${longDate(loaded.voidedAt)}` : ''}
+            </p>
+            <p className="max-w-[68ch] text-[13.5px] leading-relaxed text-text-muted">
+              {loaded.voidReason ? <>&ldquo;{loaded.voidReason}&rdquo; </> : null}
+              It stays here as a record of the number, and it no longer counts toward the fund or
+              the month. Nothing on this page can be signed or sent.
+            </p>
+            <Link href={monthHref} className="inline-block text-[13px] font-medium text-accent-600 underline-offset-4 hover:underline">
+              Back to {period}
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       <Step n={1} title="Read what you are signing">
         <p className="max-w-[68ch] text-[13.5px] leading-relaxed text-text-muted">
@@ -170,6 +231,8 @@ export default async function MonthDocumentsPage({
         <AttendanceSheetPreview data={sheet} />
       </section>
 
+      {summary.status !== 'VOID' && (
+        <>
       <Step n={2} title={signed ? 'Signed' : 'Verify and countersign'}>
         <SignPanel
           orgSlug={orgSlug}
@@ -245,6 +308,21 @@ export default async function MonthDocumentsPage({
           </p>
         )}
       </Step>
+
+      <Card>
+        <CardContent className="space-y-3 py-5">
+          <h2 className="text-[15px] font-semibold">Something wrong with it?</h2>
+          <VoidPanel
+            orgSlug={orgSlug}
+            invoiceId={invoiceId}
+            reference={summary.referenceNumber}
+            sent={submitted}
+            paid={paid}
+          />
+        </CardContent>
+      </Card>
+        </>
+      )}
 
       <Card>
         <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-2 py-4 text-[13px]">

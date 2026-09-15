@@ -3,6 +3,7 @@ import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
 import { listInstructorOptions } from '@/modules/coach-claim/queries'
 import { isoDate } from '@/modules/coach-claim/theme'
+import { singaporeDay } from '@/lib/date-only'
 import { SessionForm } from '../_components/session-form'
 
 export const dynamic = 'force-dynamic'
@@ -55,7 +56,8 @@ export default async function NewSessionPage({
  * September date before typing a June one.
  */
 function defaultDate(month: string | undefined): string {
-  const now = new Date()
+  // Today in Singapore, not on the server's clock.
+  const now = singaporeDay(new Date())
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   if (!month || month === thisMonth) return isoDate(now)
   return /^\d{4}-\d{2}$/.test(month) ? `${month}-01` : isoDate(now)

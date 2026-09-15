@@ -226,6 +226,8 @@ export async function applyImport(
             sessionsCreated,
             marksImported,
             skipped: result.skippedDates.length,
+            locked: result.lockedDates,
+            coachChanged: result.coachChangedDates,
           },
         },
         tx

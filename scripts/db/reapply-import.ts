@@ -102,6 +102,9 @@ async function main() {
       `  ${BOLD}applied${OFF} ${result.sessionsCreated} created, ${result.sessionsUpdated} updated, ` +
         `${result.marksImported} marks`
     )
+    if (result.coachChangedDates.length > 0) {
+      console.log(`  coach corrected on: ${result.coachChangedDates.join(', ')}`)
+    }
     if (result.lockedDates.length > 0) {
       console.log(`  not written, month already raised: ${result.lockedDates.join(', ')}`)
     }

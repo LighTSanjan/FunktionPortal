@@ -278,5 +278,15 @@ describe('how a collection ends', () => {
       expect(terms.map((t) => t.name)).toContain('Last term')
       expect(terms.map((t) => t.name)).not.toContain('Quiet term')
     })
+
+    it('lists a past term where the exco set their fee, even with nothing paid', async () => {
+      const quiet = await dbAdmin.term.findFirstOrThrow({ where: { orgId: org.id, name: 'Quiet term' } })
+      await dbAdmin.feeArrangement.create({
+        data: { orgId: org.id, termId: quiet.id, memberId: ids['Mo Member'], tier: 'HALF', setById: treasurer.id },
+      })
+      as(mo)
+      const terms = await listOwnTerms(mo.id, org.id)
+      expect(terms.map((t) => t.name)).toContain('Quiet term')
+    })
   })
 })
