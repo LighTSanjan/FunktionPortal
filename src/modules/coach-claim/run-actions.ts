@@ -405,10 +405,12 @@ export async function voidMonth(
     }
 
     const voidedAt = new Date()
-    // Conditional on still being live, so two people voiding at once cannot
-    // both be told they did it.
+    // Conditional on still being live and unpaid, so two people voiding at
+    // once cannot both be told they did it — and a month somebody marks as
+    // paid in the same moment is never voided underneath the payment, which
+    // would let it be raised and paid a second time.
     const claimed = await tx.invoice.updateMany({
-      where: { id: invoice.id, status: { not: 'VOID' } },
+      where: { id: invoice.id, status: { notIn: ['VOID', 'PAID'] }, paidAt: null },
       data: { status: 'VOID', voidedAt },
     })
     if (claimed.count !== 1) return 'Somebody else changed that month a moment ago. Reload to see it.'
@@ -598,12 +600,14 @@ export async function markPaid(
     }
     if (paid === (invoice.paidAt !== null)) return null
 
-    await tx.invoice.update({
-      where: { id: invoice.id },
+    // Conditional on not having been voided since it was read.
+    const changed = await tx.invoice.updateMany({
+      where: { id: invoice.id, status: { not: 'VOID' } },
       data: paid
         ? { status: 'PAID', paidAt: new Date() }
         : { status: 'SUBMITTED', paidAt: null },
     })
+    if (changed.count !== 1) return 'That month was voided a moment ago. Reload to see it.'
     await writeAudit(
       {
         orgId: org.id,

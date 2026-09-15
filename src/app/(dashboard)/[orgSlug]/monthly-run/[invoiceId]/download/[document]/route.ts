@@ -37,6 +37,11 @@ export async function GET(
     throw error
   })
   if (!loaded) return new NextResponse('Not found', { status: 404 })
+  // A voided month's documents are a record on the page, not something to
+  // send. A copy downloaded from here would carry nothing to say it is void.
+  if (loaded.summary.status === 'VOID') {
+    return new NextResponse('That month was voided, so its documents can no longer be downloaded.', { status: 410 })
+  }
 
   const documents = await withSignature(loaded).catch((error) => {
     if (error instanceof SignatureUnavailableError) return null

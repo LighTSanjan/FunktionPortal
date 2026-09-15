@@ -147,6 +147,19 @@ export async function applyParsedSheet(
   // already with the Office of Finance.
   const raisedMonths = await raisedMonthKeys(tx, orgId)
 
+  // Which earlier imports count as this same sheet: the same term's, or for a
+  // command-line import with no term, the same spreadsheet. A class another
+  // term's sheet put on the same date is somebody else's record.
+  const source = await tx.attendanceImport.findFirst({
+    where: { id: importId, orgId },
+    select: { termId: true, spreadsheetId: true },
+  })
+  const sameSheet: Prisma.AttendanceImportWhereInput | null = source?.termId
+    ? { termId: source.termId }
+    : source?.spreadsheetId
+      ? { spreadsheetId: source.spreadsheetId }
+      : null
+
   for (const [iso, { instructorId, minutes }] of plan) {
     const heldOn = new Date(`${iso}T00:00:00Z`)
     if (isLocked(raisedMonths, iso, instructorId)) {
@@ -159,11 +172,11 @@ export async function applyParsedSheet(
     // the coach corrected, not a second one: left alone, both coaches were
     // billed for one evening. Classes somebody recorded by hand are theirs
     // and are never touched here.
-    const stale = await tx.classSession.findMany({
+    const stale = sameSheet === null ? [] : await tx.classSession.findMany({
       where: {
         orgId,
         heldOn,
-        importId: { not: null },
+        import: sameSheet,
         // Spelled out: in SQL "not this coach" never matches a NULL coach.
         ...(instructorId === null
           ? { instructorId: { not: null } }

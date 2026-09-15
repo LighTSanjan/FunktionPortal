@@ -198,8 +198,11 @@ export async function getSession(
     })
     if (!row) return null
 
+    // The roster now, and anybody already marked for this class who has left
+    // since. Their mark is on the attendance sheet, so it has to be here to
+    // be corrected — hiding it left a wrong "present" that no save could clear.
     const members = await tx.member.findMany({
-      where: { orgId, isActive: true },
+      where: { orgId, OR: [{ isActive: true }, { id: { in: row.attendance.map((a) => a.memberId) } }] },
       orderBy: { fullName: 'asc' },
       select: { id: true, fullName: true, studentId: true },
     })
@@ -225,14 +228,20 @@ export async function getSession(
   })
 }
 
-/** Instructors that can be put on a session — active ones, name order. */
+/**
+ * Instructors that can be put on a session — active ones, name order — plus
+ * the coach a class being edited already has, even if they have stopped.
+ * Without them the form had no option for its own coach and quietly saved the
+ * class as self-practice.
+ */
 export async function listInstructorOptions(
   userId: string,
-  orgId: string
+  orgId: string,
+  keepInstructorId?: string | null
 ): Promise<{ id: string; fullName: string; danceStyle: string }[]> {
   return dbAs(userId, (tx) =>
     tx.instructor.findMany({
-      where: { orgId, isActive: true },
+      where: { orgId, OR: [{ isActive: true }, ...(keepInstructorId ? [{ id: keepInstructorId }] : [])] },
       orderBy: { fullName: 'asc' },
       select: { id: true, fullName: true, danceStyle: true },
     })

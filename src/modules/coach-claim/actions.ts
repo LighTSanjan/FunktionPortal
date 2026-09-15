@@ -451,8 +451,14 @@ export async function setAttendance(
     const raised = await raisedMonthFor(tx, org.id, session)
     if (raised) return raised
 
+    // The roster, and anybody already marked for this class who has left
+    // since — the same people the register shows — so a wrong mark on a
+    // departed member can be cleared.
     const members = await tx.member.findMany({
-      where: { orgId: org.id, isActive: true },
+      where: {
+        orgId: org.id,
+        OR: [{ isActive: true }, { attendance: { some: { sessionId: session.id } } }],
+      },
       select: { id: true },
     })
 

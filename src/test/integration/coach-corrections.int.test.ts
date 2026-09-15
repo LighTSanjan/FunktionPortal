@@ -10,6 +10,8 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest'
 import { addInstructorRate, saveInstructor, saveSession, setAttendance } from '@/modules/coach-claim/actions'
+import { getSession, listInstructorOptions } from '@/modules/coach-claim/queries'
+import { GET as downloadDocument } from '@/app/(dashboard)/[orgSlug]/monthly-run/[invoiceId]/download/[document]/route'
 import {
   generateMonthlyDocuments,
   markPaid,
@@ -31,6 +33,7 @@ import {
   form,
   join,
   ok,
+  outcome,
   resetDatabase,
   type TestOrg,
   type TestUser,
@@ -220,6 +223,84 @@ describe('correcting a coach’s month', () => {
       const result = await voidMonth(org.slug, kai.id, { error: null }, form({ reason: 'Trying to void a paid one' }))
       expect(result.error).toMatch(/paid/)
     })
+
+    it('voids a month already sent to OSL, and stops serving its documents', async () => {
+      as(treasurer)
+      const jin = await dbAdmin.invoice.findFirstOrThrow({ where: { orgId: org.id, instructorId: coach.jin, status: { not: 'VOID' } } })
+      await ok(() => signMonth(org.slug, jin.id))
+      await ok(() => markSubmitted(org.slug, jin.id))
+      await ok(() => voidMonth(org.slug, jin.id, { error: null }, form({ reason: 'OSL sent it back: wrong fund' })))
+
+      const response = await downloadDocument(new Request('http://test/'), {
+        params: Promise.resolve({ orgSlug: org.slug, invoiceId: jin.id, document: 'month.docx' }),
+      })
+      expect(response.status).toBe(410)
+
+      // And it cannot be marked paid afterwards.
+      const paid = await markPaid(org.slug, jin.id, true)
+      expect(paid.error).toBeTruthy()
+    })
+
+    it('is for the exco only', async () => {
+      const mo = await createUser('Mo Member')
+      await join(mo, org, 'MEMBER')
+      as(mo)
+      const kai = await dbAdmin.invoice.findFirstOrThrow({ where: { orgId: org.id, instructorId: coach.kai, status: { not: 'VOID' } } })
+      const result = await outcome(() => voidMonth(org.slug, kai.id, { error: null }, form({ reason: 'A member trying it on' })))
+      expect(result.kind).toBe('denied')
+    })
+  })
+
+  describe('people and coaches who have gone', () => {
+    it('lets a departed member’s wrong mark be cleared', async () => {
+      as(treasurer)
+      const period = monthKey(-3).period
+      await ok(() => saveSession(org.slug, null, { error: null }, form({ instructorId: coach.kai, heldOn: on(period, 8), durationMinutes: '90' })))
+      const session = await dbAdmin.classSession.findFirstOrThrow({ where: { orgId: org.id, heldOn: new Date(`${on(period, 8)}T00:00:00Z`) } })
+      await dbAdmin.sessionAttendance.create({ data: { orgId: org.id, sessionId: session.id, memberId: member.ben, present: true } })
+
+      const detail = await getSession(treasurer.id, org.id, session.id)
+      expect(detail?.roster.find((row) => row.memberId === member.ben)?.present).toBe(true)
+
+      await ok(() => setAttendance(org.slug, session.id, { error: null }, form({ present: [member.ada] })))
+      const mark = await dbAdmin.sessionAttendance.findUniqueOrThrow({ where: { sessionId_memberId: { sessionId: session.id, memberId: member.ben } } })
+      expect(mark.present).toBe(false)
+    })
+
+    it('keeps a stopped coach as the option on their own class', async () => {
+      await dbAdmin.instructor.update({ where: { id: coach.jin }, data: { isActive: false } })
+      as(treasurer)
+      const fresh = await listInstructorOptions(treasurer.id, org.id)
+      expect(fresh.map((o) => o.id)).not.toContain(coach.jin)
+      const editing = await listInstructorOptions(treasurer.id, org.id, coach.jin)
+      expect(editing.map((o) => o.id)).toContain(coach.jin)
+      await dbAdmin.instructor.update({ where: { id: coach.jin }, data: { isActive: true } })
+    })
+
+    it('blocks the month in the workflow when a rate only starts after the classes', async () => {
+      as(treasurer)
+      await ok(() =>
+        saveInstructor(org.slug, null, { error: null }, form({
+          fullName: 'Lee New',
+          danceStyle: 'Waacking',
+          email: 'lee@coach.test',
+          addressLine1: '1 Dance Street',
+          postalCode: '000002',
+          bankName: 'DBS',
+          bankAccountNo: '000-00000-3',
+          engagement: 'CONTRACTED',
+        }))
+      )
+      const lee = (await dbAdmin.instructor.findFirstOrThrow({ where: { orgId: org.id, fullName: 'Lee New' } })).id
+      const period = monthKey(-4)
+      await ok(() => addInstructorRate(org.slug, lee, { error: null }, form({ hourlyRate: '80', effectiveFrom: on(monthKey(-2).period, 1) })))
+      await ok(() => saveSession(org.slug, null, { error: null }, form({ instructorId: lee, heldOn: on(period.period, 9), durationMinutes: '60' })))
+
+      const flow = await coachPaymentsWorkflow(treasurer.id, org.id, org.slug, now, { year: period.year, month: period.month })
+      const raiseStep = flow.steps.find((step) => step.key === 'raise')
+      expect(raiseStep?.state).toBe('blocked')
+      expect(raiseStep?.note).toMatch(/rate covering the month/)
+    })
   })
 
   describe('an old claim OSL never paid', () => {
@@ -289,6 +370,36 @@ describe('correcting a coach’s month', () => {
       const classes = await dbAdmin.classSession.findMany({ where: { orgId: org.id, heldOn: new Date(`${heldOn}T00:00:00Z`) } })
       expect(classes).toHaveLength(1)
       expect(classes[0].instructorId).toBe(coach.jin)
+    })
+
+    it('leaves a class another sheet recorded on the same date alone', async () => {
+      const heldOn = on(monthKey(-2).period, 26)
+      const kai = await dbAdmin.instructor.findUniqueOrThrow({ where: { id: coach.kai } })
+      const jin = await dbAdmin.instructor.findUniqueOrThrow({ where: { id: coach.jin } })
+      for (const [spreadsheetId, label] of [['first-sheet', kai.shortCode], ['second-sheet', jin.shortCode]] as const) {
+        const record = await dbAdmin.attendanceImport.create({
+          data: { orgId: org.id, spreadsheetId, parsed: {}, importedByUserId: treasurer.id },
+        })
+        await dbAdmin.$transaction((tx) =>
+          applyParsedSheet(tx, {
+            orgId: org.id,
+            actorId: treasurer.id,
+            importId: record.id,
+            parsed: {
+              dates: [{ header: '26', iso: heldOn, columnIndex: 12 }],
+              members: [],
+              sessions: [{ iso: heldOn, instructorLabel: label, minutes: 90 }],
+              unattributedDates: [],
+              subtotalConflicts: [],
+              instructorHours: [],
+              warnings: [],
+            },
+            overrides: {},
+          })
+        )
+      }
+      const classes = await dbAdmin.classSession.findMany({ where: { orgId: org.id, heldOn: new Date(`${heldOn}T00:00:00Z`) } })
+      expect(classes).toHaveLength(2)
     })
 
     it('leaves a class somebody recorded by hand alone', async () => {

@@ -36,7 +36,8 @@ export default async function PrintMonthPage({
     if (error instanceof MonthNotFrozenError) return null
     throw error
   })
-  if (!loaded) notFound()
+  // Nothing to print for a voided month: a printed copy would not say so.
+  if (!loaded || loaded.summary.status === 'VOID') notFound()
 
   // Thrown on, rather than printed without the signature: the error page is
   // not a PDF anybody would send, and a blank signature rule would be.

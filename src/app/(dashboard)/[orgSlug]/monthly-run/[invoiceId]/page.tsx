@@ -326,6 +326,7 @@ export default async function MonthDocumentsPage({
         </>
       )}
 
+      {summary.status !== 'VOID' && (
       <Card>
         <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-2 py-4 text-[13px]">
           <span className="text-text-subtle">The editable files, if you need them:</span>
@@ -339,6 +340,7 @@ export default async function MonthDocumentsPage({
           </DocLink>
         </CardContent>
       </Card>
+      )}
     </div>
   )
 }

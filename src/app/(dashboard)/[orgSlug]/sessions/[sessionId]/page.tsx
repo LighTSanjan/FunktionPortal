@@ -23,11 +23,9 @@ export default async function SessionPage({
   const { userId } = await verifySession()
 
   const canManage = hasPermission(membership.role, 'session.manage')
-  const [session, instructors] = await Promise.all([
-    getSession(userId, org.id, sessionId),
-    listInstructorOptions(userId, org.id),
-  ])
+  const session = await getSession(userId, org.id, sessionId)
   if (!session) notFound()
+  const instructors = await listInstructorOptions(userId, org.id, session.instructor?.id)
 
   const monthKey = `${session.heldOn.getUTCFullYear()}-${String(session.heldOn.getUTCMonth() + 1).padStart(2, '0')}`
   const backTo = `/${orgSlug}/sessions?month=${monthKey}`

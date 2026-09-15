@@ -39,6 +39,9 @@ export async function GET(
     }
   )
   if (!loaded) return new NextResponse('Not found', { status: 404 })
+  if (loaded.summary.status === 'VOID') {
+    return new NextResponse('That month was voided, so its documents can no longer be downloaded.', { status: 410 })
+  }
   if (!loaded.summary.verifiedAt) {
     return new NextResponse('This month has not been signed yet, so there is no signed PDF to download.', {
       status: 409,

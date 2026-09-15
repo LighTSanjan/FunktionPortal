@@ -129,7 +129,7 @@ export async function coachPaymentsWorkflow(
           fullName: true,
           bankName: true,
           bankAccountNo: true,
-          rates: { select: { id: true }, take: 1 },
+          rates: { select: { effectiveFrom: true }, orderBy: { effectiveFrom: 'asc' }, take: 1 },
         },
       }),
       sessions: await tx.classSession.findMany({
@@ -173,6 +173,8 @@ export async function coachPaymentsWorkflow(
   // Coaches per month, counted once each: two classes by the same coach is
   // one invoice, and a step that read "2 of 1 raised" is worse than no step.
   const coaches = new Map<string, Set<string>>()
+  /** The first class each coach taught in each month, for checking rates. */
+  const firstClass = new Map<string, Date>()
   for (const session of sessions) {
     const year = session.heldOn.getUTCFullYear()
     const month = session.heldOn.getUTCMonth() + 1
@@ -182,24 +184,36 @@ export async function coachPaymentsWorkflow(
     const set = coaches.get(key) ?? new Set<string>()
     set.add(session.instructorId)
     coaches.set(key, set)
+    const first = firstClass.get(`${key}:${session.instructorId}`)
+    if (!first || session.heldOn < first) firstClass.set(`${key}:${session.instructorId}`, session.heldOn)
   }
-  const blockersFor = new Map(
-    instructors.map((row) => {
-      const missing: string[] = []
-      if (!row.bankName?.trim()) missing.push('bank')
-      if (!row.bankAccountNo?.trim()) missing.push('account number')
-      if (row.rates.length === 0) missing.push('rate')
-      return [row.id, { name: row.fullName, missing }]
-    })
-  )
+  const byId = new Map(instructors.map((row) => [row.id, row]))
+
+  /**
+   * What stops a coach being invoiced for one month. A rate that only starts
+   * after their first class that month blocks as hard as no rate at all —
+   * the board says so, and the strip above it has to agree.
+   */
+  const blockersFor = (id: string, key: string): { name: string; missing: string[] } | null => {
+    const row = byId.get(id)
+    if (!row) return null
+    const missing: string[] = []
+    if (!row.bankName?.trim()) missing.push('bank')
+    if (!row.bankAccountNo?.trim()) missing.push('account number')
+    const earliestRate = row.rates[0]?.effectiveFrom
+    const first = firstClass.get(`${key}:${id}`)
+    if (!earliestRate) missing.push('rate')
+    else if (first && earliestRate.getTime() > first.getTime()) missing.push('rate covering the month')
+    return { name: row.fullName, missing }
+  }
 
   for (const [key, set] of coaches) {
     const [year, month] = key.split('-').map(Number)
     const row = state(year, month)
     row.taught = set.size
     row.blocked = [...set]
-      .map((id) => blockersFor.get(id))
-      .filter((entry): entry is { name: string; missing: string[] } => Boolean(entry))
+      .map((id) => blockersFor(id, key))
+      .filter((entry): entry is { name: string; missing: string[] } => entry !== null)
       .filter((entry) => entry.missing.length > 0)
   }
 
