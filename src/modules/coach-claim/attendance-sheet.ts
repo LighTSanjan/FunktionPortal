@@ -4,6 +4,7 @@ import {
   AlignmentType, BorderStyle, VerticalAlign, ImageRun, PageOrientation, Packer,
   type ITableCellOptions,
 } from 'docx'
+import type { ISectionOptions } from 'docx'
 import type { AttendanceSheetDocData, ClaimLine } from './types'
 import { signatureBlock } from './signature-block'
 import { fitWithin } from './image-size'
@@ -105,7 +106,7 @@ function claimWorking(lines: ClaimLine[]): string | null {
 /** The logo's box in the masthead, in pixels at 96dpi. */
 const LOGO_BOX = { width: 130, height: 72 }
 
-export function buildAttendanceSheet(data: AttendanceSheetDocData): Document {
+export function attendanceSheetSection(data: AttendanceSheetDocData): { section: ISectionOptions; meta: { creator: string; title: string; description?: string } } {
   const { instructor, sessions, roster } = data
   const period = `${MONTHS[data.periodMonth - 1]} ${data.periodYear}`.toUpperCase()
   const branding = data.branding ?? {}
@@ -286,35 +287,41 @@ export function buildAttendanceSheet(data: AttendanceSheetDocData): Document {
     ],
   })
 
-  return new Document({
-    creator: data.organisationName,
-    title: `Attendance sheet — ${instructor.fullName}, ${period}`,
-    sections: [
-      {
-        properties: {
-          page: {
-            size: landscape ? { orientation: PageOrientation.LANDSCAPE } : undefined,
-            margin: { top: 900, bottom: 800, left: 900, right: 900 },
-          },
-        },
-        children: [
-          masthead,
-          new Paragraph({ spacing: { after: 140 }, children: [] }),
-          bandedRule(bands),
-          new Paragraph({ spacing: { after: 260 }, children: [] }),
-          details,
-          new Paragraph({ spacing: { after: 260 }, children: [] }),
-          matrix,
-          claim,
-          ...notes,
-          new Paragraph({ spacing: { after: 340 }, children: [] }),
-          endorsement,
-        ],
+  const section: ISectionOptions = {
+    properties: {
+      page: {
+        size: landscape ? { orientation: PageOrientation.LANDSCAPE } : undefined,
+        margin: { top: 900, bottom: 800, left: 900, right: 900 },
       },
+    },
+    children: [
+      masthead,
+      new Paragraph({ spacing: { after: 140 }, children: [] }),
+      bandedRule(bands),
+      new Paragraph({ spacing: { after: 260 }, children: [] }),
+      details,
+      new Paragraph({ spacing: { after: 260 }, children: [] }),
+      matrix,
+      claim,
+      ...notes,
+      new Paragraph({ spacing: { after: 340 }, children: [] }),
+      endorsement,
     ],
-  })
+  }
+  return {
+    section,
+    meta: {
+      creator: data.organisationName,
+      title: `Attendance sheet — ${instructor.fullName}, ${period}`,
+    },
+  }
 }
 
 export async function renderAttendanceSheet(data: AttendanceSheetDocData): Promise<Buffer> {
   return Packer.toBuffer(buildAttendanceSheet(data))
+}
+
+export function buildAttendanceSheet(data: AttendanceSheetDocData): Document {
+  const { section, meta } = attendanceSheetSection(data)
+  return new Document({ ...meta, sections: [section] })
 }

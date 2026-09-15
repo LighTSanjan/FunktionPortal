@@ -5,6 +5,7 @@ import { loadMonthDocuments, withSignature } from '@/modules/coach-claim/documen
 import { MonthNotFrozenError } from '@/modules/coach-claim/snapshot'
 import { renderInvoice } from '@/modules/coach-claim/invoice'
 import { renderAttendanceSheet } from '@/modules/coach-claim/attendance-sheet'
+import { renderMonthPack } from '@/modules/coach-claim/month-pack'
 
 const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
@@ -21,7 +22,7 @@ export async function GET(
   { params }: { params: Promise<{ orgSlug: string; invoiceId: string; document: string }> }
 ) {
   const { orgSlug, invoiceId, document } = await params
-  if (document !== 'invoice.docx' && document !== 'attendance-sheet.docx') {
+  if (document !== 'invoice.docx' && document !== 'attendance-sheet.docx' && document !== 'month.docx') {
     return new NextResponse('Not found', { status: 404 })
   }
 
@@ -39,17 +40,20 @@ export async function GET(
 
   const { summary, invoice, sheet } = await withSignature(loaded)
 
+  const month = `${summary.periodYear}-${String(summary.periodMonth).padStart(2, '0')}`
   const body =
-    document === 'invoice.docx'
-      ? await renderInvoice(invoice)
-      : await renderAttendanceSheet(sheet)
+    document === 'month.docx'
+      ? await renderMonthPack(invoice, sheet)
+      : document === 'invoice.docx'
+        ? await renderInvoice(invoice)
+        : await renderAttendanceSheet(sheet)
 
   const filename =
-    document === 'invoice.docx'
-      ? `${summary.documentNo}.docx`
-      : `Attendance ${summary.instructorName} ${summary.periodYear}-${String(
-          summary.periodMonth
-        ).padStart(2, '0')}.docx`
+    document === 'month.docx'
+      ? `${summary.referenceNumber} ${summary.instructorName} ${month}.docx`
+      : document === 'invoice.docx'
+        ? `${summary.documentNo}.docx`
+        : `Attendance ${summary.instructorName} ${month}.docx`
 
   return new NextResponse(new Uint8Array(body), {
     headers: {

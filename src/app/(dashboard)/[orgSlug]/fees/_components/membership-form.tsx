@@ -2,10 +2,8 @@
 
 import { startTransition, useActionState, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import type { FeeTier } from '@prisma/client'
 import { submitMembershipForm, type FormActionState } from '@/modules/membership-form/actions'
 import { fieldName, type Answer, type Question } from '@/modules/membership-form/questions'
-import { TIER_LABEL } from '@/modules/fees/tiers'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { Button } from '@/core/ui/button'
 import { Input } from '@/core/ui/input'
@@ -24,10 +22,8 @@ export interface MembershipFormProps {
   rosterName: { fullName: string; studentId: string | null } | null
   /** Their student ID, read off a student-ID email address. Not editable. */
   lockedStudentId: string | null
-  /** The fees they may pick from, with their prices. Empty when not theirs to pick. */
-  choices: { tier: FeeTier; amountCents: number }[]
-  /** What they pay when they do not pick: a fee the exco set, or the roster's. */
-  fixedFee: { amountCents: number; label: string; note: string | null } | null
+  /** What they pay: the term's rate, or what the exco set for them. Never their choice. */
+  fee: { amountCents: number; label: string; note: string | null }
   /** Where a payment already stands. Only NONE and REJECTED ask for one. */
   payment: 'NONE' | 'REJECTED' | 'DECLARED' | 'CONFIRMED' | 'HELD'
   hasQr: boolean
@@ -38,10 +34,8 @@ export interface MembershipFormProps {
     birthDay: number | null
     birthMonth: number | null
     birthYear: number | null
-    tier: FeeTier | null
     answers: Answer[]
   } | null
-  defaultTier: FeeTier | null
   /** An exco member looking at it: everything shows, nothing sends. */
   preview: boolean
 }
@@ -60,9 +54,8 @@ const MONTHS = [
  * moment the connection drops.
  */
 export function MembershipForm(props: MembershipFormProps) {
-  const { orgSlug, termId, questions, rosterName, lockedStudentId, choices, fixedFee, payment, previous, preview } = props
+  const { orgSlug, termId, questions, rosterName, lockedStudentId, fee, payment, previous, preview } = props
   const router = useRouter()
-  const [tier, setTier] = useState<FeeTier | null>(props.defaultTier)
   const [screenshot, setScreenshot] = useState<string | null>(null)
   const [state, act, pending] = useActionState<FormActionState, FormData>(
     submitMembershipForm.bind(null, orgSlug),
@@ -85,7 +78,7 @@ export function MembershipForm(props: MembershipFormProps) {
   }, [state])
 
   const errors = state.fieldErrors ?? {}
-  const amountCents = fixedFee ? fixedFee.amountCents : (choices.find((c) => c.tier === tier)?.amountCents ?? 0)
+  const amountCents = fee.amountCents
   const asksForPayment = amountCents > 0 && (payment === 'NONE' || payment === 'REJECTED')
   const amount = formatSgd(amountCents)
   let section = 0
@@ -211,49 +204,13 @@ export function MembershipForm(props: MembershipFormProps) {
       </Section>
 
       <Section n={++section} title="Your membership">
-        {fixedFee ? (
-          <div className="space-y-1">
-            <p className="text-[14px] text-text">
-              <span className="font-semibold tabular-nums">{fixedFee.amountCents > 0 ? amount : 'Nothing to pay'}</span>
-              <span className="text-text-muted"> · {fixedFee.label}</span>
-            </p>
-            {fixedFee.note && <p className="text-[12.5px] text-text-muted">{fixedFee.note}</p>}
-          </div>
-        ) : (
-          <fieldset className="space-y-2">
-            <legend className="mb-1 text-[13px] font-medium text-text">How long are you joining for?</legend>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {choices.map((choice) => (
-                <label
-                  key={choice.tier}
-                  className={cn(pillClass(tier === choice.tier), 'h-auto justify-between rounded-[var(--radius-sm)] px-3.5 py-3 text-[13.5px]')}
-                >
-                  <span className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="tier"
-                      value={choice.tier}
-                      checked={tier === choice.tier}
-                      onChange={() => setTier(choice.tier)}
-                      className="accent-[var(--brand-ink)]"
-                    />
-                    {TIER_LABEL[choice.tier]}
-                  </span>
-                  <span className="tabular-nums text-text-muted">{formatSgd(choice.amountCents)}</span>
-                </label>
-              ))}
-            </div>
-            {errors.tier ? (
-              <p className="text-[12px] text-danger" role="alert">
-                {errors.tier}
-              </p>
-            ) : (
-              <p className="text-[12px] text-text-subtle">
-                Half term is for joining partway through. Exchange is for exchange students.
-              </p>
-            )}
-          </fieldset>
-        )}
+        <div className="space-y-1">
+          <p className="text-[14px] text-text">
+            <span className="font-semibold tabular-nums">{fee.amountCents > 0 ? amount : 'Nothing to pay'}</span>
+            <span className="text-text-muted"> · {fee.label}</span>
+          </p>
+          {fee.note && <p className="text-[12.5px] leading-relaxed text-text-muted">{fee.note}</p>}
+        </div>
       </Section>
 
       {questions.length > 0 && (

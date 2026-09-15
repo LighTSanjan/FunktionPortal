@@ -8,6 +8,7 @@
  */
 import 'server-only'
 import { randomUUID } from 'crypto'
+import { immutableCache } from '@/lib/immutable-cache'
 import { getStorageUnscoped } from '@/core/storage'
 import { readImageInfo, UnreadableImageError, type ImageFormat } from '@/modules/coach-claim/image-size'
 import type { BrandLogo } from '@/modules/coach-claim/types'
@@ -59,16 +60,21 @@ export async function putLogo(orgId: string, bytes: Uint8Array, format: ImageFor
  * a document without its logo still has to be producible, and prints the
  * club's name in its place.
  */
+/** Every upload gets a fresh key, so a cached logo is never stale. */
+const logos = immutableCache<BrandLogo>(20)
+
 export async function readLogo(key: string | null | undefined): Promise<BrandLogo | null> {
   if (!key) return null
-  try {
-    const bytes = await getStorageUnscoped().download(key)
-    const info = readImageInfo(bytes)
-    return { bytes, ...info }
-  } catch (error) {
-    console.error('[branding] logo could not be read', error instanceof Error ? error.message : error)
-    return null
-  }
+  return logos.get(key, async () => {
+    try {
+      const bytes = await getStorageUnscoped().download(key)
+      const info = readImageInfo(bytes)
+      return { bytes, ...info }
+    } catch (error) {
+      console.error('[branding] logo could not be read', error instanceof Error ? error.message : error)
+      return null
+    }
+  })
 }
 
 /** For putting the logo on a page without handing out a storage URL. */

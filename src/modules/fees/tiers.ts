@@ -95,23 +95,14 @@ export const TIER_LABEL: Record<FeeTier, string> = {
   CUSTOM: 'Custom amount',
 }
 
-/**
- * The fees a member may pick for themselves on the form. Never a waiver or a
- * figure of their own: those are the exco's to give.
- */
-export const MEMBER_CHOICES: readonly FeeTier[] = ['FULL', 'HALF', 'EXCHANGE_DISCOUNT']
-
 /** The order the exco are offered them in. */
 export const TIER_CHOICES: readonly FeeTier[] = ['FULL', 'HALF', 'EXCHANGE_DISCOUNT', 'CUSTOM', 'WAIVED']
 
 export interface ResolvedFee {
   tier: FeeTier
   amountCents: number
-  /**
-   * Whether a payment fixed this, the exco decided it, the member picked it on
-   * the membership form, or the portal read it off the roster.
-   */
-  source: 'payment' | 'exco' | 'member' | 'roster'
+  /** Whether a person has decided this, or the portal read it off the roster. */
+  source: 'payment' | 'exco' | 'roster'
   /** False when the roster label was a guess nobody has confirmed. */
   certain: boolean
   because: string
@@ -126,25 +117,20 @@ export interface ResolvedFee {
  * What one member owes for one term, and why.
  *
  * A payment fixes it: whatever was confirmed or declared is what was paid.
- * Otherwise the exco's own decision, then what the member picked on the
- * membership form, and only then the roster label — which is a hand-typed
- * cell, read generously and flagged when unsure.
+ * Otherwise the exco's own decision, and only then the roster label — which
+ * is a hand-typed cell, read generously and flagged when unsure.
  *
- * A member's pick is their word, not the club's. It is charged, because
- * somebody who says they are here for half the term should be asked for half,
- * but it is flagged whenever the roster says something different, so the exco
- * see "picked half, roster says full" before they confirm the money.
+ * Never the member's own say. Half terms and waivers are rare, and they are
+ * the treasurer's or the exco's to give, person by person.
  */
 export function resolveFee(input: {
   payment: { tier: FeeTier; amountCents: number } | null
   arrangement: { tier: FeeTier; amountCents: number | null } | null
-  /** The fee picked on this term's membership form, if one was. */
-  choice?: FeeTier | null
   rosterLabel: string | null
   isActive: boolean
   rates: TermRates
 }): ResolvedFee {
-  const { payment, arrangement, choice, rosterLabel, isActive, rates } = input
+  const { payment, arrangement, rosterLabel, isActive, rates } = input
 
   if (payment) {
     return {
@@ -169,23 +155,6 @@ export function resolveFee(input: {
   }
 
   const reading = tierFor(rosterLabel)
-
-  if (choice && MEMBER_CHOICES.includes(choice)) {
-    // Somebody not on the roster at all, or whose row nobody was sure of, is
-    // taken at their word. Otherwise their word has to agree with the roster.
-    const agrees = rosterLabel === null || !reading.certain || reading.tier === choice
-    return {
-      tier: choice,
-      amountCents: amountForTier(choice, rates),
-      source: 'member',
-      certain: agrees,
-      because: agrees
-        ? `picked ${TIER_LABEL[choice].toLowerCase()} on the form`
-        : `picked ${TIER_LABEL[choice].toLowerCase()}, the roster says ${reading.tier ? TIER_LABEL[reading.tier].toLowerCase() : 'they left'}`,
-      // Filling in this term's form is saying you are here this term.
-      charged: true,
-    }
-  }
 
   const tier = reading.tier ?? 'FULL'
   return {

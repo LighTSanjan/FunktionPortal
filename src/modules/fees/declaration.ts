@@ -64,13 +64,9 @@ export async function writeDeclaration(
   if (!member) return { written: false, reason: 'GONE' }
 
   const key = { termId_memberId: { termId: input.termId, memberId: input.memberId } }
-  const [existing, arrangement, response] = await Promise.all([
+  const [existing, arrangement] = await Promise.all([
     tx.feePayment.findUnique({ where: key, select: { id: true, status: true } }),
     tx.feeArrangement.findUnique({ where: key, select: { tier: true, amountCents: true } }),
-    tx.membershipResponse.findFirst({
-      where: { termId: input.termId, memberId: input.memberId },
-      select: { tier: true },
-    }),
   ])
   if (existing?.status === 'CONFIRMED') return { written: false, reason: 'DECIDED' }
 
@@ -79,7 +75,6 @@ export async function writeDeclaration(
   const fee = resolveFee({
     payment: null,
     arrangement,
-    choice: response?.tier ?? null,
     rosterLabel: member.rosterLabel,
     isActive: member.isActive,
     rates: term,

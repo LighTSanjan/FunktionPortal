@@ -12,6 +12,7 @@ import { generateMonthlyDocuments } from '@/modules/coach-claim/run-actions'
 import type { ActionState } from '@/modules/coach-claim/actions'
 import type { RunEntry } from '@/modules/coach-claim/monthly-run'
 import { PaidToggle } from './paid-toggle'
+import { DownloadPdf } from './download-pdf'
 
 const STATUS: Record<RunEntry['status'], { label: string; variant: 'success' | 'warning' | 'danger' | 'neutral' | 'info' }> = {
   READY: { label: 'Ready to raise', variant: 'info' },
@@ -179,16 +180,15 @@ export function RunCard({
                     ? 'Send to OSL'
                     : 'Open the documents'}
               </Link>
-              <DownloadLink
-                href={`/${orgSlug}/monthly-run/${invoiceId}/download/invoice.docx`}
-              >
-                Invoice
-              </DownloadLink>
-              <DownloadLink
-                href={`/${orgSlug}/monthly-run/${invoiceId}/download/attendance-sheet.docx`}
-              >
-                Attendance sheet
-              </DownloadLink>
+              {/* One file with both: they are only ever sent together. Signed
+                  months get the PDF OSL asks for; before that, the Word file. */}
+              {entry.status === 'GENERATED' ? (
+                <DownloadLink href={`/${orgSlug}/monthly-run/${invoiceId}/download/month.docx`}>
+                  Invoice + attendance sheet (.docx)
+                </DownloadLink>
+              ) : (
+                <DownloadPdf href={`/${orgSlug}/monthly-run/${invoiceId}/pdf`} label="Invoice + attendance sheet (PDF)" />
+              )}
             </div>
 
             {/* The last step, and the only one the portal cannot observe for

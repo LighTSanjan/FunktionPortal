@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getOrgContext, requirePermission, verifySession } from '@/core/auth/dal'
 import { getTerm } from '@/modules/fees/queries'
-import { TIER_LABEL } from '@/modules/fees/tiers'
 import { getForm, listResponses } from '@/modules/membership-form/queries'
 import { answerText } from '@/modules/membership-form/questions'
 import { toCsv } from '@/modules/membership-form/csv'
@@ -31,14 +30,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ orgS
     }
   }
 
-  const header = ['Sent', 'Name', 'Student ID', 'Email', 'Birthday', 'Fee picked', 'On the roster as', ...columns.map((c) => c.label)]
+  const header = ['Sent', 'Name', 'Student ID', 'Email', 'Birthday', 'On the roster as', ...columns.map((c) => c.label)]
   const rows = responses.map((response) => [
     response.submittedAt.toISOString().slice(0, 16).replace('T', ' '),
     response.fullName,
     response.studentId ?? '',
     response.email,
     response.birthday ?? '',
-    response.tier ? TIER_LABEL[response.tier] : '',
     response.memberName ?? 'Not matched yet',
     ...columns.map((c) => answerText(response.answers.find((a) => a.questionId === c.id)?.value)),
   ])

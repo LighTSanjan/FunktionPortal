@@ -50,9 +50,11 @@ describe('AppSidebar', () => {
     pathname = '/acme/dashboard'
   })
 
-  it('renders org name', () => {
+  it('shows the club logo at the top, named for the club, linking home', () => {
     render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navGroups={mockGroups} />)
-    expect(screen.getByText('Acme Inc')).toBeInTheDocument()
+    const logo = screen.getByAltText('Acme Inc')
+    expect(logo).toHaveAttribute('src', '/funktion-logo.svg')
+    expect(logo.closest('a')).toHaveAttribute('href', '/acme/dashboard')
   })
 
   it('groups the nav by what somebody came to do', () => {
@@ -69,11 +71,6 @@ describe('AppSidebar', () => {
   it('renders Settings in footer', () => {
     render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navGroups={mockGroups} canManageSettings />)
     expect(screen.getByText('Settings')).toBeInTheDocument()
-  })
-
-  it('renders the FUNKtion wordmark', () => {
-    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navGroups={mockGroups} />)
-    expect(screen.getByText('FUNKtion')).toBeInTheDocument()
   })
 
   it('has collapse button', () => {

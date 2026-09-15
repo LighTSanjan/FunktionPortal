@@ -1,10 +1,8 @@
 'use client'
 
 import { useActionState, useMemo, useState, useTransition } from 'react'
-import type { FeeTier } from '@prisma/client'
 import { clearHeldPayment, matchResponse, removeResponse, type FormActionState } from '@/modules/membership-form/actions'
 import { answerText, type Answer } from '@/modules/membership-form/questions'
-import { TIER_LABEL } from '@/modules/fees/tiers'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { Badge } from '@/core/ui/badge'
 import { Button } from '@/core/ui/button'
@@ -20,7 +18,6 @@ export interface ResponseView {
   fullName: string
   studentId: string | null
   birthday: string | null
-  tier: FeeTier | null
   answers: Answer[]
   held: { reference: string | null; amountCents: number | null; hasProof: boolean } | null
   /** Formatted on the server, in Singapore time, so the page renders the same twice. */
@@ -139,9 +136,6 @@ export function ResponsesList({
                         {response.studentId ?? 'No student ID'} · {response.email}
                       </span>
                     </span>
-                    <span className="w-28 text-[12.5px] text-text-muted">
-                      {response.tier ? TIER_LABEL[response.tier] : '—'}
-                    </span>
                     <span className="flex w-44 flex-wrap items-center gap-1.5">
                       {response.memberId ? (
                         <Badge variant="success">On the roster</Badge>
@@ -199,7 +193,6 @@ function ResponseDetail({
         <Row label="On the roster as" value={response.memberName ?? 'Nobody yet'} />
         {response.matchedByName && <Row label="Matched by" value={response.matchedByName} />}
         <Row label="Birthday" value={response.birthday ?? '—'} />
-        <Row label="Fee picked" value={response.tier ? TIER_LABEL[response.tier] : 'Not asked'} />
         <Row label="Sent" value={`${response.sentLong}${response.edited ? ' · edited since' : ''}`} />
         {response.answers.map((answer) => (
           <Row key={answer.questionId} label={answer.label} value={answerText(answer.value) || '—'} />

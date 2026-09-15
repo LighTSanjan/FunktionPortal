@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import type { FeeTier } from '@prisma/client'
 import { dbAs } from '@/core/db'
 import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { hasPermission } from '@/core/permissions'
@@ -7,9 +6,9 @@ import { studentIdFromEmail } from '@/core/auth/roster-match'
 import { PageHeader } from '@/core/ui/page-header'
 import { Badge } from '@/core/ui/badge'
 import { currentTerm, getTerm } from '@/modules/fees/queries'
-import { amountForTier, resolveFee, tierFor, TIER_LABEL } from '@/modules/fees/tiers'
+import { amountForTier, resolveFee, TIER_LABEL } from '@/modules/fees/tiers'
 import { formatSgd } from '@/modules/coach-claim/money'
-import { getForm, getOwnResponse } from '@/modules/membership-form/queries'
+import { formIsFor, getForm, getOwnResponse } from '@/modules/membership-form/queries'
 import { answerText } from '@/modules/membership-form/questions'
 import { MembershipForm, type MembershipFormProps } from './_components/membership-form'
 import { PayPanel } from './_components/pay-panel'
@@ -97,33 +96,30 @@ export default async function FeesPage({
   ])
   const { member, payment, arrangement } = context
 
-  // What they would owe, and whether it is theirs to pick.
+  // What they owe. Never their choice: the term's rate, or what the exco set
+  // for this person.
   const rates = term
   // In preview the exco can see the form as somebody who is not on the roster.
   const asMember = preview && query.preview === 'new' ? null : member
-  const choices = arrangement && asMember ? [] : form.tierChoices.map((tier) => ({ tier, amountCents: amountForTier(tier, rates) }))
-  let fixedFee: MembershipFormProps['fixedFee'] = null
-  if (arrangement && asMember) {
-    fixedFee = {
+  let fee: MembershipFormProps['fee']
+  if (asMember && arrangement) {
+    fee = {
       amountCents: amountForTier(arrangement.tier, rates, arrangement.amountCents),
       label: TIER_LABEL[arrangement.tier],
       note: arrangement.note ? `Set by the exco: ${arrangement.note}` : 'Set by the exco.',
     }
-  } else if (choices.length === 0) {
-    const fee = asMember
-      ? resolveFee({ payment: null, arrangement: null, rosterLabel: asMember.rosterLabel, isActive: asMember.isActive, rates })
-      : null
-    fixedFee = fee
-      ? { amountCents: fee.charged ? fee.amountCents : 0, label: fee.charged ? TIER_LABEL[fee.tier] : 'Not taking part this term', note: null }
-      : { amountCents: amountForTier('FULL', rates), label: TIER_LABEL.FULL, note: null }
+  } else if (asMember) {
+    const roster = resolveFee({ payment: null, arrangement: null, rosterLabel: asMember.rosterLabel, isActive: asMember.isActive, rates })
+    fee = roster.charged
+      ? { amountCents: roster.amountCents, label: TIER_LABEL[roster.tier], note: null }
+      : { amountCents: 0, label: 'Not taking part this term', note: 'If that’s wrong, tell the treasurer before you pay.' }
+  } else {
+    fee = {
+      amountCents: amountForTier('FULL', rates),
+      label: TIER_LABEL.FULL,
+      note: 'Joining for less than a full term? Tell the treasurer before you pay, and they’ll set your fee.',
+    }
   }
-  const rosterTier = asMember ? tierFor(asMember.rosterLabel).tier : null
-  const defaultTier: FeeTier | null =
-    choices.length === 0
-      ? null
-      : (response?.tier && form.tierChoices.includes(response.tier) ? response.tier : null) ??
-        (rosterTier && form.tierChoices.includes(rosterTier) ? rosterTier : null) ??
-        (form.tierChoices.includes('FULL') ? 'FULL' : form.tierChoices[0])
 
   const paymentState: MembershipFormProps['payment'] = preview && !asMember
     ? 'NONE'
@@ -140,12 +136,10 @@ export default async function FeesPage({
     questions: form.questions,
     rosterName: asMember ? { fullName: asMember.fullName, studentId: asMember.studentId } : null,
     lockedStudentId: asMember ? null : studentIdFromEmail(context.email),
-    choices,
-    fixedFee,
+    fee,
     payment: paymentState,
     hasQr: term.hasPaynowQr,
     previous: editing && response ? response : null,
-    defaultTier,
     preview,
   }
 
@@ -188,6 +182,21 @@ export default async function FeesPage({
     )
   }
 
+  // ── A form sent to particular people, and this is not one of them ──
+  if (!response && !formIsFor(form, member?.id ?? null)) {
+    return (
+      <Shell header={header}>
+        <Hero title={`${term.name} membership`} line={heroLine} />
+        <section className="rounded-[var(--radius-md)] border border-border bg-surface p-5">
+          <p className="text-[15px] font-semibold text-text">There&rsquo;s no form for you right now</p>
+          <p className="mt-1 text-[13px] leading-relaxed text-text-muted">
+            This term&rsquo;s form went to particular people. If you think you should have it, speak to the treasurer.
+          </p>
+        </section>
+      </Shell>
+    )
+  }
+
   // ── The form, to fill in ──
   if (formOpen && (!response || editing)) {
     return (
@@ -223,6 +232,15 @@ export default async function FeesPage({
             {form.state === 'DRAFT' ? 'The form isn’t open yet' : 'The form is closed'}
           </p>
           <p className="mt-1 text-[13px] leading-relaxed text-text-muted">{closedLine}</p>
+          {member && payment && payment.status !== 'REJECTED' && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4 text-[13px]">
+              <span>
+                Your fee: <span className="font-semibold tabular-nums">{formatSgd(payment.amountCents)}</span>
+                <span className="text-text-muted"> · {TIER_LABEL[payment.tier]}</span>
+              </span>
+              <StatusBadge status={payment.status} owes={payment.amountCents > 0} />
+            </div>
+          )}
           {member && payment?.status === 'REJECTED' && !term.closed && (
             <div className="mt-4">
               <Notice tone="danger">
@@ -256,8 +274,7 @@ export default async function FeesPage({
 
   // ── What they sent, and where their payment stands ──
   const onRoster = Boolean(member)
-  const amountCents = payment?.amountCents ?? response.held?.amountCents ?? fixedFee?.amountCents ??
-    choices.find((c) => c.tier === response.tier)?.amountCents ?? 0
+  const amountCents = payment?.amountCents ?? response.held?.amountCents ?? fee.amountCents
   const status = payment?.status ?? (response.held ? 'HELD' : null)
 
   return (
@@ -293,9 +310,7 @@ export default async function FeesPage({
             {amountCents > 0 ? (
               <>
                 <span className="font-semibold tabular-nums">{formatSgd(amountCents)}</span>
-                {(payment?.tier ?? response.tier) && (
-                  <span className="text-text-muted"> · {TIER_LABEL[(payment?.tier ?? response.tier)!]}</span>
-                )}
+                <span className="text-text-muted"> · {payment ? TIER_LABEL[payment.tier] : fee.label}</span>
               </>
             ) : (
               'Nothing to pay'

@@ -7,6 +7,7 @@
  */
 import 'server-only'
 import { randomUUID } from 'crypto'
+import { immutableCache } from '@/lib/immutable-cache'
 import { getStorageUnscoped } from '@/core/storage'
 import type { ImageFormat } from '@/modules/coach-claim/image-size'
 import type { SignatureImage } from '@/modules/coach-claim/types'
@@ -47,14 +48,19 @@ export async function putSignature(
  * documents being produced — they simply print with an empty rule to sign by
  * hand, which is what the club did before this existed.
  */
+/** Keys are never reused (see newKey), so a cached specimen is never stale. */
+const specimens = immutableCache<SignatureImage>(50)
+
 export async function readSignature(key: string | null): Promise<SignatureImage | null> {
   if (!key) return null
   const format: ImageFormat = key.endsWith('.jpg') ? 'jpg' : 'png'
-  try {
-    return { data: await getStorageUnscoped().download(key), format }
-  } catch {
-    return null
-  }
+  return specimens.get(key, async () => {
+    try {
+      return { data: await getStorageUnscoped().download(key), format }
+    } catch {
+      return null
+    }
+  })
 }
 
 /** A short-lived URL, for showing somebody their own specimen back. */

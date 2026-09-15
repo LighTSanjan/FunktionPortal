@@ -12,6 +12,7 @@ import {
   deleteQuestion,
   matchResponse,
   removeResponse,
+  saveAudience,
   saveFormSettings,
   saveQuestion,
   setFormState,
@@ -113,10 +114,10 @@ describe('the membership form', () => {
         saveQuestion(org.slug, blank, form({ termId, type: 'SHORT_TEXT', label: 'Telegram handle', help: '', required: 'on', options: '' }))
       )
       questionId = (await dbAdmin.membershipQuestion.findFirstOrThrow({ where: { label: 'Telegram handle' } })).id
-      await ok(() => saveFormSettings(org.slug, blank, form({ termId, intro: 'Welcome back!', tierChoice: ['FULL', 'HALF'] })))
+      await ok(() => saveFormSettings(org.slug, blank, form({ termId, intro: 'Welcome back!' })))
       const saved = await getForm(treasurer.id, org.id, termId)
       expect(saved.questions.map((q) => q.label)).toEqual(['Telegram handle'])
-      expect(saved.tierChoices).toEqual(['FULL', 'HALF'])
+      expect(saved.intro).toBe('Welcome back!')
     })
 
     it('does not take responses while it is a draft', async () => {
@@ -133,6 +134,14 @@ describe('the membership form', () => {
       ).toBe('denied')
     })
 
+    it('can go to only the people the exco choose', async () => {
+      as(treasurer)
+      const none = await saveAudience(org.slug, blank, form({ termId, audience: 'CHOSEN' }))
+      expect(none.error).toMatch(/at least one/)
+      await ok(() => saveAudience(org.slug, blank, form({ termId, audience: 'CHOSEN', memberId: [rows.ada] })))
+      expect(await getForm(treasurer.id, org.id, termId)).toMatchObject({ audience: 'CHOSEN', recipientIds: [rows.ada] })
+    })
+
     it('opens once the QR is up', async () => {
       as(treasurer)
       await ok(() => uploadPaynowQr(org.slug, blank, form({ termId, qr: pngFile(400, 400) })))
@@ -141,15 +150,37 @@ describe('the membership form', () => {
     })
   })
 
+  describe('a form for chosen people', () => {
+    it('turns away anybody not chosen, in the action and the database', async () => {
+      as(newbie)
+      const refused = await submitMembershipForm(org.slug, blank, form({
+        termId, fullName: 'Nina New', studentId: '1005555', birthDay: '12', birthMonth: '3', [`q_${questionId}`]: '@nina',
+      }))
+      expect(refused.error).toMatch(/aren’t one of them/)
+      const { dbAs } = await import('@/core/db')
+      await expect(
+        dbAs(newbie.id, (tx) =>
+          tx.membershipResponse.create({ data: { orgId: org.id, termId, userId: newbie.id, email: newbie.email, fullName: 'Nina New' } })
+        )
+      ).rejects.toThrow(/not for you/)
+    })
+
+    it('goes back to everyone', async () => {
+      as(treasurer)
+      await ok(() => saveAudience(org.slug, blank, form({ termId, audience: 'EVERYONE', memberId: [rows.ada] })))
+      expect(await getForm(treasurer.id, org.id, termId)).toMatchObject({ audience: 'EVERYONE', recipientIds: [] })
+    })
+  })
+
   describe('somebody on the roster filling it in', () => {
     it('says what needs fixing, all at once', async () => {
       as(ada)
       const result = await submitMembershipForm(org.slug, blank, form({ termId }))
-      expect(Object.keys(result.fieldErrors ?? {}).sort()).toEqual([questionId, 'proof', 'reference', 'tier'].sort())
+      expect(Object.keys(result.fieldErrors ?? {}).sort()).toEqual([questionId, 'proof', 'reference'].sort())
       expect(await responseOf(ada)).toBeNull()
     })
 
-    it('sends answers and a payment for the fee they picked, flagged for the exco', async () => {
+    it('sends answers and a payment for the fee the club set, whatever they post', async () => {
       as(ada)
       await ok(() =>
         submitMembershipForm(org.slug, blank, form({
@@ -161,8 +192,8 @@ describe('the membership form', () => {
       expect(response?.answers).toEqual([{ questionId, label: 'Telegram handle', type: 'SHORT_TEXT', value: '@ada' }])
 
       const row = await collectionRow('Ada Lee')
-      expect(row).toMatchObject({ status: 'DECLARED', amountCents: 3500, feeSource: 'payment', tierUncertain: true })
-      expect(row?.tierBecause).toBe('picked half term, the roster says full term')
+      // They posted "HALF". Nobody picks their own fee.
+      expect(row).toMatchObject({ status: 'DECLARED', amountCents: 7000, tier: 'FULL' })
     })
 
     it('lets them change their answers without paying again', async () => {

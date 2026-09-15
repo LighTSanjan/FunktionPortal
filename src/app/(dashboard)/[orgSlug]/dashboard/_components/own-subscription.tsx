@@ -70,8 +70,12 @@ function describe(
   }
   const open = fee.form?.state === 'OPEN' && !fee.term.closed
 
+  if (!fee.response && fee.form && !fee.form.forYou && !fee.payment) {
+    return { headline: 'No membership form for you right now', needsYou: false }
+  }
+
   if (!fee.response) {
-    if (open) {
+    if (open && fee.form?.forYou) {
       return {
         headline: `The ${fee.term.name} membership form is open`,
         detail: 'Fill it in and pay your fee. It takes two minutes.',

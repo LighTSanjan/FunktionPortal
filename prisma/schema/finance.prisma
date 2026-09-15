@@ -173,6 +173,7 @@ model Member {
   feePayments  FeePayment[]
   feeArrangements FeeArrangement[]
   membershipResponses MembershipResponse[]
+  formRecipients  MembershipFormRecipient[]
   purchaseRequests PurchaseRequest[]
 
   /// Student ID is the only stable key the attendance sheets carry — names
@@ -631,17 +632,16 @@ model FeeArrangement {
 /// and the payment built in.
 ///
 /// The name, student ID, birthday, fee and payment are fixed parts of every
-/// form. What the exco edit is the welcome note, which fees a respondent may
-/// pick for themselves, and any questions of the club's own.
+/// form. What the exco edit is the welcome note, who the form is for, and any
+/// questions of the club's own. Nobody picks their own fee: it is the term's
+/// rate, or what the exco set for that person.
 model MembershipForm {
   id     String    @id @default(cuid())
   orgId  String    @map("org_id")
   termId String    @unique @map("term_id")
   state  FormState @default(DRAFT)
   intro  String?
-  /// The fees a respondent may choose between. A fee the exco set for that
-  /// person wins over whatever they pick.
-  tierChoices FeeTier[] @default([FULL, HALF, EXCHANGE_DISCOUNT]) @map("tier_choices")
+  audience FormAudience @default(EVERYONE)
   openedAt  DateTime? @map("opened_at")
   closedAt  DateTime? @map("closed_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -649,9 +649,25 @@ model MembershipForm {
   organisation Organisation         @relation(fields: [orgId], references: [id], onDelete: Cascade)
   term         Term                 @relation(fields: [termId], references: [id], onDelete: Cascade)
   questions    MembershipQuestion[]
+  recipients   MembershipFormRecipient[]
 
   @@index([orgId])
   @@map("membership_forms")
+}
+
+/// One roster row a form is for, when its audience is CHOSEN.
+model MembershipFormRecipient {
+  formId   String @map("form_id")
+  memberId String @map("member_id")
+  orgId    String @map("org_id")
+
+  form         MembershipForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  member       Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  organisation Organisation   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([formId, memberId])
+  @@index([memberId])
+  @@map("membership_form_recipients")
 }
 
 /// One question of the club's own on a membership form.
@@ -699,8 +715,6 @@ model MembershipResponse {
   birthDay   Int? @map("birth_day")
   birthMonth Int? @map("birth_month")
   birthYear  Int? @map("birth_year")
-  /// The fee they picked, when the form let them.
-  tier    FeeTier?
   /// `[{ questionId, label, type, value }]`, with each question's wording as
   /// it was answered, so editing a question later cannot change an answer.
   answers Json     @default("[]")

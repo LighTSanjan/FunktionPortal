@@ -2,12 +2,12 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import type { FeeTier, Prisma } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
 import { dbAs } from '@/core/db'
 import { getOrgContext, requirePermission } from '@/core/auth/dal'
 import { writeAudit } from '@/core/audit'
 import { studentIdFromEmail } from '@/core/auth/roster-match'
-import { amountForTier, MEMBER_CHOICES, resolveFee, type ResolvedFee } from '@/modules/fees/tiers'
+import { amountForTier, resolveFee, type ResolvedFee } from '@/modules/fees/tiers'
 import { lockTermFees, writeDeclaration } from '@/modules/fees/declaration'
 import { validateProof, putProof, discardProof, ProofRejected, MAX_PROOF_BYTES } from '@/modules/fees/proof'
 import {
@@ -109,10 +109,9 @@ export async function setFormState(
 const settingsSchema = z.object({
   termId: z.string().min(1),
   intro: z.string().trim().max(1500, 'Keep the welcome note under 1,500 characters'),
-  tierChoices: z.array(z.enum(['FULL', 'HALF', 'EXCHANGE_DISCOUNT'])),
 })
 
-/** The welcome note and which fees people may pick for themselves. */
+/** The welcome note at the top of the form. */
 export async function saveFormSettings(
   orgSlug: string,
   _prev: FormActionState,
@@ -124,20 +123,15 @@ export async function saveFormSettings(
   const parsed = settingsSchema.safeParse({
     termId: formData.get('termId') ?? '',
     intro: formData.get('intro') ?? '',
-    tierChoices: formData.getAll('tierChoice').map(String),
   })
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'That could not be saved' }
-  const tierChoices = MEMBER_CHOICES.filter((tier) => parsed.data.tierChoices.includes(tier as never))
 
   const problem = await dbAs(userId, async (tx) => {
     const term = await tx.term.findFirst({ where: { id: parsed.data.termId, orgId: org.id }, select: { id: true, closedAt: true } })
     if (!term) return 'That term no longer exists.'
     if (term.closedAt) return 'That collection is closed.'
     const form = await ensureForm(tx, org.id, term.id)
-    await tx.membershipForm.update({
-      where: { id: form.id },
-      data: { intro: parsed.data.intro || null, tierChoices: [...tierChoices] },
-    })
+    await tx.membershipForm.update({ where: { id: form.id }, data: { intro: parsed.data.intro || null } })
     await writeAudit(
       {
         orgId: org.id,
@@ -145,7 +139,7 @@ export async function saveFormSettings(
         action: 'form.settings',
         targetType: 'MembershipForm',
         targetId: form.id,
-        after: { tierChoices, intro: Boolean(parsed.data.intro) },
+        after: { intro: Boolean(parsed.data.intro) },
       },
       tx
     )
@@ -155,6 +149,77 @@ export async function saveFormSettings(
   if (problem) return { error: problem }
   revalidateForm(orgSlug)
   return { error: null, ok: true, message: 'Saved.' }
+}
+
+const audienceSchema = z.object({
+  termId: z.string().min(1),
+  audience: z.enum(['EVERYONE', 'CHOSEN']),
+  memberIds: z.array(z.string().min(1)).max(500),
+})
+
+/**
+ * Who the form is for: everybody, or only the people ticked — the few on a
+ * half term, say. Anybody else who opens it is told it is not for them.
+ */
+export async function saveAudience(
+  orgSlug: string,
+  _prev: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  const { org } = await getOrgContext(orgSlug)
+  const { userId } = await requirePermission(org.id, 'fee.manage')
+
+  const parsed = audienceSchema.safeParse({
+    termId: formData.get('termId') ?? '',
+    audience: formData.get('audience') ?? '',
+    memberIds: formData.getAll('memberId').map(String),
+  })
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Pick who the form is for' }
+  const { termId, audience } = parsed.data
+  const memberIds = [...new Set(parsed.data.memberIds)]
+  if (audience === 'CHOSEN' && memberIds.length === 0) {
+    return { error: 'Tick at least one person, or send it to everyone.' }
+  }
+
+  const outcome = await dbAs(userId, async (tx) => {
+    const term = await tx.term.findFirst({ where: { id: termId, orgId: org.id }, select: { id: true, closedAt: true } })
+    if (!term) return { problem: 'That term no longer exists.' }
+    if (term.closedAt) return { problem: 'That collection is closed.' }
+    const form = await ensureForm(tx, org.id, term.id)
+
+    if (audience === 'CHOSEN') {
+      const found = await tx.member.count({ where: { orgId: org.id, id: { in: memberIds } } })
+      if (found !== memberIds.length) return { problem: 'Somebody on that list is no longer on the roster. Reload the page.' }
+    }
+
+    await tx.membershipFormRecipient.deleteMany({ where: { formId: form.id } })
+    if (audience === 'CHOSEN') {
+      await tx.membershipFormRecipient.createMany({
+        data: memberIds.map((memberId) => ({ formId: form.id, memberId, orgId: org.id })),
+      })
+    }
+    await tx.membershipForm.update({ where: { id: form.id }, data: { audience } })
+    await writeAudit(
+      {
+        orgId: org.id,
+        actorId: userId,
+        action: 'form.audience',
+        targetType: 'MembershipForm',
+        targetId: form.id,
+        after: { audience, people: audience === 'CHOSEN' ? memberIds.length : null },
+      },
+      tx
+    )
+    return { problem: null }
+  })
+
+  if (outcome.problem) return { error: outcome.problem }
+  revalidateForm(orgSlug)
+  return {
+    error: null,
+    ok: true,
+    message: audience === 'EVERYONE' ? 'The form is for everyone.' : `The form is for ${memberIds.length} ${memberIds.length === 1 ? 'person' : 'people'}.`,
+  }
 }
 
 const questionSchema = z.object({
@@ -346,7 +411,7 @@ export async function submitMembershipForm(
       tx.user.findUnique({ where: { id: userId }, select: { email: true } }),
       tx.membershipForm.findFirst({
         where: { orgId: org.id, termId },
-        include: { questions: { orderBy: { position: 'asc' } } },
+        include: { questions: { orderBy: { position: 'asc' } }, recipients: { select: { memberId: true } } },
       }),
       tx.term.findFirst({
         where: { id: termId, orgId: org.id },
@@ -381,6 +446,9 @@ export async function submitMembershipForm(
   if (!user || !term) return { error: 'That form no longer exists.' }
   if (term.closedAt) return { error: 'This term has been banked in, so the form is closed. Speak to the treasurer.' }
   if (!form || form.state !== 'OPEN') return { error: 'This form is not taking responses right now.' }
+  if (form.audience === 'CHOSEN' && !(member && form.recipients.some((row) => row.memberId === member.id))) {
+    return { error: 'This form was sent to particular people, and you aren’t one of them. Speak to the treasurer if you think you should be.' }
+  }
 
   const fieldErrors: Record<string, string> = {}
   const questions: Question[] = form.questions.map((q) => ({
@@ -420,25 +488,19 @@ export async function submitMembershipForm(
     else birthday = typed
   }
 
-  // Which fee. Not theirs to pick when the exco have set it.
-  let tier: FeeTier | null = null
-  if (!arrangement && form.tierChoices.length > 0) {
-    const picked = String(formData.get('tier') ?? '') as FeeTier
-    if (form.tierChoices.includes(picked)) tier = picked
-    else fieldErrors.tier = 'Pick how long you are joining for.'
-  }
-
+  // The fee is never theirs to pick: the term's rate, or what the exco set
+  // for this person. Somebody not on the roster yet is asked for a full term
+  // until the exco say otherwise.
   const resolved: ResolvedFee | null = member
     ? resolveFee({
         payment: null,
         arrangement,
-        choice: tier,
         rosterLabel: member.rosterLabel,
         isActive: member.isActive,
         rates: term,
       })
     : null
-  const amountCents = resolved ? resolved.amountCents : amountForTier(tier ?? 'FULL', term)
+  const amountCents = resolved ? resolved.amountCents : amountForTier('FULL', term)
   const owes = (resolved?.charged ?? true) && amountCents > 0
 
   // Whether this send has to carry a payment. Not when one is already with
@@ -524,7 +586,7 @@ export async function submitMembershipForm(
           problem: 'Something changed while this was sending — the exco may have just put you on the roster. Reload the page and send it again.',
         }
       }
-      const amountNow = member ? amountCents : amountForTier(tier ?? 'FULL', termNow)
+      const amountNow = member ? amountCents : amountForTier('FULL', termNow)
 
       const held =
         !member && proofPath
@@ -539,7 +601,6 @@ export async function submitMembershipForm(
         birthDay: birthday?.day ?? null,
         birthMonth: birthday?.month ?? null,
         birthYear: birthday?.year ?? null,
-        tier,
         answers: answers as unknown as Prisma.InputJsonValue,
         ...held,
       }
@@ -601,7 +662,6 @@ export async function submitMembershipForm(
         const repriced = resolveFee({
           payment: null,
           arrangement: arrangementNow,
-          choice: tier,
           rosterLabel: memberNow.rosterLabel,
           isActive: memberNow.isActive,
           rates: termNow,
@@ -622,7 +682,7 @@ export async function submitMembershipForm(
           targetType: 'MembershipResponse',
           targetId: saved.id,
           // Never the birthday or the answers: the audit log is read more widely.
-          after: { termId: term.id, tier, onRoster: Boolean(member), paid: Boolean(proofPath) },
+          after: { termId: term.id, onRoster: Boolean(member), paid: Boolean(proofPath) },
         },
         tx
       )

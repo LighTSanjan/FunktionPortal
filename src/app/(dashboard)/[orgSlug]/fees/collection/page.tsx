@@ -11,7 +11,6 @@ import {
   type PaymentRow,
   type TermRow,
 } from '@/modules/fees/queries'
-import { amountForTier } from '@/modules/fees/tiers'
 import { splitGst, DEFAULT_GST_BASIS_POINTS } from '@/modules/fees/money'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { longDate } from '@/modules/coach-claim/theme'
@@ -26,6 +25,7 @@ import { TermPicker } from './_components/term-picker'
 import { FeeTable, type FeeRowView, type Filter, type RowState } from './_components/fee-table'
 import { FormControls } from './_components/form-controls'
 import { FormSettings } from './_components/form-settings'
+import { AudiencePicker } from './_components/audience-picker'
 import { QuestionList } from './_components/question-list'
 import { ResponsesList, type ResponseView } from './_components/responses-list'
 import { FormStateBadge, Notice, Panel, linkButtonClass } from '../_components/ui'
@@ -245,11 +245,13 @@ export default async function CollectionPage({
           orgSlug={orgSlug}
           term={term}
           form={form}
-          prices={{
-            FULL: formatSgd(amountForTier('FULL', rates)),
-            HALF: formatSgd(amountForTier('HALF', rates)),
-            EXCHANGE_DISCOUNT: formatSgd(amountForTier('EXCHANGE_DISCOUNT', rates)),
-          }}
+          roster={await dbAs(userId, (tx) =>
+            tx.member.findMany({
+              where: { orgId: org.id, OR: [{ isActive: true }, { id: { in: form.recipientIds } }] },
+              orderBy: { fullName: 'asc' },
+              select: { id: true, fullName: true, studentId: true },
+            })
+          )}
         />
       )}
 
@@ -279,7 +281,6 @@ export default async function CollectionPage({
                   fullName: row.fullName,
                   studentId: row.studentId,
                   birthday: row.birthday,
-                  tier: row.tier,
                   answers: row.answers,
                   held: row.held,
                   sentShort: row.submittedAt.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', timeZone: SGT }),
@@ -427,12 +428,12 @@ function FormTab({
   orgSlug,
   term,
   form,
-  prices,
+  roster,
 }: {
   orgSlug: string
   term: TermRow
   form: Awaited<ReturnType<typeof getForm>>
-  prices: Record<string, string>
+  roster: { id: string; fullName: string; studentId: string | null }[]
 }) {
   return (
     <div className="space-y-5">
@@ -444,7 +445,7 @@ function FormTab({
 
       <Panel
         title="1. Fees and dates"
-        description="What each fee costs this term. You can still give anyone a different amount from Payments. OSL want two weeks’ notice before the collection opens."
+        description="What each fee costs this term. To charge someone differently, set their fee under Payments. OSL want two weeks’ notice before the collection opens."
       >
         <TermForm
           orgSlug={orgSlug}
@@ -474,19 +475,26 @@ function FormTab({
         />
       </Panel>
 
-      <Panel title="3. Welcome note and fee choices">
-        <FormSettings
+      <Panel
+        title="3. Who gets this form"
+        description="Usually everyone. Pick particular people for a form that's only for a few, like the rare half-term joiners."
+      >
+        <AudiencePicker
           orgSlug={orgSlug}
           termId={term.id}
-          intro={form.intro}
-          tierChoices={form.tierChoices}
-          prices={prices}
+          audience={form.audience}
+          chosen={form.recipientIds}
+          roster={roster}
           locked={term.closed}
         />
       </Panel>
 
+      <Panel title="4. Welcome note">
+        <FormSettings orgSlug={orgSlug} termId={term.id} intro={form.intro} locked={term.closed} />
+      </Panel>
+
       <Panel
-        title="4. Your own questions"
+        title="5. Your own questions"
         description="Anything else the club wants to know this term: Telegram handle, shirt size, which classes they can make."
         actions={
           <Link href={`/${orgSlug}/fees?term=${term.id}&preview=1`} className={linkButtonClass('secondary', 'sm')}>
@@ -500,7 +508,7 @@ function FormTab({
       <Panel title="Always on the form" description="These are part of every membership form, so they can’t be removed.">
         <ul className="grid gap-2 text-[13px] text-text sm:grid-cols-2">
           <Fixed title="Who they are" detail="Already filled in for anyone linked to the roster. Anyone else gives their name, student ID and birthday." />
-          <Fixed title="Their fee" detail="What they owe. They pick full, half or exchange where you let them; a fee you set wins." />
+          <Fixed title="Their fee" detail="The term's full fee, or what you set for that person under Payments. Nobody picks their own." />
           <Fixed title="Paying" detail="The QR, the exact amount, the PayNow reference and a screenshot." />
           <Fixed title="What happens next" detail="Their payment comes to Payments for someone else in the exco to check." />
         </ul>

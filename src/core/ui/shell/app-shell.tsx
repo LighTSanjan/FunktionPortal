@@ -10,7 +10,6 @@ import type { NavEntry, NavGroup } from '@/core/navigation'
 interface AppShellProps {
   orgSlug: string
   orgName: string
-  orgLogo?: string | null
   userName: string
   userEmail: string
   navGroups: NavGroup[]
@@ -22,7 +21,6 @@ interface AppShellProps {
 function AppShell({
   orgSlug,
   orgName,
-  orgLogo,
   userName,
   userEmail,
   navGroups,
@@ -46,7 +44,6 @@ function AppShell({
         <AppSidebar
           orgSlug={orgSlug}
           orgName={orgName}
-          orgLogo={orgLogo}
           navGroups={navGroups}
           canManageSettings={canManageSettings}
         />

@@ -127,6 +127,14 @@ enum FormState {
   CLOSED
 }
 
+/// Who a membership form is for.
+enum FormAudience {
+  /// Everybody in the club, and anybody signing in who is not on the roster yet.
+  EVERYONE
+  /// Only the roster rows the exco picked.
+  CHOSEN
+}
+
 /// The few kinds of question the exco can add to a membership form. The name,
 /// student ID, fee and payment are fixed parts of every form and never these.
 enum FormQuestionType {

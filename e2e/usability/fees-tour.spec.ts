@@ -88,7 +88,7 @@ test('fees tour', async ({ browser }) => {
     where: { termId_userId: { termId: term.id, userId: stranger.id } },
     create: {
       orgId: org.id, termId: term.id, userId: stranger.id, email: stranger.email, fullName: 'Isaac Wong', studentId: '1004007',
-      birthDay: 8, birthMonth: 11, tier: 'FULL', heldReference: 'PAYNOW 55120', heldAmountCents: 7000, heldAt: new Date(),
+      birthDay: 8, birthMonth: 11, heldReference: 'PAYNOW 55120', heldAmountCents: 7000, heldAt: new Date(),
       answers: [
         { questionId: tele.id, label: tele.label, type: 'SHORT_TEXT', value: '@isaacw' },
         { questionId: style.id, label: style.label, type: 'ONE_CHOICE', value: 'Popping' },
@@ -99,7 +99,7 @@ test('fees tour', async ({ browser }) => {
   await dbAdmin.membershipResponse.upsert({
     where: { termId_userId: { termId: term.id, userId: treasurer.id } },
     create: {
-      orgId: org.id, termId: term.id, userId: treasurer.id, email: treasurer.email, fullName: 'Grace Ho', memberId: ids['Grace Ho'], tier: 'FULL',
+      orgId: org.id, termId: term.id, userId: treasurer.id, email: treasurer.email, fullName: 'Grace Ho', memberId: ids['Grace Ho'],
       answers: [{ questionId: tele.id, label: tele.label, type: 'SHORT_TEXT', value: '@grace' }],
     },
     update: {},
@@ -126,8 +126,13 @@ test('fees tour', async ({ browser }) => {
   await exco.locator('form').filter({ hasText: 'Put Isaac Wong on the roster' }).screenshot({ path: `${OUT}/fees-match-form.png` })
 
   await exco.goto('/test-club/fees/collection?tab=form', { waitUntil: 'networkidle' })
+  await exco.getByRole('button', { name: 'Only people I choose' }).click()
+  await exco.getByLabel('Search the roster').fill('a')
+  await exco.getByRole('button', { name: /Select these/ }).click()
+  await exco.locator('section').filter({ hasText: '3. Who gets this form' }).screenshot({ path: `${OUT}/fees-audience.png` })
+  await exco.screenshot({ path: `${OUT}/sidebar-logo.png` })
   await exco.getByRole('button', { name: 'Add a question' }).click()
-  await exco.locator('section').filter({ hasText: '4. Your own questions' }).screenshot({ path: `${OUT}/fees-question-editor.png` })
+  await exco.locator('section').filter({ hasText: '5. Your own questions' }).screenshot({ path: `${OUT}/fees-question-editor.png` })
 
   await exco.goto('/test-club/fees/collection?tab=payments', { waitUntil: 'networkidle' })
   await exco.getByRole('listitem').filter({ hasText: 'Hui Min Tan' }).getByRole('button', { name: 'Check it' }).click()

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import type { FeeTier, Prisma } from '@prisma/client'
+import type { FeeTier } from '@prisma/client'
 import { dbAs } from '@/core/db'
 import { getOrgContext, requirePermission, verifySession } from '@/core/auth/dal'
 import { writeAudit } from '@/core/audit'
@@ -21,22 +21,6 @@ export interface FeeState {
   ok?: boolean
   /** What happened, when it is more than "saved". */
   message?: string
-}
-
-/**
- * The fee a member picked on this term's membership form, if their response
- * has reached their roster row.
- */
-async function formChoice(
-  tx: Prisma.TransactionClient,
-  termId: string,
-  memberId: string
-): Promise<FeeTier | null> {
-  const response = await tx.membershipResponse.findFirst({
-    where: { termId, memberId },
-    select: { tier: true },
-  })
-  return response?.tier ?? null
 }
 
 const declareSchema = z.object({
@@ -139,7 +123,6 @@ export async function declarePayment(
     const fee = resolveFee({
       payment: null,
       arrangement,
-      choice: await formChoice(tx, term.id, member.id),
       rosterLabel: member.rosterLabel,
       isActive: member.isActive,
       rates: term,
@@ -1124,8 +1107,7 @@ export async function setMemberFees(
       const fee = resolveFee({
         payment: null,
         arrangement,
-        choice: await formChoice(tx, term.id, member.id),
-        rosterLabel: member.rosterLabel,
+          rosterLabel: member.rosterLabel,
         isActive: member.isActive,
         rates: term,
       })
@@ -1297,7 +1279,6 @@ export async function recordPayment(
     const fee = resolveFee({
       payment: null,
       arrangement,
-      choice: await formChoice(tx, term.id, member.id),
       rosterLabel: member.rosterLabel,
       isActive: member.isActive,
       rates: term,

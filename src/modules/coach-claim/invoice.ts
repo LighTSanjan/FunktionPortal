@@ -3,6 +3,7 @@ import {
   Document, Paragraph, TextRun, Table, TableRow, TableCell, WidthType,
   AlignmentType, BorderStyle, VerticalAlign, Packer,
 } from 'docx'
+import type { ISectionOptions } from 'docx'
 import type { InvoiceDocData } from './types'
 import { DEFAULT_VERIFYING_OFFICE } from './types'
 import { signatureBlock } from './signature-block'
@@ -81,7 +82,7 @@ function orgLine(data: InvoiceDocData): string {
     : data.organisationName
 }
 
-export function buildInvoice(data: InvoiceDocData): Document {
+export function invoiceSection(data: InvoiceDocData): { section: ISectionOptions; meta: { creator: string; title: string; description?: string } } {
   const { instructor, lines } = data
   const period = `${MONTHS[data.periodMonth - 1]} ${data.periodYear}`
 
@@ -200,25 +201,26 @@ export function buildInvoice(data: InvoiceDocData): Document {
       : []),
   ]
 
-  return new Document({
-    creator: instructor.fullName,
-    title: `Invoice ${data.documentNo}`,
-    description: `${instructor.danceStyle} classes, ${period}`,
-    sections: [
-      {
-        properties: { page: { margin: { top: 1000, bottom: 900, left: 1000, right: 1000 } } },
-        children: [
-          masthead,
-          rule(),
-          billTo,
-          new Paragraph({ spacing: { after: 260 }, children: [] }),
-          items,
-          new Paragraph({ spacing: { after: 420 }, children: [] }),
-          layoutRow(payment, endorsement, 56),
-        ],
-      },
+  const section: ISectionOptions = {
+    properties: { page: { margin: { top: 1000, bottom: 900, left: 1000, right: 1000 } } },
+    children: [
+      masthead,
+      rule(),
+      billTo,
+      new Paragraph({ spacing: { after: 260 }, children: [] }),
+      items,
+      new Paragraph({ spacing: { after: 420 }, children: [] }),
+      layoutRow(payment, endorsement, 56),
     ],
-  })
+  }
+  return {
+    section,
+    meta: {
+      creator: instructor.fullName,
+      title: `Invoice ${data.documentNo}`,
+      description: `${instructor.danceStyle} classes, ${period}`,
+    },
+  }
 }
 
 export async function renderInvoice(data: InvoiceDocData): Promise<Buffer> {
@@ -230,4 +232,9 @@ export function instructorDocumentNo(shortCode: string, invoiceDate: Date): stri
   const dd = String(invoiceDate.getDate()).padStart(2, '0')
   const mm = String(invoiceDate.getMonth() + 1).padStart(2, '0')
   return `${shortCode.toUpperCase()}${dd}${mm}${invoiceDate.getFullYear()}`
+}
+
+export function buildInvoice(data: InvoiceDocData): Document {
+  const { section, meta } = invoiceSection(data)
+  return new Document({ ...meta, sections: [section] })
 }

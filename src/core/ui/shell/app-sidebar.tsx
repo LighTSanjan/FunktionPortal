@@ -18,7 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { NavGroup } from '@/core/navigation'
-import { Logo } from '@/core/ui/logo'
+import { BRAND } from '@/core/brand'
 import { cn } from '@/lib/utils'
 
 const ICONS: Record<string, LucideIcon> = {
@@ -37,7 +37,6 @@ const STORAGE_KEY = 'funktion-sidebar-collapsed'
 interface AppSidebarProps {
   orgSlug: string
   orgName: string
-  orgLogo?: string | null
   navGroups: NavGroup[]
   canManageSettings?: boolean
 }
@@ -69,7 +68,6 @@ function NavIcon({ name }: { name: string }) {
 export function AppSidebar({
   orgSlug,
   orgName,
-  orgLogo,
   navGroups,
   canManageSettings,
 }: AppSidebarProps) {
@@ -101,28 +99,18 @@ export function AppSidebar({
         <Link
           href={`/${orgSlug}/dashboard`}
           className={cn(
-            'flex items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 transition-colors hover:bg-surface-hover',
+            'flex items-center rounded-[var(--radius-sm)] px-2 py-1 transition-colors hover:bg-surface-hover',
             collapsed && 'justify-center px-0'
           )}
         >
-          {orgLogo ? (
-            // Signed storage URLs are dynamic, so they cannot use a static Next image allowlist.
+          {/* The club's own logo, not its name in type beside a letter in a
+              box. Collapsed, only the F fits. */}
+          {collapsed ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={orgLogo}
-              alt=""
-              className="h-6 w-6 rounded-[var(--radius-xs)]"
-              aria-hidden="true"
-            />
+            <img src={BRAND.assets.mark} alt={orgName} className="h-7 w-7" />
           ) : (
-            <div className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-xs)] bg-accent-100 text-[11px] font-bold text-accent-700">
-              {orgName.charAt(0).toUpperCase()}
-            </div>
-          )}
-          {!collapsed && (
-            <span className="max-w-[140px] truncate text-[13px] font-semibold text-text">
-              {orgName}
-            </span>
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={BRAND.assets.wordmark} alt={orgName} className="h-11 w-auto" />
           )}
         </Link>
       </div>
@@ -217,9 +205,6 @@ export function AppSidebar({
           {!collapsed && <span>Collapse</span>}
         </button>
 
-        <div className={cn('flex items-center px-2.5 py-1', collapsed && 'justify-center px-0')}>
-          <Logo size={16} showText={!collapsed} />
-        </div>
       </div>
     </aside>
   )

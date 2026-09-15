@@ -137,38 +137,3 @@ describe('resolveFee', () => {
   })
 })
 
-describe('a fee picked on the membership form', () => {
-  const rates = { fullFeeCents: 7000, halfFeeCents: 3500, exchangeFeeCents: null }
-
-  it('is charged, and trusted where the roster has nothing to say', () => {
-    const fee = resolveFee({ payment: null, arrangement: null, choice: 'HALF', rosterLabel: null, isActive: true, rates })
-    expect(fee).toMatchObject({ tier: 'HALF', amountCents: 3500, source: 'member', certain: true, charged: true })
-  })
-
-  it('is flagged when it is cheaper than what the roster says', () => {
-    const fee = resolveFee({ payment: null, arrangement: null, choice: 'HALF', rosterLabel: 'Confirmed', isActive: true, rates })
-    expect(fee).toMatchObject({ amountCents: 3500, certain: false, because: 'picked half term, the roster says full term' })
-  })
-
-  it('brings somebody who had left back onto the collection', () => {
-    const fee = resolveFee({ payment: null, arrangement: null, choice: 'FULL', rosterLabel: 'Graduated', isActive: false, rates })
-    expect(fee).toMatchObject({ charged: true, amountCents: 7000 })
-  })
-
-  it('loses to a fee the exco set', () => {
-    const fee = resolveFee({
-      payment: null,
-      arrangement: { tier: 'WAIVED', amountCents: null },
-      choice: 'FULL',
-      rosterLabel: 'Confirmed',
-      isActive: true,
-      rates,
-    })
-    expect(fee).toMatchObject({ tier: 'WAIVED', amountCents: 0, source: 'exco' })
-  })
-
-  it('cannot be a waiver or a figure of their own', () => {
-    const fee = resolveFee({ payment: null, arrangement: null, choice: 'WAIVED', rosterLabel: 'Confirmed', isActive: true, rates })
-    expect(fee).toMatchObject({ tier: 'FULL', amountCents: 7000, source: 'roster' })
-  })
-})

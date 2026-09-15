@@ -1,6 +1,6 @@
 /** Reading a term's membership form, for the person filling it in and the exco. */
 import 'server-only'
-import type { FeeTier, FormState } from '@prisma/client'
+import type { FormAudience, FormState } from '@prisma/client'
 import { dbAs } from '@/core/db'
 import { sameName, storedAnswers, type Answer, type Question } from './questions'
 
@@ -10,19 +10,19 @@ export interface FormView {
   termId: string
   state: FormState
   intro: string | null
-  tierChoices: FeeTier[]
+  audience: FormAudience
+  /** The roster rows it is for, when the audience is CHOSEN. */
+  recipientIds: string[]
   openedAt: Date | null
   closedAt: Date | null
   questions: Question[]
 }
 
-const DEFAULT_CHOICES: FeeTier[] = ['FULL', 'HALF', 'EXCHANGE_DISCOUNT']
-
 export async function getForm(userId: string, orgId: string, termId: string): Promise<FormView> {
   const form = await dbAs(userId, (tx) =>
     tx.membershipForm.findFirst({
       where: { orgId, termId },
-      include: { questions: { orderBy: { position: 'asc' } } },
+      include: { questions: { orderBy: { position: 'asc' } }, recipients: { select: { memberId: true } } },
     })
   )
   if (!form) {
@@ -31,7 +31,8 @@ export async function getForm(userId: string, orgId: string, termId: string): Pr
       termId,
       state: 'DRAFT',
       intro: null,
-      tierChoices: DEFAULT_CHOICES,
+      audience: 'EVERYONE',
+      recipientIds: [],
       openedAt: null,
       closedAt: null,
       questions: [],
@@ -42,7 +43,10 @@ export async function getForm(userId: string, orgId: string, termId: string): Pr
     termId,
     state: form.state,
     intro: form.intro,
-    tierChoices: form.tierChoices,
+    audience: form.audience,
+    // A member reads only their own recipient row, so for them this is at
+    // most themselves — which is all "is it for me" needs.
+    recipientIds: form.recipients.map((row) => row.memberId),
     openedAt: form.openedAt,
     closedAt: form.closedAt,
     questions: form.questions.map((q) => ({
@@ -64,7 +68,6 @@ export interface OwnResponse {
   birthDay: number | null
   birthMonth: number | null
   birthYear: number | null
-  tier: FeeTier | null
   answers: Answer[]
   /** A payment made before the response reached a roster row. */
   held: { reference: string | null; amountCents: number | null; at: Date | null } | null
@@ -89,7 +92,6 @@ export async function getOwnResponse(
     birthDay: row.birthDay,
     birthMonth: row.birthMonth,
     birthYear: row.birthYear,
-    tier: row.tier,
     answers: storedAnswers(row.answers),
     held: row.heldProofPath
       ? { reference: row.heldReference, amountCents: row.heldAmountCents, at: row.heldAt }
@@ -118,7 +120,6 @@ export interface ResponseRow {
   fullName: string
   studentId: string | null
   birthday: string | null
-  tier: FeeTier | null
   answers: Answer[]
   held: { reference: string | null; amountCents: number | null; hasProof: boolean } | null
   submittedAt: Date
@@ -223,7 +224,6 @@ export async function listResponses(userId: string, orgId: string, termId: strin
       fullName: row.fullName,
       studentId: row.studentId,
       birthday: birthdayLabel(row.birthDay, row.birthMonth, row.birthYear),
-      tier: row.tier,
       answers: storedAnswers(row.answers),
       held: row.heldProofPath || row.heldReference
         ? { reference: row.heldReference, amountCents: row.heldAmountCents, hasProof: Boolean(row.heldProofPath) }
@@ -243,4 +243,13 @@ export async function heldProofKeyFor(userId: string, orgId: string, responseId:
     tx.membershipResponse.findFirst({ where: { id: responseId, orgId }, select: { heldProofPath: true } })
   )
   return row?.heldProofPath ?? null
+}
+
+/**
+ * Whether this form is for this person. Everybody's, or only the roster rows
+ * the exco chose — and somebody not on the roster is never one of those.
+ */
+export function formIsFor(form: Pick<FormView, 'audience' | 'recipientIds'>, memberId: string | null): boolean {
+  if (form.audience === 'EVERYONE') return true
+  return memberId !== null && form.recipientIds.includes(memberId)
 }

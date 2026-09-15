@@ -1,5 +1,6 @@
 'use client'
 
+import { BRAND } from '@/core/brand'
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -47,7 +48,8 @@ function MobileNavInner({
           />
           <div className="absolute inset-y-0 left-0 flex w-[280px] flex-col border-r border-border bg-bg">
             <div className="flex h-14 items-center justify-between border-b border-border px-4">
-              <span className="text-[14px] font-semibold text-text">{orgName}</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={BRAND.assets.wordmark} alt={orgName} className="h-9 w-auto" />
               <button
                 onClick={() => setOpen(false)}
                 className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] text-text-muted hover:bg-surface-hover"

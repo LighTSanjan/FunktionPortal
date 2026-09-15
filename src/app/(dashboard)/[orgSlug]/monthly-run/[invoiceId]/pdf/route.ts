@@ -5,6 +5,8 @@ import { loadMonthDocuments } from '@/modules/coach-claim/documents'
 import { MonthNotFrozenError } from '@/modules/coach-claim/snapshot'
 import { printPageToPdf } from '@/modules/coach-claim/pdf'
 import { MONTHS } from '@/modules/coach-claim/theme'
+import { getStorageUnscoped } from '@/core/storage'
+import { readSignature } from '@/modules/signatures/store'
 
 export const runtime = 'nodejs'
 // Starting Chromium in a cold function takes a few seconds.
@@ -43,15 +45,33 @@ export async function GET(
     })
   }
 
-  const pdf = await printPageToPdf({
-    appOrigin: appOrigin(),
-    path: `/${orgSlug}/monthly-run/${invoiceId}/print`,
-    // Only the Supabase session, and only to our own origin.
-    sessionCookies: request.cookies
-      .getAll()
-      .filter((cookie) => cookie.name.startsWith('sb-'))
-      .map(({ name, value }) => ({ name, value })),
-  })
+  // A signed month is frozen, so its PDF only needs printing once per
+  // signature. Printing starts a whole Chromium and took several seconds on
+  // every download; the copy is kept in private storage beside the other
+  // month documents, under a key that changes if the month is ever re-signed.
+  const cacheKey = `month-pdf/${org.id}/${invoiceId}/${loaded.summary.verifiedAt.getTime()}.pdf`
+  const storage = getStorageUnscoped()
+  let pdf: Buffer | null = await storage.download(cacheKey).catch(() => null)
+  if (!pdf) {
+    pdf = await printPageToPdf({
+      appOrigin: appOrigin(),
+      path: `/${orgSlug}/monthly-run/${invoiceId}/print`,
+      // Only the Supabase session, and only to our own origin.
+      sessionCookies: request.cookies
+        .getAll()
+        .filter((cookie) => cookie.name.startsWith('sb-'))
+        .map(({ name, value }) => ({ name, value })),
+    })
+    // Kept only when the signature it should carry could be read: a copy
+    // printed during a storage hiccup would otherwise be served unsigned for
+    // good.
+    const stampOk = !loaded.signaturePath || (await readSignature(loaded.signaturePath)) !== null
+    if (stampOk) {
+      await storage.upload(cacheKey, pdf, 'application/pdf').catch((error) => {
+        console.error('[pdf] could not keep a copy', error instanceof Error ? error.message : error)
+      })
+    }
+  }
 
   const { summary } = loaded
   const filename = `${summary.referenceNumber} ${summary.instructorName} ${MONTHS[summary.periodMonth - 1]} ${summary.periodYear}.pdf`

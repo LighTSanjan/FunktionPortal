@@ -23,7 +23,7 @@ export interface FeeRowView {
   tier: FeeTier
   amountCents: number
   state: RowState
-  feeSource: 'payment' | 'exco' | 'member' | 'roster'
+  feeSource: 'payment' | 'exco' | 'roster'
   arrangement: { tier: FeeTier; amountCents: number | null; note: string | null } | null
   /** "Confirmed → Full term", from the roster label alone. */
   rosterReading: string
@@ -53,7 +53,7 @@ const FILTERS: { key: Filter; label: string; test: (row: FeeRowView) => boolean 
   {
     key: 'attention',
     label: 'Fee unclear',
-    test: (row) => row.uncertain && (row.feeSource === 'roster' || row.feeSource === 'member'),
+    test: (row) => row.uncertain && row.feeSource === 'roster',
   },
 ]
 
@@ -274,7 +274,7 @@ export function FeeTable({
                         <span className="block text-[13px] tabular-nums text-text">
                           {formatSgd(row.amountCents)}
                           <span className="text-text-muted"> · {TIER_LABEL[row.tier]}</span>
-                          {row.uncertain && (row.feeSource === 'roster' || row.feeSource === 'member') && (
+                          {row.uncertain && row.feeSource === 'roster' && (
                             <span className="ml-1 font-semibold text-warning" aria-label="The roster is not sure">
                               ?
                             </span>
@@ -283,11 +283,7 @@ export function FeeTable({
                         <span className="block text-[11.5px] text-text-subtle group-enabled:group-hover:text-accent-600">
                           {row.feeSource === 'exco'
                             ? row.arrangement?.note || 'Set by the exco'
-                            : row.feeSource === 'member'
-                              ? row.uncertain
-                                ? `Check: ${row.because}`
-                                : 'Picked on the form'
-                              : row.feeSource === 'roster'
+                            : row.feeSource === 'roster'
                               ? row.uncertain
                                 ? `Check: ${row.because}`
                                 : 'From the roster'
