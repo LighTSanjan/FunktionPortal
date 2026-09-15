@@ -167,7 +167,11 @@ export default async function MonthDocumentsPage({
           { label: `${summary.instructorName}, ${period}` },
         ]}
         title={`${period} — ${summary.instructorName}`}
-        subtitle="Read both documents, sign them, then send them. What is on screen is what is in the files: the same rows render the preview, the print sheet and the two downloads."
+        subtitle={
+          summary.status === 'VOID'
+            ? 'A voided month, kept as the record of its reference number. The documents below are what was raised.'
+            : 'Read both documents, sign them, then send them. What is on screen is what is in the files: the same rows render the preview, the print sheet and the two downloads.'
+        }
       />
 
       <Card>
