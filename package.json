@@ -18,6 +18,7 @@
     "postinstall": "prisma generate",
     "db:seed": "npx tsx prisma/seed.ts",
     "db:verify-rls": "npx tsx scripts/db/verify-rls.ts",
+    "auth:link": "npx tsx scripts/auth/sign-in-link.ts",
     "google:check": "npx tsx scripts/google/check-sheets.ts",
     "db:encrypt-fields": "npx tsx scripts/db/encrypt-fields.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
