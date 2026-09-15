@@ -8,11 +8,11 @@ import { getOrgContext, requirePermission, verifySession } from '@/core/auth/dal
 import { writeAudit } from '@/core/audit'
 import { allocateReference } from '@/modules/references'
 import { financialYearOf } from '@/modules/references/format'
-import { buildClaim, buildClaimContext, localDateKey } from './monthly-run'
+import { buildClaim, buildClaimContext, clubFundBalanceAfter, localDateKey } from './monthly-run'
 import { captureSnapshot, snapshotForStorage } from './snapshot'
 import { toInvoiceData } from './claim'
 import { addWorkingDays, OSL_SUBMISSION_WORKING_DAYS } from './deadlines'
-import { toDateColumn } from '@/lib/date-only'
+import { fromDateColumn, toDateColumn } from '@/lib/date-only'
 import type { ActionState } from './actions'
 
 const generateSchema = z.object({
@@ -107,6 +107,13 @@ export async function generateMonthlyDocuments(
     const settings = await tx.organisationSettings.findUnique({
       where: { orgId: org.id },
       select: { projectCode: true, institutionShortName: true },
+    })
+
+    context.input.clubFundBalanceCents = await clubFundBalanceAfter(tx, {
+      orgId: org.id,
+      invoiceDate: claim.invoiceDate,
+      fundSource: parsed.data.fundSource,
+      claimCents: claim.totalCents,
     })
 
     const reference = await allocateReference(tx, {
@@ -244,6 +251,9 @@ export async function signMonth(orgSlug: string, invoiceId: string): Promise<Act
       select: {
         id: true,
         status: true,
+        invoiceDate: true,
+        fundSource: true,
+        totalCents: true,
         attendanceSheetId: true,
         attendanceSheet: {
           select: { verifiedAt: true, verifiedBy: { select: { name: true } } },
@@ -271,6 +281,16 @@ export async function signMonth(orgSlug: string, invoiceId: string): Promise<Act
       }),
     ])
 
+    // What the fund holds after this claim, as of now — the figure the sheet
+    // showed while it was being read, fixed by signing it.
+    const clubFundBalanceCents = await clubFundBalanceAfter(tx, {
+      orgId: org.id,
+      invoiceDate: fromDateColumn(invoice.invoiceDate),
+      fundSource: invoice.fundSource,
+      claimCents: invoice.totalCents,
+      invoiceId: invoice.id,
+    })
+
     const signedAt = new Date()
     // Conditional on the sheet still being unsigned, and the row count is
     // checked. Two exco members opening the same month both read verifiedAt
@@ -292,6 +312,7 @@ export async function signMonth(orgSlug: string, invoiceId: string): Promise<Act
         verifiedAsOffice: membership?.office ?? null,
         verifiedAt: signedAt,
         signatureImagePath: user?.signatureImagePath ?? null,
+        ...(clubFundBalanceCents !== undefined ? { clubFundBalanceCents } : {}),
       },
     })
     if (claimed.count !== 1) {

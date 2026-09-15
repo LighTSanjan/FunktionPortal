@@ -123,6 +123,29 @@ test('the treasurer raises last month from the home screen, reads it and signs i
   await expect(page.getByText(/Marked as sent on/)).toBeVisible()
 })
 
+test('the treasurer voids the month after spotting a mistake, and raises it again under the next number', async () => {
+  const page = await treasurer.newPage()
+  await visit(page, `/${ORG}/monthly-run`)
+  const reference = (await page.locator('dd.font-mono').first().innerText()).trim()
+  await page.getByRole('link', { name: 'Open the documents' }).click()
+  await page.waitForURL(/monthly-run\/[^/?]+$/)
+
+  await page.getByRole('button', { name: 'Void this month' }).click()
+  // Already sent, so OSL have to be told as well.
+  await expect(page.getByText(`email OSL that ${reference} is void`)).toBeVisible()
+  await page.getByLabel('Why it\'s being voided').fill('Kai taught 60 minutes on the 10th, not 90')
+  await page.getByRole('button', { name: `Void ${reference}` }).click()
+
+  await page.waitForURL(/monthly-run\?month=/)
+  await expect(page.getByText(`voided: Kai taught 60 minutes on the 10th, not 90`)).toBeVisible()
+  await expect(page.getByText('Ready to raise')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Raise the month' }).click()
+  await expect(page.getByRole('link', { name: 'Read and sign', exact: true })).toBeVisible()
+  const next = (await page.locator('dd.font-mono').first().innerText()).trim()
+  expect(next).not.toBe(reference)
+})
+
 test('the treasurer puts this term’s PayNow QR up', async () => {
   const page = await treasurer.newPage()
   await visit(page, `/${ORG}/fees/collection?tab=form`)

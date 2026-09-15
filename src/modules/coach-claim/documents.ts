@@ -16,6 +16,7 @@ import { OFFICE_LABELS } from '@/core/access'
 import { readSignature } from '@/modules/signatures'
 import { readLogo } from '@/modules/branding/logo'
 import { fromDateColumn } from '@/lib/date-only'
+import { clubFundBalanceAfter } from './monthly-run'
 import {
   MonthNotFrozenError,
   linesFrom,
@@ -155,10 +156,27 @@ export async function loadMonthDocuments(
     stamped: Boolean(sheetRow?.signatureImagePath),
   }
 
+  // The fund balance is the one figure on the sheet that is fixed at signing
+  // rather than at raising: it is the treasurer attesting to what the fund
+  // holds, and between raising and signing other claims and collections move
+  // it. Until somebody signs, the sheet shows it as it stands now — so what
+  // is read before signing is what gets signed. A voided month keeps what it
+  // had.
+  const balanceCents =
+    !verifiedAt && invoice.status !== 'VOID'
+      ? ((await clubFundBalanceAfter(tx, {
+          orgId: args.orgId,
+          invoiceDate: fromDateColumn(invoice.invoiceDate),
+          fundSource: invoice.fundSource as FundSource,
+          claimCents: invoice.totalCents,
+          invoiceId: invoice.id,
+        })) ?? sheetRow?.clubFundBalanceCents ?? null)
+      : (sheetRow?.clubFundBalanceCents ?? null)
+
   return {
     summary,
     invoice: toInvoiceDoc(invoice, lines, snapshot, verification),
-    sheet: toSheetDoc(invoice, lines, snapshot, sheetRow?.clubFundBalanceCents ?? null, verification),
+    sheet: toSheetDoc(invoice, lines, snapshot, balanceCents, verification),
     signaturePath: verifiedAt ? (sheetRow?.signatureImagePath ?? null) : null,
     logoKey,
   }

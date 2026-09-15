@@ -9,6 +9,7 @@ import { financialYearOf } from '@/modules/references/format'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { addWorkingDays, OSL_SUBMISSION_WORKING_DAYS } from '@/modules/coach-claim/deadlines'
 import { longDate } from '@/modules/coach-claim/theme'
+import { fundBalances } from '@/modules/funds/balance'
 import { coachPaymentsWorkflow } from '@/modules/workflow/coach-payments'
 import { WorkflowStrip } from '@/modules/workflow/ui'
 import { MonthNav } from '../sessions/_components/month-nav'
@@ -51,21 +52,14 @@ export default async function MonthlyRunPage({
     })
   )
 
-  const funds = await dbAs(userId, (tx) =>
-    tx.fundAccount.findMany({
-      // The financial year the month's documents will be dated in — the same
-      // one generateMonthlyDocuments allocates the reference against. Without
-      // this every year's accounts were offered, so from the second financial
-      // year on the picker listed "OSL Seed Fund" once per year, with each
-      // year's opening balance, and nothing to say which was which.
-      where: {
-        orgId: org.id,
-        financialYear: financialYearOf(invoiceDateFor(year, monthIndex + 1)),
-      },
-      select: { source: true, openingBalanceCents: true },
-      orderBy: { source: 'asc' },
-    })
-  )
+  // The financial year the month's documents will be dated in — the same one
+  // generateMonthlyDocuments allocates the reference against — and what each
+  // fund has left in it, the figure the attendance sheet will print. It
+  // offered the opening balance, which said nothing about whether the fund
+  // could take another claim.
+  const funds = (
+    await dbAs(userId, (tx) => fundBalances(tx, org.id, financialYearOf(invoiceDateFor(year, monthIndex + 1))))
+  ).filter((fund) => fund.source === 'SEED' || fund.source === 'INCOME')
 
   const period = `${year}-${String(monthIndex + 1).padStart(2, '0')}`
   // One rule, said the way it is counted: dated the 15th, due three working
@@ -189,7 +183,7 @@ export default async function MonthlyRunPage({
                 entry={entry}
                 funds={funds.map((f) => ({
                   source: f.source,
-                  openingBalanceCents: f.openingBalanceCents,
+                  remainingCents: f.remainingCents,
                 }))}
                 delayMs={i * 60}
               />

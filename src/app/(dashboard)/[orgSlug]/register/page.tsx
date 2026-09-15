@@ -51,7 +51,7 @@ export default async function RegisterPage({
       <PageHeader
         breadcrumbItems={[{ label: org.name, href: `/${orgSlug}/dashboard` }, { label: 'Register' }]}
         title="Transaction register"
-        subtitle="Every movement of club money the exco have recorded — the OSL register, and the unofficial one the committee keep themselves. Imported from the club's own spreadsheets, which remain the authority."
+        subtitle="Every movement of club money the exco have recorded — the OSL register, the unofficial one the committee keep themselves, and the invoices and bank-ins raised here that aren't on the spreadsheet yet."
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -231,6 +231,14 @@ function LedgerRow({ entry }: { entry: LedgerEntry }) {
       </td>
       <td className="py-2.5 pr-4 align-top font-mono text-[11.5px] text-text-subtle">
         {entry.reference ?? '—'}
+        {entry.fromPortal && (
+          <span
+            title="Raised in the portal and not on the spreadsheet yet. Copy it across when you next update the sheet."
+            className="ml-2 rounded-full border border-border px-1.5 py-px font-sans text-[10px] font-medium uppercase tracking-wider text-text-muted"
+          >
+            Portal
+          </span>
+        )}
       </td>
       <td
         className={`whitespace-nowrap px-5 py-2.5 text-right align-top text-[13px] font-semibold tabular-nums ${

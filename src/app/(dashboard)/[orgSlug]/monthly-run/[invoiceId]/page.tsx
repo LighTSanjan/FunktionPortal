@@ -209,13 +209,15 @@ export default async function MonthDocumentsPage({
         </Card>
       )}
 
-      <Step n={1} title="Read what you are signing">
+      {summary.status !== 'VOID' && (
+        <Step n={1} title="Read what you are signing">
         <p className="max-w-[68ch] text-[13.5px] leading-relaxed text-text-muted">
           The invoice is the coach&rsquo;s own document, billed to the university in their
           name. The attendance sheet is the club&rsquo;s, and it is the evidence the invoice
           rests on &mdash; every billed date on one is a coach-led date on the other.
         </p>
-      </Step>
+        </Step>
+      )}
 
       <section aria-label="Invoice" className="space-y-2">
         <h2 className="px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-subtle">

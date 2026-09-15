@@ -6,6 +6,7 @@ import { countPendingRequests, getMembership, OFFICE_LABELS } from '@/core/acces
 import { listLedger, countLedger, SECTION_FUND, SECTION_LABEL } from '@/core/register'
 import { rateForDate } from '@/modules/coach-claim/rates'
 import { financialYearOf } from '@/modules/references/format'
+import { fundBalances } from '@/modules/funds/balance'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { coachPaymentsWorkflow } from '@/modules/workflow/coach-payments'
 import { subscriptionWorkflow } from '@/modules/workflow/subscription'
@@ -50,103 +51,103 @@ export default async function DashboardPage({
   // and the hero says which year it is looking at.
   const currentYear = financialYearOf(now)
 
-  // Keep dashboard reads on one RLS-scoped pooler connection.
-  const data = await dbAs(userId, async (tx) => {
-    const openYears = await tx.fundAccount.findMany({
-      where: { orgId: org.id, financialYear: { lte: currentYear } },
-      distinct: ['financialYear'],
-      select: { financialYear: true },
-      orderBy: { financialYear: 'desc' },
-      take: 1,
+  // Two reads that do not wait on each other. A member's home screen is their
+  // own fee and the term, and it no longer pays for the exco's finance,
+  // coach and workflow queries first. The exco's figures stay together on
+  // one RLS-scoped connection, in parallel with the workflows and the ledger
+  // rather than ahead of them.
+  const excoData = async () =>
+    dbAs(userId, async (tx) => {
+      const openYears = await tx.fundAccount.findMany({
+        where: { orgId: org.id, financialYear: { lte: currentYear } },
+        distinct: ['financialYear'],
+        select: { financialYear: true },
+        orderBy: { financialYear: 'desc' },
+        take: 1,
+      })
+      const financialYear = openYears[0]?.financialYear ?? currentYear
+
+      return {
+        financialYear,
+        // The same balances the attendance sheet prints and the fund picker
+        // offers: this year's register, plus what the portal banked and raised
+        // in this year only.
+        funds: await fundBalances(tx, org.id, financialYear),
+        overdueInvoices: await tx.invoice.count({
+          where: {
+            orgId: org.id,
+            status: { in: ['GENERATED', 'SIGNED'] },
+            submittedToOslAt: null,
+            submissionDueAt: { lt: now },
+          },
+        }),
+        memberCount: await tx.member.count({ where: { orgId: org.id, isActive: true } }),
+        sessionCount: await tx.classSession.count({ where: { orgId: org.id } }),
+        sessionsThisMonth: await tx.classSession.count({
+          where: { orgId: org.id, heldOn: { gte: monthStart, lt: monthEnd } },
+        }),
+        // Claims OSL have been sent and have not yet paid. The one number on
+        // this page that is money the club is owed rather than money it has.
+        awaitingPayment: await tx.invoice.aggregate({
+          where: {
+            orgId: org.id,
+            status: { not: 'VOID' },
+            submittedToOslAt: { not: null },
+            paidAt: null,
+          },
+          _count: true,
+          _sum: { totalCents: true },
+        }),
+        // By term, because each alert opens one term's queue. A single count
+        // across terms opened the current term, which could be empty while the
+        // payments waiting sat in last term's.
+        declaredPayments: await tx.feePayment.groupBy({
+          by: ['termId'],
+          where: { orgId: org.id, status: 'DECLARED' },
+          _count: { _all: true },
+        }),
+        // Accounts that have said which student they are and are waiting on a
+        // person to confirm it. Each one is a member who cannot see what they owe.
+        pendingClaims: await tx.user.count({
+          where: {
+            claimedStudentId: { not: null },
+            memberships: { some: { orgId: org.id, isActive: true } },
+            member: null,
+          },
+        }),
+        // Membership form responses from people not on the roster yet. Any
+        // payment they made is held until somebody matches them.
+        unmatchedResponses: await tx.membershipResponse.groupBy({
+          by: ['termId'],
+          where: { orgId: org.id, memberId: null, term: { closedAt: null } },
+          _count: { _all: true },
+        }),
+        termNames: await tx.term.findMany({
+          where: { orgId: org.id },
+          select: { id: true, name: true, startDate: true },
+          orderBy: { startDate: 'asc' },
+        }),
+      }
     })
-    const financialYear = openYears[0]?.financialYear ?? currentYear
 
-    return {
-    financialYear,
-    funds: await tx.fundAccount.findMany({
-      where: { orgId: org.id, financialYear },
-      orderBy: { source: 'asc' },
-    }),
-    instructors: await tx.instructor.findMany({
-      where: { orgId: org.id },
-      orderBy: [{ isActive: 'desc' }, { fullName: 'asc' }],
-      include: { rates: { orderBy: { effectiveFrom: 'asc' } } },
-    }),
-    // Voided invoices keep their references but no longer commit funds.
-    invoiceTotals: await tx.invoice.groupBy({
-      by: ['fundSource'],
-      where: { orgId: org.id, status: { not: 'VOID' } },
-      _sum: { totalCents: true },
-    }),
-    // Pending purchase requests do not commit funds.
-    purchaseTotals: await tx.purchaseRequest.groupBy({
-      by: ['fundSource'],
-      where: { orgId: org.id, status: { in: ['APPROVED', 'PURCHASED', 'CLOSED'] } },
-      _sum: { amountCents: true },
-    }),
-    overdueInvoices: await tx.invoice.count({
-      where: {
-        orgId: org.id,
-        status: { in: ['GENERATED', 'SIGNED'] },
-        submittedToOslAt: null,
-        submissionDueAt: { lt: now },
-      },
-    }),
-    memberCount: await tx.member.count({ where: { orgId: org.id, isActive: true } }),
-    sessionCount: await tx.classSession.count({ where: { orgId: org.id } }),
-    sessionsThisMonth: await tx.classSession.count({
-      where: { orgId: org.id, heldOn: { gte: monthStart, lt: monthEnd } },
-    }),
-    // Claims OSL have been sent and have not yet paid. The one number on this
-    // page that is money the club is owed rather than money it has.
-    awaitingPayment: await tx.invoice.aggregate({
-      where: {
-        orgId: org.id,
-        status: { not: 'VOID' },
-        submittedToOslAt: { not: null },
-        paidAt: null,
-      },
-      _count: true,
-      _sum: { totalCents: true },
-    }),
-    // By term, because each alert opens one term's queue. A single count
-    // across terms opened the current term, which could be empty while the
-    // payments waiting sat in last term's.
-    declaredPayments: await tx.feePayment.groupBy({
-      by: ['termId'],
-      where: { orgId: org.id, status: 'DECLARED' },
-      _count: { _all: true },
-    }),
-    // Accounts that have said which student they are and are waiting on a
-    // person to confirm it. Each one is a member who cannot see what they owe.
-    pendingClaims: await tx.user.count({
-      where: {
-        claimedStudentId: { not: null },
-        memberships: { some: { orgId: org.id, isActive: true } },
-        member: null,
-      },
-    }),
-    // Membership form responses from people not on the roster yet. Any payment
-    // they made is held until somebody matches them.
-    unmatchedResponses: await tx.membershipResponse.groupBy({
-      by: ['termId'],
-      where: { orgId: org.id, memberId: null, term: { closedAt: null } },
-      _count: { _all: true },
-    }),
-    termNames: await tx.term.findMany({
-      where: { orgId: org.id },
-      select: { id: true, name: true, startDate: true },
-      orderBy: { startDate: 'asc' },
-    }),
-    currentTerm: await tx.term.findFirst({
-      where: { orgId: org.id, startDate: { lte: now }, endDate: { gte: now } },
-      select: { name: true },
-    }),
-    }
-  })
-
-  const [pendingRequests, ownMembership, ledger, ledgerCount, coachRun, collection, ownFee] =
+  const [shared, exco, instructors, pendingRequests, ownMembership, ledger, ledgerCount, coachRun, collection, ownFee] =
     await Promise.all([
+      dbAs(userId, (tx) =>
+        tx.term.findFirst({
+          where: { orgId: org.id, startDate: { lte: now }, endDate: { gte: now } },
+          select: { name: true },
+        })
+      ),
+      isExco ? excoData() : Promise.resolve(null),
+      canSeeInstructors
+        ? dbAs(userId, (tx) =>
+            tx.instructor.findMany({
+              where: { orgId: org.id },
+              orderBy: [{ isActive: 'desc' }, { fullName: 'asc' }],
+              include: { rates: { orderBy: { effectiveFrom: 'asc' } } },
+            })
+          )
+        : Promise.resolve([]),
       isExco ? countPendingRequests(org.id) : Promise.resolve(0),
       getMembership(org.id, userId),
       isExco ? listLedger(userId, org.id, { take: 6 }) : Promise.resolve([]),
@@ -159,9 +160,21 @@ export default async function DashboardPage({
       getOwnFee(userId, org.id, null),
     ])
 
-  const committedFor = (source: FundView['source']) =>
-    (data.invoiceTotals.find((row) => row.fundSource === source)?._sum.totalCents ?? 0) +
-    (data.purchaseTotals.find((row) => row.fundSource === source)?._sum.amountCents ?? 0)
+  const data = {
+    financialYear: exco?.financialYear ?? currentYear,
+    currentTerm: shared,
+    instructors,
+    funds: exco?.funds ?? [],
+    overdueInvoices: exco?.overdueInvoices ?? 0,
+    memberCount: exco?.memberCount ?? 0,
+    sessionCount: exco?.sessionCount ?? 0,
+    sessionsThisMonth: exco?.sessionsThisMonth ?? 0,
+    awaitingPayment: exco?.awaitingPayment ?? { _count: 0, _sum: { totalCents: null } },
+    declaredPayments: exco?.declaredPayments ?? [],
+    pendingClaims: exco?.pendingClaims ?? 0,
+    unmatchedResponses: exco?.unmatchedResponses ?? [],
+    termNames: exco?.termNames ?? [],
+  }
 
   const FUND_LABEL: Record<FundView['source'], string> = {
     SEED: 'OSL Seed Fund',
@@ -170,31 +183,26 @@ export default async function DashboardPage({
     UNOFFICIAL: 'Unofficial',
   }
 
-  // Balance = opening + prior income - prior and current spend.
-  const funds: FundView[] = data.funds.map((fund) => {
-    const committedCents = committedFor(fund.source)
-    const spentCents = committedCents + fund.priorSpendCents
-    const availableCents = fund.openingBalanceCents + fund.priorIncomeCents
-    return {
-      source: fund.source,
-      label: FUND_LABEL[fund.source],
-      wbsElement: fund.source === 'UNOFFICIAL' ? null : fund.wbsElement,
-      openingCents: availableCents,
-      priorSpendCents: fund.priorSpendCents,
-      committedCents,
-      spentCents,
-      remainingCents: availableCents - spentCents,
-      rollsOver: fund.rollsOver,
-      deadline: fund.submissionDeadline,
-      note:
-        fund.source === 'INCOME'
-          ? 'Membership fees and donations. Rolls over.'
-          : fund.source === 'UNOFFICIAL'
-            ? 'Held by the exco. No OSL invoice may be drawn on it.'
-            : undefined,
-    }
-  })
-
+  const funds: FundView[] = data.funds.map((fund) => ({
+    source: fund.source,
+    label: FUND_LABEL[fund.source],
+    wbsElement: fund.source === 'UNOFFICIAL' ? null : fund.wbsElement,
+    openingCents: fund.availableCents,
+    priorSpendCents: fund.priorSpendCents,
+    committedCents: fund.committedCents,
+    spentCents: fund.spentCents,
+    remainingCents: fund.remainingCents,
+    rollsOver: fund.rollsOver,
+    deadline: fund.submissionDeadline,
+    note:
+      fund.source === 'INCOME'
+        ? fund.bankedCents > 0
+          ? `Membership fees and donations, including ${formatSgd(fund.bankedCents)} banked in through the portal this year. Rolls over.`
+          : 'Membership fees and donations. Rolls over.'
+        : fund.source === 'UNOFFICIAL'
+          ? 'Held by the exco. No OSL invoice may be drawn on it.'
+          : undefined,
+  }))
 
   const activeInstructors = data.instructors.filter((row) => row.isActive)
   const blocked = activeInstructors.filter((row) => missingFor(row).length > 0)

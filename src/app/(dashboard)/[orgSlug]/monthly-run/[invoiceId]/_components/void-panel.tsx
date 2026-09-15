@@ -63,7 +63,7 @@ export function VoidPanel({
   }
 
   return (
-    <form action={act} className="space-y-3">
+    <form action={act} className="max-w-[68ch] space-y-3">
       {state.error && (
         <p
           className="rounded-[var(--radius-sm)] border border-danger/20 bg-danger/8 p-3 text-[13px] text-danger"

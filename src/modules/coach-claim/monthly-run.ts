@@ -1,13 +1,15 @@
 import 'server-only'
 import { openOptional } from '@/core/crypto/fields'
 
-import type { Prisma } from '@prisma/client'
+import type { Prisma, FundSource as PrismaFundSource } from '@prisma/client'
 import { dbAs } from '@/core/db'
 import { fromDateColumn } from '@/lib/date-only'
 import { buildClaim, invoiceDateFor, type ClaimInput } from './claim'
 import { toInstructorDetails, type InstructorRow } from './queries'
 import { SUTD_BILL_TO, type FundSource } from './types'
 import { missingForInvoice } from './queries'
+import { fundBalance } from '@/modules/funds/balance'
+import { financialYearOf } from '@/modules/references/format'
 
 /**
  * The month's coach claim, gathered in one place.
@@ -288,11 +290,6 @@ export async function buildClaimContext(
     select: { tagline: true, brandLogoUrl: true, brandBandColors: true, billToName: true, billToAddressLines: true },
   })
 
-  const fund = await tx.fundAccount.findFirst({
-    where: { orgId: args.orgId, source: args.fundSource },
-    select: { openingBalanceCents: true },
-  })
-
   const row = toRow(instructor)
 
   const input: ClaimInput = {
@@ -324,7 +321,9 @@ export async function buildClaimContext(
     referenceNumber: args.referenceNumber,
     treasurerName: args.treasurerName,
     invoiceDate: args.invoiceDate ?? invoiceDateFor(args.periodYear, args.periodMonth),
-    clubFundBalanceCents: fund?.openingBalanceCents,
+    // Filled in by the caller once the claim's own total is known: the sheet
+    // prints what the fund has left after it. See clubFundBalanceAfter().
+    clubFundBalanceCents: undefined,
   }
 
   // Coach-led only. This map links an invoice line back to the class it
@@ -337,6 +336,33 @@ export async function buildClaimContext(
   )
 
   return { input, instructorRow: row, sessionIdByDate }
+}
+
+/**
+ * What the fund has left once this claim is paid — the "Balance of Club Fund"
+ * the attendance sheet prints.
+ *
+ * It printed the fund's opening balance, which on a sheet for August read as
+ * though nothing had been spent since April. This is the balance the register
+ * shows: every earlier claim and purchase this financial year taken off, and
+ * this one too. The claim's own invoice is left out of the lookup and taken
+ * off explicitly, so the figure is the same whether it is worked out before
+ * the invoice exists (raising) or after (signing).
+ */
+export async function clubFundBalanceAfter(
+  tx: Prisma.TransactionClient,
+  args: {
+    orgId: string
+    invoiceDate: Date
+    fundSource: PrismaFundSource
+    claimCents: number
+    invoiceId?: string
+  }
+): Promise<number | undefined> {
+  const fund = await fundBalance(tx, args.orgId, financialYearOf(args.invoiceDate), args.fundSource, {
+    excludeInvoiceId: args.invoiceId,
+  })
+  return fund ? fund.remainingCents - args.claimCents : undefined
 }
 
 /** `2026-08-13` from a local-midnight date — the key lines are matched on. */

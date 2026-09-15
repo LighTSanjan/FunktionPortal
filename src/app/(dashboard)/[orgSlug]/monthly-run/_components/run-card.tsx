@@ -35,7 +35,8 @@ export function RunCard({
   orgSlug: string
   period: string
   entry: RunEntry
-  funds: { source: string; openingBalanceCents: number }[]
+  /** What each fund has left, before this claim. */
+  funds: { source: string; remainingCents: number }[]
   delayMs?: number
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
@@ -117,7 +118,7 @@ export function RunCard({
                   {funds.map((fund) => (
                     <option key={fund.source} value={fund.source}>
                       {fund.source === 'SEED' ? 'OSL Seed Fund' : 'Income'} —{' '}
-                      {formatSgd(fund.openingBalanceCents)} opening
+                      {formatSgd(fund.remainingCents)} left
                     </option>
                   ))}
                 </Select>
