@@ -6,6 +6,11 @@
 -- deposit form's figure was fixed; the list beside it was not. Closing now
 -- writes each row down, and a closed term is read from these.
 
+-- Set in the closing transaction whether or not anybody was charged, so a
+-- closed term with no rows is still read as closed-and-recorded rather than
+-- mistaken for one closed before any of this existed.
+ALTER TABLE "terms" ADD COLUMN "charges_recorded_at" TIMESTAMP(3);
+
 CREATE TABLE "term_close_charges" (
   "term_id"      TEXT NOT NULL,
   "member_id"    TEXT NOT NULL,
@@ -22,7 +27,7 @@ CREATE INDEX "term_close_charges_org_id_idx" ON "term_close_charges" ("org_id");
 ALTER TABLE "term_close_charges" ADD CONSTRAINT "term_close_charges_term_id_fkey"
   FOREIGN KEY ("term_id") REFERENCES "terms"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "term_close_charges" ADD CONSTRAINT "term_close_charges_member_id_fkey"
-  FOREIGN KEY ("member_id") REFERENCES "members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  FOREIGN KEY ("member_id") REFERENCES "members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "term_close_charges" ADD CONSTRAINT "term_close_charges_org_id_fkey"
   FOREIGN KEY ("org_id") REFERENCES "organisations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -35,13 +40,16 @@ CREATE POLICY term_close_charges_own_read ON "term_close_charges"
   FOR SELECT TO authenticated
   USING (EXISTS (
     SELECT 1 FROM members m
-    WHERE m.id = term_close_charges.member_id AND m.user_id = public.app_user_id()
-  ));
+    WHERE m.id = term_close_charges.member_id
+      AND m.org_id = term_close_charges.org_id
+      AND m.user_id = public.app_user_id()
+  ) AND public.app_is_member(org_id));
 
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
-    GRANT SELECT, INSERT, UPDATE, DELETE ON "term_close_charges" TO app_user;
+    -- Written once, never changed: no UPDATE or DELETE for the app at all.
+    GRANT SELECT, INSERT ON "term_close_charges" TO app_user;
   END IF;
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
     REVOKE ALL ON "term_close_charges" FROM anon, authenticated;
@@ -65,8 +73,14 @@ BEGIN
     RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM terms WHERE id = row_term AND org_id = row_org) THEN
-    RAISE EXCEPTION 'That term belongs to another club'
+  IF TG_OP <> 'INSERT' THEN
+    RAISE EXCEPTION 'A closed collection''s charges are not changed'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM terms WHERE id = row_term AND org_id = row_org)
+     OR NOT EXISTS (SELECT 1 FROM members WHERE id = NEW.member_id AND org_id = row_org) THEN
+    RAISE EXCEPTION 'That term or member belongs to another club'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
 

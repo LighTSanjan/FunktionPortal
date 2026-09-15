@@ -345,9 +345,8 @@ export async function buildClaimContext(
  * It printed the fund's opening balance, which on a sheet for August read as
  * though nothing had been spent since April. This is the balance the register
  * shows: every earlier claim and purchase this financial year taken off, and
- * this one too. The claim's own invoice is left out of the lookup and taken
- * off explicitly, so the figure is the same whether it is worked out before
- * the invoice exists (raising) or after (signing).
+ * this one too — the same figure whether it is worked out before the invoice
+ * exists (raising) or after (signing, voiding).
  */
 export async function clubFundBalanceAfter(
   tx: Prisma.TransactionClient,
@@ -359,10 +358,12 @@ export async function clubFundBalanceAfter(
     invoiceId?: string
   }
 ): Promise<number | undefined> {
-  const fund = await fundBalance(tx, args.orgId, financialYearOf(args.invoiceDate), args.fundSource, {
-    excludeInvoiceId: args.invoiceId,
-  })
-  return fund ? fund.remainingCents - args.claimCents : undefined
+  const fund = await fundBalance(tx, args.orgId, financialYearOf(args.invoiceDate), args.fundSource)
+  if (!fund) return undefined
+  // Once the invoice exists it is already counted — as a portal claim, or as
+  // the sheet's row for it when somebody has typed it in — so what is left is
+  // simply what is left. Before it exists, take the claim off by hand.
+  return args.invoiceId ? fund.remainingCents : fund.remainingCents - args.claimCents
 }
 
 /** `2026-08-13` from a local-midnight date — the key lines are matched on. */

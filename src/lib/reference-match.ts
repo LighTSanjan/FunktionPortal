@@ -69,7 +69,7 @@ export function onSheet(sheet: LedgerDocument[], portal: LedgerDocument[]): Set<
   // Then each malformed row, against the documents nothing has claimed: the
   // same series and year, the same amount, the same day. Where two documents
   // fit, the one whose number reads like what was typed wins — "00002" is
-  // 0002 before it is 0001.
+  // 0002 before it is 0001 — and with no such number, neither does.
   const digits = (value: string | null) => Number(/(\d+)\s*$/.exec(value ?? '')?.[1] ?? NaN)
   sheet.forEach((row, j) => {
     if (used.has(j) || referenceKey(row.reference) !== null) return
@@ -87,7 +87,12 @@ export function onSheet(sheet: LedgerDocument[], portal: LedgerDocument[]): Set<
           day(doc.date) === day(row.date)
         )
       })
-    const pick = fits.find(({ doc }) => digits(doc.reference) === digits(row.reference)) ?? fits[0]
+    // The number it reads like, or the only document that fits. Two that fit
+    // equally is a guess, and a guess would hide a real invoice: leave the
+    // row unmatched and count both.
+    const pick =
+      fits.find(({ doc }) => digits(doc.reference) === digits(row.reference)) ??
+      (fits.length === 1 ? fits[0] : undefined)
     if (pick) {
       used.add(j)
       matched.add(pick.i)

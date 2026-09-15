@@ -520,6 +520,9 @@ model Term {
   /// rather than inferred from an income_deposits row they are not allowed to
   /// see — inferred, every closed collection looked open to a member.
   closedAt           DateTime? @map("closed_at")
+  /// When closing wrote down who was charged what (term_close_charges). Set
+  /// even when nobody was; null for terms closed before that was kept.
+  chargesRecordedAt  DateTime? @map("charges_recorded_at")
 
   paynowQrPath       String?   @map("paynow_qr_path")
   paynowQrUploadedAt DateTime? @map("paynow_qr_uploaded_at")
@@ -650,7 +653,7 @@ model TermCloseCharge {
 
   organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
   term         Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
-  member       Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
 
   @@id([termId, memberId])
   @@index([orgId])

@@ -92,6 +92,10 @@ export default async function FeesPage({
         }),
       ])
       const key = member ? { termId_memberId: { termId: term.id, memberId: member.id } } : null
+      const charge =
+        key && term.chargesRecorded
+          ? await tx.termCloseCharge.findUnique({ where: key, select: { tier: true, amountCents: true } })
+          : null
       const [payment, arrangement] = key
         ? await Promise.all([
             tx.feePayment.findUnique({
@@ -101,10 +105,10 @@ export default async function FeesPage({
             tx.feeArrangement.findUnique({ where: key, select: { tier: true, amountCents: true, note: true } }),
           ])
         : [null, null]
-      return { email: user?.email ?? '', member, payment, arrangement }
+      return { email: user?.email ?? '', member, payment, arrangement, charge }
     }),
   ])
-  const { member, payment, arrangement } = context
+  const { member, payment, arrangement, charge } = context
 
   // What they owe. Never their choice: the term's rate, or what the exco set
   // for this person.
@@ -112,7 +116,12 @@ export default async function FeesPage({
   // In preview the exco can see the form as somebody who is not on the roster.
   const asMember = preview && query.preview === 'new' ? null : member
   let fee: MembershipFormProps['fee']
-  if (asMember && arrangement) {
+  if (asMember && term.chargesRecorded) {
+    // Closed: what they were charged when it closed, whatever the roster says now.
+    fee = charge && charge.amountCents > 0
+      ? { amountCents: charge.amountCents, label: TIER_LABEL[charge.tier], note: null }
+      : { amountCents: 0, label: 'Not taking part this term', note: null }
+  } else if (asMember && arrangement) {
     fee = {
       amountCents: amountForTier(arrangement.tier, rates, arrangement.amountCents),
       label: TIER_LABEL[arrangement.tier],

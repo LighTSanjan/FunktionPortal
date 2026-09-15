@@ -58,4 +58,13 @@ describe('which portal documents are already on the sheet', () => {
     ]
     expect([...onSheet(sheet, portal)]).toEqual([0])
   })
+
+  it('leaves a mistyped row unmatched when two documents fit it equally', () => {
+    const sheet = [{ reference: 'IV26-097-00019', amountCents: 13_500, date: d('2026-09-15') }]
+    const twins = [
+      { reference: 'IV26-097-0011', amountCents: 13_500, date: d('2026-09-15') },
+      { reference: 'IV26-097-0012', amountCents: 13_500, date: d('2026-09-15') },
+    ]
+    expect(onSheet(sheet, twins).size).toBe(0)
+  })
 })

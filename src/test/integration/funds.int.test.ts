@@ -209,9 +209,13 @@ describe('the club’s funds', () => {
   it('keeps the balance an unsigned sheet last showed when it is voided', async () => {
     as(treasurer)
     const jin = await dbAdmin.invoice.findFirstOrThrow({ where: { orgId: org.id, instructorId: coach['Jin Neo'] } })
+    const fundBefore = await income()
     const showing = await dbAs(treasurer.id, (tx) => loadMonthDocuments(tx, { orgId: org.id, invoiceId: jin.id }))
     await ok(() => voidMonth(org.slug, jin.id, { error: null }, form({ reason: 'Raised on the wrong fund' })))
     const sheet = await dbAdmin.attendanceSheet.findFirstOrThrow({ where: { invoice: { id: jin.id } } })
     expect(sheet.clubFundBalanceCents).toBe(showing?.sheet.clubFundBalanceCents)
+    // Jin's claim is the sheet's row, already in prior spend: it is taken off
+    // once, not again on top.
+    expect(showing?.sheet.clubFundBalanceCents).toBe(fundBefore.remainingCents)
   })
 })

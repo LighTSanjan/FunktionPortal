@@ -25,6 +25,8 @@ export interface TermRow {
   filed: boolean
   /** Exco only. Closed with nothing on the OSL route leaves no deposit to file. */
   hasDeposit: boolean
+  /** Closing wrote down who was charged what; read a closed term from that. */
+  chargesRecorded: boolean
   /**
    * Whether this collection has a PayNow QR uploaded. Never the key itself —
    * the bytes come from a route that checks membership on every request, so
@@ -103,6 +105,7 @@ function toTermRow(row: {
   paynowQrPath: string | null
   paynowQrUploadedAt: Date | null
   closedAt: Date | null
+  chargesRecordedAt: Date | null
   incomeDeposit: { id: string; submittedToOslAt: Date | null } | null
 }): TermRow {
   return {
@@ -125,6 +128,7 @@ function toTermRow(row: {
     // Exco only: a member's session cannot see deposits, so to them this is
     // always false. A closed term without one had nothing to bank in.
     hasDeposit: row.incomeDeposit !== null,
+    chargesRecorded: row.chargesRecordedAt !== null,
     hasPaynowQr: row.paynowQrPath !== null,
     paynowQrUploadedAt: row.paynowQrUploadedAt,
   }
@@ -143,6 +147,7 @@ const TERM_SELECT = {
   paynowQrPath: true,
   paynowQrUploadedAt: true,
   closedAt: true,
+  chargesRecordedAt: true,
   incomeDeposit: { select: { id: true, submittedToOslAt: true } },
 } as const
 
@@ -207,6 +212,7 @@ export async function listOwnTerms(userId: string, orgId: string): Promise<OwnTe
             { membershipResponses: { some: { userId } } },
             { feePayments: { some: { member: { userId } } } },
             { feeArrangements: { some: { member: { userId } } } },
+            { closeCharges: { some: { member: { userId } } } },
           ],
         },
         orderBy: { startDate: 'desc' },
@@ -248,18 +254,18 @@ export async function listCollection(
   orgId: string,
   termId: string
 ): Promise<{ rows: PaymentRow[]; totals: CollectionTotals }> {
-  const { members, payments, arrangements, rates, charges } = await dbAs(userId, async (tx) => {
+  const { members, payments, arrangements, rates, charges, recorded } = await dbAs(userId, async (tx) => {
     const term = await tx.term.findFirst({
       where: { id: termId, orgId },
-      select: { fullFeeCents: true, halfFeeCents: true, exchangeFeeCents: true, closedAt: true },
+      select: { fullFeeCents: true, halfFeeCents: true, exchangeFeeCents: true, chargesRecordedAt: true },
     })
     // A closed collection is read from what was written down when it closed,
-    // not from today's roster. Terms closed before that was kept have none,
-    // and are still worked out live.
-    const charges = term?.closedAt
-      ? await tx.termCloseCharge.findMany({ where: { orgId, termId } })
-      : []
+    // not from today's roster — even when that was nobody. Terms closed before
+    // that was kept are still worked out live.
+    const recorded = term?.chargesRecordedAt != null
+    const charges = recorded ? await tx.termCloseCharge.findMany({ where: { orgId, termId } }) : []
     return {
+      recorded,
       charges,
       // Active members, plus anybody who has a payment against this term.
       // Starting from the active roster alone drops a confirmed payer who has
@@ -272,7 +278,7 @@ export async function listCollection(
         where: {
           orgId,
           OR:
-            charges.length > 0
+            recorded
               ? [{ id: { in: charges.map((charge) => charge.memberId) } }, { feePayments: { some: { termId } } }]
               : [
                   { isActive: true },
@@ -311,7 +317,7 @@ export async function listCollection(
   }
 
   const chargeFor = new Map(charges.map((charge) => [charge.memberId, charge]))
-  const frozen = charges.length > 0
+  const frozen = recorded
 
   const rows: PaymentRow[] = []
   for (const member of members) {
@@ -506,13 +512,27 @@ export async function getOwnFee(
         select: { tier: true, amountCents: true },
       }),
     ])
-    const fee = resolveFee({
+    // A closed term says what it said when it closed, not what today's roster
+    // would charge.
+    const charge =
+      term.chargesRecorded && !payment
+        ? await tx.termCloseCharge.findUnique({
+            where: { termId_memberId: { termId: term.id, memberId: member.id } },
+          })
+        : null
+    const live = resolveFee({
       payment,
       arrangement,
       rosterLabel: member.rosterLabel,
       isActive: member.isActive,
       rates: term,
     })
+    const fee =
+      term.chargesRecorded && !payment
+        ? charge
+          ? { ...live, tier: charge.tier, amountCents: charge.amountCents, charged: charge.amountCents > 0 }
+          : { ...live, amountCents: 0, charged: false }
+        : live
     // Not charged is not a missing fee: it is the roster saying they have
     // left, and somebody who has left owes nothing. A waived fee is the same
     // answer reached by a person.

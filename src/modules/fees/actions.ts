@@ -757,7 +757,7 @@ export async function closeCollection(
         data: { state: 'CLOSED', closedAt: new Date() },
       })
       await writeCloseCharges(tx, org.id, term.id)
-      await tx.term.update({ where: { id: term.id }, data: { closedAt: new Date() } })
+      await tx.term.update({ where: { id: term.id }, data: { closedAt: new Date(), chargesRecordedAt: new Date() } })
       await writeAudit(
         {
           orgId: org.id,
@@ -800,7 +800,7 @@ export async function closeCollection(
     // pressing this at once. The precheck above is for the message; this is
     // for the outcome.
     await writeCloseCharges(tx, org.id, term.id)
-    await tx.term.update({ where: { id: term.id }, data: { closedAt: new Date() } })
+    await tx.term.update({ where: { id: term.id }, data: { closedAt: new Date(), chargesRecordedAt: new Date() } })
 
     const deposit = await tx.incomeDeposit.create({
       data: {

@@ -17,7 +17,7 @@ import {
   updateTerm,
   uploadPaynowQr,
 } from '@/modules/fees/actions'
-import { getTerm, listCollection, listOwnTerms } from '@/modules/fees/queries'
+import { getOwnFee, getTerm, listCollection, listOwnTerms } from '@/modules/fees/queries'
 import { depositFormInput } from '@/modules/fees/deposit-input'
 import { subscriptionWorkflow } from '@/modules/workflow/subscription'
 import { isoDate, longDate } from '@/modules/coach-claim/theme'
@@ -291,17 +291,39 @@ describe('how a collection ends', () => {
       const terms = await listOwnTerms(mo.id, org.id)
       expect(terms[0]).toMatchObject({ name: 'This term', current: true })
       expect(terms.map((t) => t.name)).toContain('Last term')
-      expect(terms.map((t) => t.name)).not.toContain('Quiet term')
+      // Mo owed for Quiet term when it closed, so it is one of theirs too.
+      expect(terms.map((t) => t.name)).toContain('Quiet term')
     })
 
-    it('lists a past term where the exco set their fee, even with nothing paid', async () => {
+    it('shows a member what a closed term charged them, whatever the roster says now', async () => {
       const quiet = await dbAdmin.term.findFirstOrThrow({ where: { orgId: org.id, name: 'Quiet term' } })
-      await dbAdmin.feeArrangement.create({
-        data: { orgId: org.id, termId: quiet.id, memberId: ids['Mo Member'], tier: 'HALF', setById: treasurer.id },
-      })
+      await dbAdmin.member.update({ where: { id: ids['Mo Member'] }, data: { rosterLabel: 'Graduated', isActive: false } })
       as(mo)
-      const terms = await listOwnTerms(mo.id, org.id)
-      expect(terms.map((t) => t.name)).toContain('Quiet term')
+      const fee = await getOwnFee(mo.id, org.id, quiet.id)
+      expect(fee.amountCents).toBe(7_000)
+      expect(fee.owesNothing).toBe(false)
+      await dbAdmin.member.update({ where: { id: ids['Mo Member'] }, data: { rosterLabel: 'Confirmed', isActive: true } })
+    })
+
+    it('keeps a closed term with nobody charged closed to newcomers', async () => {
+      const termId = await newTerm('Free term', -300, -250)
+      as(treasurer)
+      await ok(() =>
+        updateTerm(org.slug, { error: null }, form({
+          termId,
+          fullFee: '0',
+          halfFee: '0',
+          exchangeFee: '',
+          collectionOpensAt: isoDate(plusDays(-300)),
+          finalCollectionAt: isoDate(plusDays(-290)),
+        }))
+      )
+      await ok(() => closeCollection(org.slug, termId))
+      expect((await dbAdmin.term.findUniqueOrThrow({ where: { id: termId } })).chargesRecordedAt).not.toBeNull()
+      const newcomer = await addRosterMember(org, { fullName: 'Yan Later', studentId: '1000088', rosterLabel: 'Confirmed' })
+      const { rows } = await listCollection(treasurer.id, org.id, termId)
+      expect(rows.map((row) => row.memberName)).not.toContain('Yan Later')
+      await dbAdmin.member.delete({ where: { id: newcomer.id } })
     })
   })
 })
