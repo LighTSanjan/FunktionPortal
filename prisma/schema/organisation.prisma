@@ -24,6 +24,7 @@ model Organisation {
   sessionAttendance  SessionAttendance[]
   attendanceSheets   AttendanceSheet[]
   invoices           Invoice[]
+  coachMonthSettlements CoachMonthSettlement[]
   terms              Term[]
   feePayments        FeePayment[]
   incomeDeposits     IncomeDeposit[]

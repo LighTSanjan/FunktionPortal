@@ -457,6 +457,30 @@ model InvoiceLine {
   @@map("invoice_lines")
 }
 
+/// A month of coach payments that was dealt with outside the portal.
+///
+/// The club paid its coaches long before the portal existed, and the
+/// attendance import brings those months' classes in with it. Without this,
+/// every one of them reads as a month nobody has claimed for, and the home
+/// screen asks for January's documents in September. Raising invoices for
+/// them would be worse: each would spend a reference number on a document
+/// that already exists on paper under a different one.
+model CoachMonthSettlement {
+  id          String   @id @default(cuid())
+  orgId       String   @map("org_id")
+  periodYear  Int      @map("period_year")
+  periodMonth Int      @map("period_month")
+  note        String?
+  settledById String?  @map("settled_by_id")
+  settledAt   DateTime @default(now()) @map("settled_at")
+
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  settledBy    User?        @relation(fields: [settledById], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, periodYear, periodMonth])
+  @@map("coach_month_settlements")
+}
+
 // ─────────────────────────────────────────────
 // Subscription fees  (Guidelines §2.2)
 // ─────────────────────────────────────────────

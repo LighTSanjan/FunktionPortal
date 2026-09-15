@@ -43,6 +43,16 @@ export async function generateMonthlyDocuments(
   const [periodYear, periodMonth] = parsed.data.period.split('-').map(Number)
 
   const problem = await dbAs(userId, async (tx) => {
+    const settled = await tx.coachMonthSettlement.findUnique({
+      where: { orgId_periodYear_periodMonth: { orgId: org.id, periodYear, periodMonth } },
+      select: { id: true },
+    })
+    if (settled) {
+      // A number spent here is a gap in the series OSL will ask about, for a
+      // document that already exists on paper.
+      return 'That month is marked as paid outside the portal. Undo that first if it really needs raising here.'
+    }
+
     const existing = await tx.invoice.findFirst({
       where: {
         orgId: org.id,
@@ -492,6 +502,62 @@ export async function markPaid(
   })
 
   if (problem) return { error: problem }
+
+  revalidatePath(`/${orgSlug}/monthly-run`)
+  revalidatePath(`/${orgSlug}/dashboard`)
+  return { error: null, ok: true }
+}
+
+/**
+ * Record that a month's coaches were paid outside the portal, or take it back.
+ *
+ * For the months before the portal existed, whose classes arrived with the
+ * attendance import and would otherwise sit on the home screen as unclaimed
+ * forever. A person's word, so it is audited and reversible, and it refuses
+ * the month in progress: that one cannot have been paid yet.
+ */
+export async function markMonthPaidOutside(
+  orgSlug: string,
+  period: string,
+  settled: boolean
+): Promise<ActionState> {
+  const { org } = await getOrgContext(orgSlug)
+  const { userId } = await requirePermission(org.id, 'claim.generate')
+
+  const match = /^(\d{4})-(\d{2})$/.exec(period)
+  const periodYear = Number(match?.[1])
+  const periodMonth = Number(match?.[2])
+  if (!match || periodMonth < 1 || periodMonth > 12) return { error: 'Pick a month' }
+
+  const now = new Date()
+  if (periodYear * 12 + periodMonth >= now.getFullYear() * 12 + now.getMonth() + 1) {
+    return { error: 'Only a month that has finished can have been paid.' }
+  }
+
+  await dbAs(userId, async (tx) => {
+    const key = { orgId_periodYear_periodMonth: { orgId: org.id, periodYear, periodMonth } }
+    const existing = await tx.coachMonthSettlement.findUnique({ where: key, select: { id: true } })
+    if (settled === Boolean(existing)) return
+
+    const row = settled
+      ? await tx.coachMonthSettlement.create({
+          data: { orgId: org.id, periodYear, periodMonth, settledById: userId },
+          select: { id: true },
+        })
+      : await tx.coachMonthSettlement.delete({ where: key, select: { id: true } })
+
+    await writeAudit(
+      {
+        orgId: org.id,
+        actorId: userId,
+        action: settled ? 'claim.month_paid_outside' : 'claim.month_paid_outside_undone',
+        targetType: 'CoachMonthSettlement',
+        targetId: row.id,
+        after: { period, settled },
+      },
+      tx
+    )
+  })
 
   revalidatePath(`/${orgSlug}/monthly-run`)
   revalidatePath(`/${orgSlug}/dashboard`)

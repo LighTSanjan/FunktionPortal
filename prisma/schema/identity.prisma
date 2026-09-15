@@ -58,6 +58,7 @@ model User {
   presidentApprovals    PurchaseRequest[] @relation("PresidentApprover")
   registerSyncsRequested RegisterSync[]
   attendanceImports     AttendanceImport[]
+  settledCoachMonths    CoachMonthSettlement[]
 
   @@index([claimedStudentId])
   @@map("users")

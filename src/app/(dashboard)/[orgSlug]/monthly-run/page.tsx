@@ -11,6 +11,7 @@ import { coachPaymentsWorkflow } from '@/modules/workflow/coach-payments'
 import { WorkflowStrip } from '@/modules/workflow/ui'
 import { MonthNav } from '../sessions/_components/month-nav'
 import { RunCard } from './_components/run-card'
+import { PaidOutsideToggle } from './_components/paid-outside-toggle'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +36,15 @@ export default async function MonthlyRunPage({
   // Arriving here from a bookmark or the back button should still answer
   // where in the sequence you are.
   const workflow = await coachPaymentsWorkflow(userId, org.id, orgSlug, new Date())
+
+  const settlement = await dbAs(userId, (tx) =>
+    tx.coachMonthSettlement.findUnique({
+      where: {
+        orgId_periodYear_periodMonth: { orgId: org.id, periodYear: year, periodMonth: monthIndex + 1 },
+      },
+      select: { settledAt: true, settledBy: { select: { name: true } } },
+    })
+  )
 
   const funds = await dbAs(userId, (tx) =>
     tx.fundAccount.findMany({
@@ -61,6 +71,13 @@ export default async function MonthlyRunPage({
 
   const active = run.entries.filter((e) => e.status !== 'NO_SESSIONS')
   const idle = run.entries.filter((e) => e.status === 'NO_SESSIONS')
+  const raised = active.filter((e) => e.status !== 'READY' && e.status !== 'BLOCKED')
+  const now = new Date()
+  const finished =
+    year * 12 + monthIndex < now.getFullYear() * 12 + now.getMonth()
+  // Offered only for a finished month with coached classes and nothing raised
+  // here: that is what a month from before the portal looks like.
+  const canMarkOutside = !settlement && finished && active.length > 0 && raised.length === 0
   const owed = active
     .filter((e) => e.status !== 'VOID')
     .reduce((sum, e) => sum + e.subtotalCents, 0)
@@ -91,6 +108,24 @@ export default async function MonthlyRunPage({
             claims
           </span>
         </div>
+      )}
+
+      {settlement && (
+        <Card>
+          <CardContent className="space-y-2 py-5">
+            <p className="text-[14px] font-semibold">{label} was paid outside the portal</p>
+            <p className="max-w-[68ch] text-[13px] leading-relaxed text-text-muted">
+              Marked by {settlement.settledBy?.name ?? 'an exco member'} on{' '}
+              {settlement.settledAt.toLocaleDateString('en-SG', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
+              . It counts as done, and nothing here needs raising for it.
+            </p>
+            <PaidOutsideToggle orgSlug={orgSlug} period={period} label={label} settled />
+          </CardContent>
+        </Card>
       )}
 
       {run.rosterSize === 0 && (
@@ -134,7 +169,7 @@ export default async function MonthlyRunPage({
             </Link>
           </CardContent>
         </Card>
-      ) : (
+      ) : settlement && raised.length === 0 ? null : (
         <ul className="space-y-3">
           {active.map((entry, i) => (
             <li key={entry.instructorId}>
@@ -151,6 +186,22 @@ export default async function MonthlyRunPage({
             </li>
           ))}
         </ul>
+      )}
+
+      {canMarkOutside && (
+        <Card>
+          <CardContent className="space-y-3 py-5">
+            <div>
+              <p className="text-[14px] font-semibold">Already paid before the portal?</p>
+              <p className="mt-1 max-w-[68ch] text-[13px] leading-relaxed text-text-muted">
+                If {label}&rsquo;s coaches were claimed for and paid some other way, mark it here
+                so it stops showing as unclaimed. No documents are raised and no reference numbers
+                are used.
+              </p>
+            </div>
+            <PaidOutsideToggle orgSlug={orgSlug} period={period} label={label} settled={false} />
+          </CardContent>
+        </Card>
       )}
 
       {idle.length > 0 && (

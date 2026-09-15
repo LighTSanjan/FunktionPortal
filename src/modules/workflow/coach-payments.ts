@@ -50,6 +50,11 @@ export interface MonthState {
    * rest" forever and the button it offers refuses every time.
    */
   blocked: { name: string; missing: string[] }[]
+  /**
+   * Somebody has said this month was paid outside the portal — the months
+   * before it existed, whose classes came in with the attendance import.
+   */
+  settledOutside?: boolean
 }
 
 /**
@@ -69,7 +74,11 @@ export async function coachPaymentsWorkflow(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - MONTHS_OF_SESSIONS, 1)
   )
 
-  const { sessions, invoices, instructors } = await dbAs(userId, async (tx) => ({
+  const { sessions, invoices, instructors, settlements } = await dbAs(userId, async (tx) => ({
+    settlements: await tx.coachMonthSettlement.findMany({
+      where: { orgId },
+      select: { periodYear: true, periodMonth: true },
+    }),
     instructors: await tx.instructor.findMany({
       where: { orgId },
       select: {
@@ -187,6 +196,11 @@ export async function coachPaymentsWorkflow(
     }
   }
 
+  for (const settlement of settlements) {
+    const row = states.get(`${settlement.periodYear}-${settlement.periodMonth}`)
+    if (row) row.settledOutside = true
+  }
+
   // Never the month in progress. A claim covers a completed month — the run
   // screen defaults to last month for that reason — and one class recorded on
   // the 2nd would otherwise have the home screen asking to raise a month that
@@ -220,6 +234,9 @@ export async function coachPaymentsWorkflow(
 }
 
 export function isFinished(row: MonthState): boolean {
+  // Paid outside the portal, on somebody's word. Documents raised here as
+  // well still have to be seen through, so this only covers what was not.
+  if (row.settledOutside) return row.raised === 0 || row.paid === row.raised
   // A month whose documents were voided is unresolved whatever else is true
   // of it: the reference is spent, the unique key is occupied, and somebody
   // has to decide what replaces it.
@@ -266,6 +283,29 @@ export function describeMonth(row: MonthState, orgSlug: string, now: Date): Work
 
   if (row.sessions === 0) {
     next = { label: `Record ${subject}’s classes`, href: `/${orgSlug}/sessions?month=${period}` }
+  }
+
+  if (row.settledOutside && row.raised === 0) {
+    steps.push({
+      key: 'raise',
+      label: 'Paid outside the portal',
+      state: 'done',
+      note: 'Marked as paid before the portal kept track of it.',
+      href: runHref,
+    })
+    return {
+      id: 'coach-payments',
+      title: 'Coach payments',
+      subject,
+      href: runHref,
+      steps,
+      dueAt: null,
+      dueLabel: null,
+      urgency: 'normal',
+      next: null,
+      settled: true,
+      restingState: 'Paid outside the portal.',
+    }
   }
 
   if (row.taught === 0) {

@@ -210,3 +210,25 @@ describe('how the month reads', () => {
     expect(workflow.steps.find((s) => s.key === 'send')?.detail).toBe('0 of 2')
   })
 })
+
+describe('a month paid outside the portal', () => {
+  it('is finished with nothing raised, and asks for nothing', () => {
+    const row = month({ year: 2026, month: 1, settledOutside: true })
+    const workflow = describeMonth(row, 'acme', NOW)
+    expect(isFinished(row)).toBe(true)
+    expect(workflow.settled).toBe(true)
+    expect(workflow.next).toBeNull()
+    expect(workflow.dueAt).toBeNull()
+    expect(workflow.restingState).toBe('Paid outside the portal.')
+  })
+
+  it('still has to see through a document that was raised here anyway', () => {
+    const row = month({ settledOutside: true, raised: 1, signed: 1 })
+    expect(isFinished(row)).toBe(false)
+    expect(describeMonth(row, 'acme', NOW).settled).toBe(false)
+  })
+
+  it('is unfinished without the mark', () => {
+    expect(isFinished(month({ year: 2026, month: 1 }))).toBe(false)
+  })
+})
