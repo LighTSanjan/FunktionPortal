@@ -73,19 +73,19 @@ describe('provisioning an account', () => {
   })
 
   it('links a student-ID address to the row carrying that ID, whatever email the roster has', async () => {
-    await addRosterMember(org, { fullName: 'Kai Named', studentId: '1009153', email: 'kai_named@mymail.sutd.edu.sg' })
-    const kai = supabaseUser('1009153@mymail.sutd.edu.sg')
+    await addRosterMember(org, { fullName: 'Kai Named', studentId: '1001234', email: 'kai_named@mymail.sutd.edu.sg' })
+    const kai = supabaseUser('1001234@mymail.sutd.edu.sg')
     await provisionUser(kai, CODE)
-    expect((await dbAdmin.member.findFirstOrThrow({ where: { studentId: '1009153' } })).userId).toBe(kai.id)
+    expect((await dbAdmin.member.findFirstOrThrow({ where: { studentId: '1001234' } })).userId).toBe(kai.id)
     const audit = await dbAdmin.auditLog.findFirst({ where: { action: 'member.link_account_auto', actorId: kai.id } })
     expect(audit?.after).toMatchObject({ rule: 'student_id' })
   })
 
   it('does not link a student-ID address nobody has proven', async () => {
-    await addRosterMember(org, { fullName: 'Kai Named', studentId: '1009153' })
-    const impostor = supabaseUser('1009153@mymail.sutd.edu.sg')
+    await addRosterMember(org, { fullName: 'Kai Named', studentId: '1001234' })
+    const impostor = supabaseUser('1001234@mymail.sutd.edu.sg')
     await provisionUser(impostor, null)
-    expect((await dbAdmin.member.findFirstOrThrow({ where: { studentId: '1009153' } })).userId).toBeNull()
+    expect((await dbAdmin.member.findFirstOrThrow({ where: { studentId: '1001234' } })).userId).toBeNull()
   })
 
   it('links people who signed in before the import put them on the roster', async () => {

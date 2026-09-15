@@ -16,6 +16,7 @@ import {
   getDeposit,
   type TermRow,
 } from '@/modules/fees/queries'
+import { getForm } from '@/modules/membership-form/queries'
 import { addWorkingDays } from '@/modules/coach-claim/deadlines'
 
 /**
@@ -50,13 +51,15 @@ export async function subscriptionWorkflow(
     : await termNeedingWork(userId, orgId)
   if (!term) return null
 
-  const [{ rows, totals }, deposit] = await Promise.all([
+  const [{ rows, totals }, deposit, form] = await Promise.all([
     listCollection(userId, orgId, term.id),
     getDeposit(userId, orgId, term.id),
+    getForm(userId, orgId, term.id),
   ])
 
   const href = `/${orgSlug}/fees/collection?term=${term.id}`
-  const tabHref = (tab: string) => `${href}&tab=${tab}`
+  const tabHref = (tab: 'form' | 'responses' | 'payments' | 'deposit', show?: string) =>
+    `${href}&tab=${tab}${show ? `&show=${show}` : ''}`
   const owing = rows.filter((row) => row.amountCents > 0)
   const declared = owing.filter((row) => row.status !== null)
   const paid = owing.filter((row) => row.status === 'CONFIRMED')
@@ -106,16 +109,27 @@ export async function subscriptionWorkflow(
       label: 'Rates and dates',
       complete: ratesSet,
       note: ratesSet ? undefined : 'OSL need two weeks’ notice before a collection opens.',
-      href: tabHref('setup'),
-      action: { label: 'Set the rates and the dates', href: tabHref('setup') },
+      href: tabHref('form'),
+      action: { label: 'Set the rates and the dates', href: tabHref('form') },
     },
     {
       key: 'qr',
       label: 'PayNow QR up',
       complete: term.hasPaynowQr,
       note: term.hasPaynowQr ? undefined : 'Members can see what they owe and cannot pay it.',
-      href: tabHref('setup'),
-      action: { label: 'Put this term’s QR up', href: tabHref('setup') },
+      href: tabHref('form'),
+      action: { label: 'Put this term’s QR up', href: tabHref('form') },
+    },
+    {
+      key: 'form',
+      label: 'Form opened',
+      // Opened at some point counts: closing it again later is the exco
+      // deciding they have enough responses, not a step going undone.
+      // So does money already coming in some other way.
+      complete: form.openedAt !== null || term.closed || rows.some((row) => row.status !== null),
+      note: form.openedAt === null ? 'Members can’t fill it in until you open it.' : undefined,
+      href: tabHref('form'),
+      action: { label: 'Open the membership form', href: tabHref('form') },
     },
     {
       key: 'declared',
@@ -133,33 +147,33 @@ export async function subscriptionWorkflow(
       complete: declared.length > 0 && decided.length >= declared.length,
       detail: declared.length > 0 ? count(decided.length, declared.length) : undefined,
       note: toCheck.length > 0 ? 'Nobody decides their own.' : undefined,
-      href: tabHref('check'),
+      href: tabHref('payments', 'check'),
       action:
         toCheck.length > 0
           ? {
-              label: `Check ${toCheck.length} declaration${toCheck.length === 1 ? '' : 's'}`,
-              href: tabHref('check'),
+              label: `Check ${toCheck.length} payment${toCheck.length === 1 ? '' : 's'}`,
+              href: tabHref('payments', 'check'),
             }
           : undefined,
     },
     {
       key: 'close',
-      label: 'Collection closed',
+      label: 'Banked in',
       complete: term.closed,
       note:
         !term.closed && unpaid.length > 0
-          ? `${unpaid.length} ${unpaid.length === 1 ? 'member has' : 'members have'} still not paid. Closing banks what has been confirmed and leaves them owing.`
+          ? `${unpaid.length} ${unpaid.length === 1 ? 'member has' : 'members have'} still not paid. Banking in takes what has been confirmed and leaves them owing.`
           : undefined,
       noteWhenCurrent: true,
-      href: tabHref('close'),
-      action: { label: 'Close the collection', href: tabHref('close') },
+      href: tabHref('deposit'),
+      action: { label: 'Bank it in', href: tabHref('deposit') },
     },
     {
       key: 'deposit',
       label: 'Deposit form filed',
       complete: filed,
-      href: tabHref('close'),
-      action: { label: 'Download and file the deposit form', href: tabHref('close') },
+      href: tabHref('deposit'),
+      action: { label: 'Download and file the deposit form', href: tabHref('deposit') },
     },
   ]
 
@@ -182,12 +196,12 @@ export async function subscriptionWorkflow(
 
   // Waiting on members is not a reason to hide work the exco can do now.
   if (next === null && !term.closed && toCheck.length > 0) {
-    next = { label: `Check ${toCheck.length} declaration${toCheck.length === 1 ? '' : 's'}`, href: tabHref('check') }
+    next = { label: `Check ${toCheck.length} payment${toCheck.length === 1 ? '' : 's'}`, href: tabHref('payments', 'check') }
   }
   // Past the final collection, somebody who never paid is not going to, and
   // the collection still has to be closed.
   if (next === null && !term.closed && open && term.finalCollectionAt && term.finalCollectionAt < now) {
-    next = { label: 'Close the collection', href: tabHref('close') }
+    next = { label: 'Bank it in', href: tabHref('deposit') }
   }
 
   // Which deadline is live depends on where the job is. Before closing, it is

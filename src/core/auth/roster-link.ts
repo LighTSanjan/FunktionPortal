@@ -13,7 +13,7 @@ import { matchRosterRow, type MatchRule } from './roster-match'
  *
  *   - the roster's email for the row is the account's proven address, or
  *   - the account's proven address is a student address whose local part is
- *     the row's student ID: 1009153@mymail.sutd.edu.sg is student 1009153.
+ *     the row's student ID: 1001234@mymail.sutd.edu.sg is student 1001234.
  *
  * A typed student ID proves nothing — they are printed on every attendance
  * sheet and run in sequence — so it is still shown to the exco to confirm.

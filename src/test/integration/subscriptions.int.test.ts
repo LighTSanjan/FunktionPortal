@@ -264,7 +264,7 @@ describe('a term’s subscription collection', () => {
     it('asks the exco to check the declarations', async () => {
       as(treasurer)
       const current = await flow(treasurer)
-      expect(current.next?.label).toMatch(/Check 4 declarations/)
+      expect(current.next?.label).toMatch(/Check 4 payments/)
     })
 
     it('does not let a member confirm their own payment', async () => {
@@ -324,7 +324,7 @@ describe('a term’s subscription collection', () => {
     it('says who still owes before offering to close', async () => {
       as(treasurer)
       const current = await flow(treasurer)
-      expect(current.next?.label).toBe('Close the collection')
+      expect(current.next?.label).toBe('Bank it in')
       expect(current.steps.find((s) => s.key === 'close')?.note).toMatch(/1 member has still not paid/)
     })
 

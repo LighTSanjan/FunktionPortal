@@ -60,6 +60,8 @@ model User {
   attendanceImports     AttendanceImport[]
   settledCoachMonths    CoachMonthSettlement[]
   feeArrangementsSet    FeeArrangement[]
+  membershipResponses   MembershipResponse[] @relation("ResponseRespondent")
+  membershipMatches     MembershipResponse[] @relation("ResponseMatchedBy")
 
   @@index([claimedStudentId])
   @@map("users")

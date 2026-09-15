@@ -1,184 +1,397 @@
 import Link from 'next/link'
+import type { FeeTier } from '@prisma/client'
 import { dbAs } from '@/core/db'
 import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { hasPermission } from '@/core/permissions'
+import { studentIdFromEmail } from '@/core/auth/roster-match'
 import { PageHeader } from '@/core/ui/page-header'
-import { Card, CardContent } from '@/core/ui/card'
 import { Badge } from '@/core/ui/badge'
-import { getOwnFee } from '@/modules/fees/queries'
-import { TIER_LABEL } from '@/modules/fees/tiers'
+import { currentTerm, getTerm } from '@/modules/fees/queries'
+import { amountForTier, resolveFee, tierFor, TIER_LABEL } from '@/modules/fees/tiers'
 import { formatSgd } from '@/modules/coach-claim/money'
-import { ClaimForm } from './_components/claim-form'
+import { getForm, getOwnResponse } from '@/modules/membership-form/queries'
+import { answerText } from '@/modules/membership-form/questions'
+import { MembershipForm, type MembershipFormProps } from './_components/membership-form'
 import { PayPanel } from './_components/pay-panel'
+import { Notice, linkButtonClass } from './_components/ui'
 
 export const dynamic = 'force-dynamic'
 
+const SGT = 'Asia/Singapore'
+
 /**
- * A member's own membership fee.
+ * The membership form, from the member's side — and every exco member's too,
+ * because they join and pay like anybody else.
  *
- * One card that says what they owe and where it stands, and one thing to do
- * next. Most of what the old page explained — why a declaration is not a
- * confirmation — is the exco's concern, not the payer's.
+ * One of four things: the form isn't open yet; the form, to fill in; what you
+ * sent and where your payment stands; or the form has closed.
  */
 export default async function FeesPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ orgSlug: string }>
+  searchParams: Promise<{ term?: string; preview?: string; edit?: string; sent?: string }>
 }) {
   const { orgSlug } = await params
+  const query = await searchParams
   const { org, membership } = await getOrgContext(orgSlug)
   await requirePagePermission(org, 'fee.declare')
   const { userId } = await verifySession()
-
-  const fee = await getOwnFee(userId, org.id, null)
-  const claimedStudentId = fee.member
-    ? null
-    : ((
-        await dbAs(userId, (tx) =>
-          tx.user.findUnique({ where: { id: userId }, select: { claimedStudentId: true } })
-        )
-      )?.claimedStudentId ?? null)
   const canManage = hasPermission(membership.role, 'fee.manage')
+  const preview = canManage && Boolean(query.preview)
 
-  // Already a local calendar date (fromDateColumn); read in UTC it is the day before.
-  const due = fee.term?.finalCollectionAt?.toLocaleDateString('en-SG', {
-    day: 'numeric',
-    month: 'long',
-  })
-  const status = fee.payment?.status ?? null
+  const term = query.term ? await getTerm(userId, org.id, query.term) : await currentTerm(userId, org.id)
 
-  return (
-    <div className="mx-auto max-w-[640px] space-y-5">
-      <PageHeader
-        breadcrumbItems={[
-          { label: org.name, href: `/${orgSlug}/dashboard` },
-          { label: 'Your membership fee' },
-        ]}
-        title="Your membership fee"
-        actions={
-          canManage ? (
-            <Link
-              href={`/${orgSlug}/fees/collection`}
-              className="lapis-press inline-flex h-9 items-center rounded-[var(--radius-sm)] border border-border bg-surface px-3.5 text-[13px] font-medium text-text hover:bg-surface-hover"
-            >
-              Everyone&rsquo;s fees
-            </Link>
-          ) : undefined
-        }
-      />
+  const header = (
+    <PageHeader
+      breadcrumbItems={[
+        { label: org.name, href: `/${orgSlug}/dashboard` },
+        { label: 'Your membership fee' },
+      ]}
+      title="Your membership"
+      actions={
+        canManage ? (
+          <Link
+            href={`/${orgSlug}/fees/collection${term ? `?term=${term.id}` : ''}`}
+            className={linkButtonClass('secondary')}
+          >
+            Everyone&rsquo;s fees
+          </Link>
+        ) : undefined
+      }
+    />
+  )
 
-      {!fee.member && (
-        <Card>
-          <CardContent className="space-y-4 py-7">
-            <div className="space-y-2">
-              <p className="text-[15px] font-semibold">We can&rsquo;t find you on the club roster yet</p>
-              <p className="max-w-[56ch] text-[13px] leading-relaxed text-text-muted">
-                The quickest fix: sign out and sign in with your student-ID email, like{' '}
-                <span className="font-mono text-text">1001234@mymail.sutd.edu.sg</span>. You&rsquo;ll be
-                matched straight away. Or tell us your student ID and an exco member will match you.
-              </p>
+  if (!term) {
+    return (
+      <Shell header={header}>
+        <Hero title="No membership form right now" line="The exco haven’t started a term yet." />
+      </Shell>
+    )
+  }
+
+  const [form, response, context] = await Promise.all([
+    getForm(userId, org.id, term.id),
+    getOwnResponse(userId, org.id, term.id),
+    dbAs(userId, async (tx) => {
+      const [user, member] = await Promise.all([
+        tx.user.findUnique({ where: { id: userId }, select: { email: true } }),
+        tx.member.findFirst({
+          where: { orgId: org.id, userId },
+          select: { id: true, fullName: true, studentId: true, rosterLabel: true, isActive: true },
+        }),
+      ])
+      const key = member ? { termId_memberId: { termId: term.id, memberId: member.id } } : null
+      const [payment, arrangement] = key
+        ? await Promise.all([
+            tx.feePayment.findUnique({
+              where: key,
+              select: { status: true, tier: true, amountCents: true, rejectedReason: true, confirmedAt: true },
+            }),
+            tx.feeArrangement.findUnique({ where: key, select: { tier: true, amountCents: true, note: true } }),
+          ])
+        : [null, null]
+      return { email: user?.email ?? '', member, payment, arrangement }
+    }),
+  ])
+  const { member, payment, arrangement } = context
+
+  // What they would owe, and whether it is theirs to pick.
+  const rates = term
+  // In preview the exco can see the form as somebody who is not on the roster.
+  const asMember = preview && query.preview === 'new' ? null : member
+  const choices = arrangement && asMember ? [] : form.tierChoices.map((tier) => ({ tier, amountCents: amountForTier(tier, rates) }))
+  let fixedFee: MembershipFormProps['fixedFee'] = null
+  if (arrangement && asMember) {
+    fixedFee = {
+      amountCents: amountForTier(arrangement.tier, rates, arrangement.amountCents),
+      label: TIER_LABEL[arrangement.tier],
+      note: arrangement.note ? `Set by the exco: ${arrangement.note}` : 'Set by the exco.',
+    }
+  } else if (choices.length === 0) {
+    const fee = asMember
+      ? resolveFee({ payment: null, arrangement: null, rosterLabel: asMember.rosterLabel, isActive: asMember.isActive, rates })
+      : null
+    fixedFee = fee
+      ? { amountCents: fee.charged ? fee.amountCents : 0, label: fee.charged ? TIER_LABEL[fee.tier] : 'Not taking part this term', note: null }
+      : { amountCents: amountForTier('FULL', rates), label: TIER_LABEL.FULL, note: null }
+  }
+  const rosterTier = asMember ? tierFor(asMember.rosterLabel).tier : null
+  const defaultTier: FeeTier | null =
+    choices.length === 0
+      ? null
+      : (response?.tier && form.tierChoices.includes(response.tier) ? response.tier : null) ??
+        (rosterTier && form.tierChoices.includes(rosterTier) ? rosterTier : null) ??
+        (form.tierChoices.includes('FULL') ? 'FULL' : form.tierChoices[0])
+
+  const paymentState: MembershipFormProps['payment'] = preview && !asMember
+    ? 'NONE'
+    : (asMember ? payment?.status : undefined) ?? (response?.held ? 'HELD' : 'NONE')
+
+  const due = term.finalCollectionAt?.toLocaleDateString('en-SG', { day: 'numeric', month: 'long' })
+  const formOpen = form.state === 'OPEN' && !term.closed
+  const editing = Boolean(query.edit) && formOpen && response !== null
+
+  const formProps: MembershipFormProps = {
+    orgSlug,
+    termId: term.id,
+    termName: term.name,
+    questions: form.questions,
+    rosterName: asMember ? { fullName: asMember.fullName, studentId: asMember.studentId } : null,
+    lockedStudentId: asMember ? null : studentIdFromEmail(context.email),
+    choices,
+    fixedFee,
+    payment: paymentState,
+    hasQr: term.hasPaynowQr,
+    previous: editing && response ? response : null,
+    defaultTier,
+    preview,
+  }
+
+  const heroLine = term.closed
+    ? 'This term has been banked in.'
+    : form.state === 'OPEN'
+      ? due
+        ? `Open until ${due}`
+        : 'Open for responses'
+      : form.state === 'CLOSED'
+        ? 'The form is closed'
+        : 'Not open yet'
+
+  // ── An exco member previewing ──
+  if (preview) {
+    return (
+      <Shell header={header}>
+        <Notice
+          tone="warning"
+          action={
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={`/${orgSlug}/fees?term=${term.id}&preview=${query.preview === 'new' ? '1' : 'new'}`}
+                className={linkButtonClass('secondary', 'sm')}
+              >
+                {query.preview === 'new' ? 'See it as yourself' : 'See it as someone new'}
+              </Link>
+              <Link href={`/${orgSlug}/fees/collection?term=${term.id}&tab=form`} className={linkButtonClass('secondary', 'sm')}>
+                Back to editing
+              </Link>
             </div>
-            <ClaimForm orgSlug={orgSlug} claimed={claimedStudentId} />
-          </CardContent>
-        </Card>
-      )}
+          }
+        >
+          <span className="font-semibold">Preview.</span> This is the form{' '}
+          {query.preview === 'new' ? 'as someone who isn’t on the roster sees it' : 'as you would see it'}. Nothing sends.
+        </Notice>
+        <Hero title={`${term.name} membership`} line={heroLine} intro={form.intro} />
+        <MembershipForm {...formProps} />
+      </Shell>
+    )
+  }
 
-      {fee.member && !fee.term && (
-        <Card>
-          <CardContent className="space-y-1 py-8 text-center">
-            <p className="font-medium">Nothing to pay right now</p>
-            <p className="text-[13px] text-text-muted">The exco haven&rsquo;t opened a term&rsquo;s collection yet.</p>
-          </CardContent>
-        </Card>
-      )}
+  // ── The form, to fill in ──
+  if (formOpen && (!response || editing)) {
+    return (
+      <Shell header={header}>
+        <Hero title={`${term.name} membership`} line={heroLine} intro={form.intro} />
+        {editing && (
+          <Notice
+            action={
+              <Link href={`/${orgSlug}/fees?term=${term.id}`} className={linkButtonClass('ghost', 'sm')}>
+                Cancel
+              </Link>
+            }
+          >
+            Changing the response you sent. Your payment stays as it is.
+          </Notice>
+        )}
+        <MembershipForm {...formProps} />
+      </Shell>
+    )
+  }
 
-      {fee.member && fee.term && (
-        <Card>
-          <CardContent className="space-y-5 py-6">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-subtle">
-                  {fee.term.name}
-                </p>
-                {fee.owesNothing ? (
-                  <p className="mt-1.5 text-[22px] font-semibold leading-tight">Nothing to pay</p>
-                ) : (
-                  <>
-                    <p className="mt-1.5 text-[30px] font-semibold leading-none tabular-nums">
-                      {formatSgd(fee.amountCents)}
-                    </p>
-                    <p className="mt-1.5 text-[12.5px] text-text-muted">
-                      {TIER_LABEL[fee.tier]}
-                      {due && status !== 'CONFIRMED' && ` · please pay by ${due}`}
-                    </p>
-                  </>
-                )}
-              </div>
-              {!fee.owesNothing && <StatusBadge status={status} />}
-            </div>
-
-            {fee.owesNothing && (
-              <p className="text-[13px] leading-relaxed text-text-muted">
-                {fee.tier === 'WAIVED'
-                  ? `Your fee for ${fee.term.name} has been waived.`
-                  : `The roster has you as not taking part in ${fee.term.name}. If that's wrong, let an exco member know.`}
-              </p>
-            )}
-
-            {status === 'CONFIRMED' && (
-              <p className="rounded-[var(--radius-sm)] border border-success/20 bg-success/8 p-3 text-[13px] leading-relaxed">
-                Paid, thank you!
-                {fee.payment?.confirmedAt &&
-                  ` Recorded on ${fee.payment.confirmedAt.toLocaleDateString('en-SG', { day: 'numeric', month: 'long' })}.`}{' '}
-                See you next session!
-              </p>
-            )}
-
-            {status === 'DECLARED' && (
-              <p className="rounded-[var(--radius-sm)] border border-warning/25 bg-warning/8 p-3 text-[13px] leading-relaxed">
-                Got it. An exco member will match your payment to the bank statement, and this changes to
-                Paid once they have.
-              </p>
-            )}
-
-            {status === 'REJECTED' && (
-              <p className="rounded-[var(--radius-sm)] border border-danger/20 bg-danger/8 p-3 text-[13px] leading-relaxed">
-                The exco couldn&rsquo;t match your payment:{' '}
-                <strong className="font-semibold">{fee.payment?.rejectedReason}</strong>. Once it&rsquo;s sorted,
-                send it again below.
-              </p>
-            )}
-
-            {!fee.owesNothing && status !== 'CONFIRMED' && status !== 'DECLARED' && fee.term.closed && (
-              <p className="text-[13px] leading-relaxed text-text-muted">
-                This term&rsquo;s collection has closed. Please speak to the treasurer.
-              </p>
-            )}
-
-            {!fee.owesNothing && status !== 'CONFIRMED' && status !== 'DECLARED' && !fee.term.closed && (
+  // ── Not open, and nothing sent ──
+  if (!response) {
+    const closedLine =
+      form.state === 'DRAFT'
+        ? 'The exco haven’t opened it yet. The link goes up in the Telegram group when they do.'
+        : 'It isn’t taking responses any more. If you still need to join or pay for this term, speak to the treasurer.'
+    return (
+      <Shell header={header}>
+        <Hero title={`${term.name} membership`} line={heroLine} />
+        <section className="rounded-[var(--radius-md)] border border-border bg-surface p-5">
+          <p className="text-[15px] font-semibold text-text">
+            {form.state === 'DRAFT' ? 'The form isn’t open yet' : 'The form is closed'}
+          </p>
+          <p className="mt-1 text-[13px] leading-relaxed text-text-muted">{closedLine}</p>
+          {member && payment?.status === 'REJECTED' && !term.closed && (
+            <div className="mt-4">
+              <Notice tone="danger">
+                The exco couldn&rsquo;t match your payment: <strong>{payment.rejectedReason}</strong>
+              </Notice>
               <PayPanel
                 orgSlug={orgSlug}
-                termId={fee.term.id}
-                termName={fee.term.name}
-                amount={formatSgd(fee.amountCents)}
-                hasQr={fee.term.hasPaynowQr}
-                redeclaring={fee.payment !== null}
+                termId={term.id}
+                termName={term.name}
+                amount={formatSgd(payment.amountCents)}
+                hasQr={term.hasPaynowQr}
+                redeclaring
               />
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          )}
+        </section>
+        {canManage && form.state === 'DRAFT' && (
+          <Notice
+            action={
+              <Link href={`/${orgSlug}/fees/collection?term=${term.id}&tab=form`} className={linkButtonClass('secondary', 'sm')}>
+                Set it up
+              </Link>
+            }
+          >
+            You&rsquo;re in the exco: open the form from Membership fees, then fill it in here like everyone else.
+          </Notice>
+        )}
+      </Shell>
+    )
+  }
+
+  // ── What they sent, and where their payment stands ──
+  const onRoster = Boolean(member)
+  const amountCents = payment?.amountCents ?? response.held?.amountCents ?? fixedFee?.amountCents ??
+    choices.find((c) => c.tier === response.tier)?.amountCents ?? 0
+  const status = payment?.status ?? (response.held ? 'HELD' : null)
+
+  return (
+    <Shell header={header}>
+      <Hero title={`${term.name} membership`} line={heroLine} />
+
+      {query.sent && (
+        <Notice tone="success" role="status">
+          Sent! {status === 'CONFIRMED' ? 'See you next session!' : 'Thanks for joining FUNKtion this term.'}
+        </Notice>
       )}
 
-      <p className="text-center text-[12px] text-text-subtle">
+      <section className="rounded-[var(--radius-md)] border border-border bg-surface p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-[15px] font-semibold text-text">
+              {status === 'CONFIRMED' ? `You’re in for ${term.name}` : 'We’ve got your response'}
+            </p>
+            <p className="mt-0.5 text-[12.5px] text-text-muted">
+              Sent {response.submittedAt.toLocaleDateString('en-SG', { day: 'numeric', month: 'long', timeZone: SGT })}
+            </p>
+          </div>
+          <StatusBadge status={status} owes={amountCents > 0} />
+        </div>
+
+        <dl className="mt-4 grid gap-x-6 gap-y-2 border-t border-border pt-4 text-[13px] sm:grid-cols-[9rem_1fr]">
+          <dt className="text-text-subtle">Roster</dt>
+          <dd className="m-0 text-text">
+            {onRoster ? `On the roster as ${member!.fullName}` : 'An exco member will add you to the roster. Nothing for you to do.'}
+          </dd>
+          <dt className="text-text-subtle">Fee</dt>
+          <dd className="m-0 text-text">
+            {amountCents > 0 ? (
+              <>
+                <span className="font-semibold tabular-nums">{formatSgd(amountCents)}</span>
+                {(payment?.tier ?? response.tier) && (
+                  <span className="text-text-muted"> · {TIER_LABEL[(payment?.tier ?? response.tier)!]}</span>
+                )}
+              </>
+            ) : (
+              'Nothing to pay'
+            )}
+          </dd>
+          <dt className="text-text-subtle">Payment</dt>
+          <dd className="m-0 text-text">
+            {paymentLine(status, amountCents, payment?.confirmedAt ?? null, payment?.rejectedReason ?? null)}
+          </dd>
+          {response.answers.map((answer) => (
+            <Answer key={answer.questionId} label={answer.label} value={answerText(answer.value) || '—'} />
+          ))}
+        </dl>
+
+        {formOpen && (
+          <div className="mt-4 border-t border-border pt-4">
+            <Link href={`/${orgSlug}/fees?term=${term.id}&edit=1`} className={linkButtonClass('secondary')}>
+              Edit your response
+            </Link>
+          </div>
+        )}
+      </section>
+
+      {member && !term.closed && amountCents > 0 && (status === null || status === 'REJECTED') && (
+        <section className="rounded-[var(--radius-md)] border border-border bg-surface p-5">
+          <p className="text-[15px] font-semibold text-text">{status === 'REJECTED' ? 'Send your payment again' : 'Pay your fee'}</p>
+          <PayPanel
+            orgSlug={orgSlug}
+            termId={term.id}
+            termName={term.name}
+            amount={formatSgd(amountCents)}
+            hasQr={term.hasPaynowQr}
+            redeclaring={status === 'REJECTED'}
+          />
+        </section>
+      )}
+    </Shell>
+  )
+}
+
+function paymentLine(status: string | null, amountCents: number, confirmedAt: Date | null, reason: string | null): string {
+  if (amountCents === 0) return 'Nothing to pay'
+  switch (status) {
+    case 'CONFIRMED':
+      return `Paid, thank you!${confirmedAt ? ` Checked on ${confirmedAt.toLocaleDateString('en-SG', { day: 'numeric', month: 'long', timeZone: SGT })}.` : ''}`
+    case 'DECLARED':
+      return 'Being checked. An exco member matches it to the bank statement.'
+    case 'HELD':
+      return 'Sent. It’s checked once you’re on the roster.'
+    case 'REJECTED':
+      return `The exco couldn’t match it: ${reason ?? 'no reason given'}.`
+    default:
+      return 'Not paid yet.'
+  }
+}
+
+function StatusBadge({ status, owes }: { status: string | null; owes: boolean }) {
+  if (!owes) return <Badge variant="neutral">Nothing to pay</Badge>
+  if (status === 'CONFIRMED') return <Badge variant="success">Paid</Badge>
+  if (status === 'DECLARED' || status === 'HELD') return <Badge variant="warning">Being checked</Badge>
+  if (status === 'REJECTED') return <Badge variant="danger">Couldn&rsquo;t match</Badge>
+  return <Badge variant="neutral">Not paid</Badge>
+}
+
+function Answer({ label, value }: { label: string; value: string }) {
+  return (
+    <>
+      <dt className="text-text-subtle">{label}</dt>
+      <dd className="m-0 whitespace-pre-wrap break-words text-text">{value}</dd>
+    </>
+  )
+}
+
+function Shell({ header, children }: { header: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="mx-auto max-w-[640px] space-y-4">
+      {header}
+      {children}
+      <p className="pt-2 text-center text-[12px] text-text-subtle">
         FUNKtion - SUTD&rsquo;s Ultimate Popping &amp; Locking Dance Club!
       </p>
     </div>
   )
 }
 
-function StatusBadge({ status }: { status: string | null }) {
-  if (status === 'CONFIRMED') return <Badge variant="success">Paid</Badge>
-  if (status === 'DECLARED') return <Badge variant="warning">Being checked</Badge>
-  if (status === 'REJECTED') return <Badge variant="danger">Couldn&rsquo;t match</Badge>
-  return <Badge variant="neutral">Not paid</Badge>
+/** The top of the form: the club, the term, and whether it is open. */
+function Hero({ title, line, intro }: { title: string; line: string; intro?: string | null }) {
+  return (
+    <section className="overflow-hidden rounded-[var(--radius-md)] border border-brand-ink bg-surface">
+      <div aria-hidden className="lapis-band h-1.5" />
+      <div className="space-y-2 p-5">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-subtle">FUNKtion</p>
+        <h2 className="text-[22px] font-bold leading-tight tracking-[-0.01em] text-text">{title}</h2>
+        <p className="text-[13px] font-medium text-text-muted">{line}</p>
+        {intro && <p className="whitespace-pre-wrap pt-1 text-[14px] leading-relaxed text-text">{intro}</p>}
+      </div>
+    </section>
+  )
 }

@@ -9,7 +9,7 @@ describe('navigation', () => {
       [null, ['Home']],
       ['Work', ['Coach payments', 'Membership fees']],
       ['Records', ['Classes', 'Transactions', 'Coaches']],
-      ['You', ['Your access']],
+      ['You', ['Your membership fee', 'Your access']],
     ])
   })
 
@@ -27,14 +27,16 @@ describe('navigation', () => {
     ])
   })
 
-  it('does not offer the exco both membership fee screens', () => {
-    // "Membership fees" is the collection they run; "Your membership fee" is the
-    // one they owe. Two entries a word apart, pointing at different screens,
-    // is the sort of thing that makes somebody click the wrong one twice and
-    // stop trusting the sidebar.
-    const labels = resolveNav('EXCO').map((entry) => entry.label)
-    expect(labels).toContain('Membership fees')
-    expect(labels).not.toContain('Your membership fee')
+  it('gives the exco their own membership fee, away from the collection they run', () => {
+    // The exco fill in the form and pay like everybody else, and hiding their
+    // own fee left them no way to. It sits under "You", not beside
+    // "Membership fees" under "Work", so the two are never a word apart.
+    const groups = resolveNavGroups('EXCO')
+    const work = groups.find((group) => group.label === 'Work')!.entries.map((e) => e.label)
+    const you = groups.find((group) => group.label === 'You')!.entries.map((e) => e.label)
+    expect(work).toContain('Membership fees')
+    expect(work).not.toContain('Your membership fee')
+    expect(you).toContain('Your membership fee')
   })
 
   it('keeps the attendance import out of the sidebar', () => {

@@ -11,7 +11,7 @@ function normaliseEmail(email: string): string {
 const STUDENT_ID_DOMAINS = ['mymail.sutd.edu.sg']
 const STUDENT_ID = /^\d{7}$/
 
-/** "1009153" from 1009153@mymail.sutd.edu.sg, and nothing from anything else. */
+/** "1001234" from 1001234@mymail.sutd.edu.sg, and nothing from anything else. */
 export function studentIdFromEmail(email: string): string | null {
   const [local, domain] = normaliseEmail(email).split('@')
   if (!domain || !STUDENT_ID_DOMAINS.includes(domain)) return null

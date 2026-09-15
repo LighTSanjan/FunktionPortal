@@ -118,6 +118,25 @@ enum FeeTier {
 /// How a payment reached the portal. A member saying they paid, with a
 /// screenshot, or an exco member recording it straight off the bank
 /// statement for somebody who never opened the portal.
+/// Whether a term's membership form is taking responses. Separate from the
+/// term's own closedAt, which is the money being banked in: a form can close
+/// and reopen as often as the exco like until then, and never after.
+enum FormState {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+/// The few kinds of question the exco can add to a membership form. The name,
+/// student ID, fee and payment are fixed parts of every form and never these.
+enum FormQuestionType {
+  SHORT_TEXT
+  LONG_TEXT
+  YES_NO
+  ONE_CHOICE
+  MANY_CHOICES
+}
+
 enum PaymentSource {
   DECLARATION
   RECORDED

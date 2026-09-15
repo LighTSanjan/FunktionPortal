@@ -48,14 +48,6 @@ const GROUPS: readonly { label: string | null; entries: readonly NavEntry[] }[] 
         permission: 'fee.manage',
         hint: 'Who has paid',
       },
-      {
-        // The member's own fee. Same word, different job, and only one of the
-        // two is ever shown to any given person.
-        label: 'Your membership fee',
-        href: '/fees',
-        icon: 'Wallet',
-        permission: 'fee.declare',
-      },
     ],
   },
   {
@@ -87,6 +79,15 @@ const GROUPS: readonly { label: string | null; entries: readonly NavEntry[] }[] 
     label: 'You',
     entries: [
       {
+        // Their own membership form and fee. The exco join and pay like
+        // everybody else, so they get it too: kept under "You", away from the
+        // collection they run, so the two are never a word apart in one list.
+        label: 'Your membership fee',
+        href: '/fees',
+        icon: 'Wallet',
+        permission: 'fee.declare',
+      },
+      {
         label: 'Your access',
         href: '/access',
         icon: 'ClipboardCheck',
@@ -95,16 +96,6 @@ const GROUPS: readonly { label: string | null; entries: readonly NavEntry[] }[] 
     ],
   },
 ]
-
-/**
- * The exco see "Membership fees"; a member sees "Your membership fee". Offering
- * both to somebody who holds both permissions would be two entries pointing
- * at the same word.
- */
-function suppressDuplicate(role: OrgRole, entries: NavEntry[]): NavEntry[] {
-  if (!hasPermission(role, 'fee.manage')) return entries
-  return entries.filter((entry) => entry.href !== '/fees')
-}
 
 /**
  * Below this, headings cost more than they give: an ordinary member sees
@@ -116,10 +107,7 @@ const GROUPING_WORTHWHILE = 4
 export function resolveNavGroups(role: OrgRole): NavGroup[] {
   const groups = GROUPS.map((group) => ({
     label: group.label,
-    entries: suppressDuplicate(
-      role,
-      group.entries.filter((entry) => hasPermission(role, entry.permission))
-    ),
+    entries: group.entries.filter((entry) => hasPermission(role, entry.permission)),
   })).filter((group) => group.entries.length > 0)
 
   const total = groups.reduce((sum, group) => sum + group.entries.length, 0)

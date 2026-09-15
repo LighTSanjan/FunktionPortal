@@ -223,14 +223,29 @@ body {
   initial-value: 0px;
 }
 
-/* ─── Fields ──────────────────────────────────────────────────────
-   Resting state carries the stack at zero offset, which is invisible but
-   means focus animates an existing shadow rather than creating one — the
-   difference between the layers sliding out and them blinking on. */
-.lapis-field {
+/* ─── One gesture, one distance ───────────────────────────────────
+   Every button, pill, field and link card does exactly the same thing, by
+   exactly the same amount:
+
+     rest    no stack
+     hover   the stack, four layers at 1/2/3/4px, and the face stays put
+     focus   the same stack
+     press   the stack collapses and the face sinks 1px
+
+   It used to be four different gestures: fields jumped 8px on focus, the
+   primary button threw a 9px stack and sank 4px, secondary buttons moved 3px,
+   pills and ghost buttons not at all. On a screen with all of them at once
+   the page twitched by a different amount under every pointer, which is
+   worse than no motion at all. Nothing translates on hover now, so nothing
+   under the pointer ever appears to slide away from it. */
+
+.lapis-field,
+.lapis-press,
+.lapis-lift {
   transition:
-    box-shadow var(--dur-2) var(--ease-soft),
-    transform var(--dur-2) var(--ease-soft),
+    transform var(--dur-1) var(--ease-soft),
+    box-shadow var(--dur-1) var(--ease-soft),
+    background-color var(--dur-1) linear,
     border-color var(--dur-1) linear;
   box-shadow:
     0 0 0 0 var(--brand-vermilion),
@@ -239,8 +254,17 @@ body {
     0 0 0 0 var(--brand-indigo);
 }
 
-.lapis-field:hover:not(:focus):not(:disabled) {
-  border-color: var(--border-strong);
+.lapis-field:hover:not(:disabled),
+.lapis-field:focus,
+.lapis-field:focus-visible,
+.lapis-field:focus-within,
+.lapis-stack:hover:not(:disabled),
+.lapis-tap:hover:not(:disabled),
+.lapis-stack:focus-visible,
+.lapis-tap:focus-visible,
+.lapis-lift:hover,
+.lapis-lift:focus-visible {
+  outline: none;
   box-shadow:
     1px 1px 0 0 var(--brand-vermilion),
     2px 2px 0 0 var(--brand-marigold),
@@ -248,90 +272,44 @@ body {
     4px 4px 0 0 var(--brand-indigo);
 }
 
+.lapis-field:hover:not(:focus):not(:disabled) {
+  border-color: var(--border-strong);
+}
+
 .lapis-field:focus,
 .lapis-field:focus-visible,
 .lapis-field:focus-within {
-  outline: none;
   border-color: var(--brand-ink);
-  /* Lifts by the first layer's offset, so the front face stays put on the
-     page and the stack appears to come out from under it. */
-  transform: translate(-1px, -1px);
-  box-shadow:
-    2px 2px 0 0 var(--brand-vermilion),
-    4px 4px 0 0 var(--brand-marigold),
-    6px 6px 0 0 var(--brand-sky),
-    8px 8px 0 0 var(--brand-indigo);
 }
 
 .lapis-field[aria-invalid='true'] {
   border-color: var(--danger);
 }
 
-/* ─── Buttons ─────────────────────────────────────────────────────
-   The press is the point: down and right onto the stack, which collapses
-   under it, then back up on release. The travel distance and the shadow
-   offset are the same number, so the button's front face lands exactly where
-   its own shadow was and nothing appears to slide. */
-.lapis-press {
-  transition:
-    transform var(--dur-1) var(--ease-spring),
-    box-shadow var(--dur-1) var(--ease-soft),
-    background-color var(--dur-1) linear,
-    border-color var(--dur-1) linear;
-  will-change: transform;
-}
-
-.lapis-press:active:not(:disabled) {
+/* Anything pressable sinks the same 1px, text buttons included. */
+.lapis-press:active:not(:disabled),
+.lapis-lift:active {
   transition-duration: 70ms;
+  transform: translate(1px, 1px);
 }
 
-/* Full stack — for the one button on a screen that is the actual verb. */
-.lapis-stack {
+.lapis-stack:active:not(:disabled),
+.lapis-tap:active:not(:disabled),
+.lapis-lift:active {
   box-shadow:
-    2px 2px 0 0 var(--brand-marigold),
-    4px 4px 0 0 var(--brand-sky),
-    6px 6px 0 0 var(--brand-indigo);
-}
-
-.lapis-stack:hover:not(:disabled) {
-  transform: translate(-1px, -1px);
-  box-shadow:
-    3px 3px 0 0 var(--brand-marigold),
-    6px 6px 0 0 var(--brand-sky),
-    9px 9px 0 0 var(--brand-indigo);
-}
-
-.lapis-stack:active:not(:disabled) {
-  transform: translate(4px, 4px);
-  box-shadow:
+    0 0 0 0 var(--brand-vermilion),
     0 0 0 0 var(--brand-marigold),
-    1px 1px 0 0 var(--brand-sky),
-    2px 2px 0 0 var(--brand-indigo);
+    0 0 0 0 var(--brand-sky),
+    0 0 0 0 var(--brand-indigo);
 }
 
-.lapis-stack:disabled {
-  box-shadow: 2px 2px 0 0 var(--border-strong);
-}
-
-/* One layer — for the buttons that are not the verb but should still feel
-   like they belong to the same object. */
-.lapis-tap {
-  box-shadow: 2px 2px 0 0 var(--border-strong);
-}
-
-.lapis-tap:hover:not(:disabled) {
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0 0 var(--brand-indigo);
-}
-
-.lapis-tap:active:not(:disabled) {
-  transform: translate(2px, 2px);
-  box-shadow: 0 0 0 0 var(--brand-indigo);
-}
+/* `lapis-stack` and `lapis-tap` used to be a big and a small version of the
+   gesture. They are the same gesture now; both names stay so a button still
+   says whether it is the screen's verb, and the colour does the rest. */
 
 /* ─── Cards and panels ────────────────────────────────────────────
-   The same stack at rest, so a card looks like a printed thing sitting on
-   the page rather than a div with a border. */
+   Static decoration, never motion: the same stack at rest, so a card looks
+   like a printed thing sitting on the page rather than a div with a border. */
 .lapis-plate {
   box-shadow:
     3px 3px 0 0 var(--brand-marigold),
@@ -343,34 +321,6 @@ body {
   box-shadow:
     2px 2px 0 0 var(--brand-marigold),
     4px 4px 0 0 var(--brand-sky);
-}
-
-/* Lift on hover, for cards that are links. */
-.lapis-lift {
-  transition:
-    transform var(--dur-2) var(--ease-soft),
-    box-shadow var(--dur-2) var(--ease-soft),
-    border-color var(--dur-2) var(--ease-soft);
-}
-
-/* Deliberately shallow. An earlier version travelled 2px and threw a 12px
-   stack, which on a grid of cards read as the whole page twitching every time
-   the pointer crossed it. The point is that the card acknowledges the
-   pointer, not that it leaves the page. */
-.lapis-lift:hover {
-  transform: translate(-1px, -1px);
-  box-shadow:
-    2px 2px 0 0 var(--brand-vermilion),
-    4px 4px 0 0 var(--brand-marigold),
-    6px 6px 0 0 var(--brand-sky);
-}
-
-.lapis-lift:active {
-  transform: translate(1px, 1px);
-  box-shadow:
-    1px 1px 0 0 var(--brand-vermilion),
-    2px 2px 0 0 var(--brand-marigold),
-    2px 2px 0 0 var(--brand-sky);
 }
 
 /* The band. Four equal stripes, used full-bleed at the top of a page. */
@@ -456,12 +406,8 @@ body {
     transition-duration: 1ms;
   }
 
-  .lapis-field:focus,
-  .lapis-field:focus-visible,
-  .lapis-field:focus-within,
-  .lapis-stack:hover:not(:disabled),
-  .lapis-tap:hover:not(:disabled),
-  .lapis-lift:hover {
+  .lapis-press:active:not(:disabled),
+  .lapis-lift:active {
     transform: none;
   }
 

@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react'
 import { markDepositSubmitted, type FeeState } from '@/modules/fees/actions'
+import { Button } from '@/core/ui/button'
 
 /**
  * Recording that the deposit form went to OSL.
@@ -26,15 +27,9 @@ export function FiledToggle({
 
   return (
     <form action={act} className="flex flex-col gap-1">
-      <button
-        type="submit"
-        disabled={pending}
-        className={`self-start text-[12.5px] font-medium underline-offset-4 hover:underline disabled:opacity-50 ${
-          filed ? 'text-text-subtle' : 'text-accent-600'
-        }`}
-      >
+      <Button type="submit" variant={filed ? 'ghost' : 'secondary'} loading={pending} className="self-start">
         {filed ? 'Not sent after all' : 'I have sent this to OSL'}
-      </button>
+      </Button>
       {state.error && (
         <span className="text-[12px] text-danger" role="alert">
           {state.error}

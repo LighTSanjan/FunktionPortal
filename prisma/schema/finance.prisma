@@ -172,6 +172,7 @@ model Member {
   attendance   SessionAttendance[]
   feePayments  FeePayment[]
   feeArrangements FeeArrangement[]
+  membershipResponses MembershipResponse[]
   purchaseRequests PurchaseRequest[]
 
   /// Student ID is the only stable key the attendance sheets carry — names
@@ -534,6 +535,8 @@ model Term {
   organisation  Organisation       @relation(fields: [orgId], references: [id], onDelete: Cascade)
   feePayments   FeePayment[]
   feeArrangements FeeArrangement[]
+  membershipForm MembershipForm?
+  membershipResponses MembershipResponse[]
   incomeDeposit IncomeDeposit?
   attendanceImports AttendanceImport[]
 
@@ -621,6 +624,107 @@ model FeeArrangement {
   @@unique([termId, memberId])
   @@index([orgId])
   @@map("fee_arrangements")
+}
+
+/// A term's membership form: what members fill in to join for the term and
+/// pay for it. The Google Form the club used to run, with the roster, the fee
+/// and the payment built in.
+///
+/// The name, student ID, birthday, fee and payment are fixed parts of every
+/// form. What the exco edit is the welcome note, which fees a respondent may
+/// pick for themselves, and any questions of the club's own.
+model MembershipForm {
+  id     String    @id @default(cuid())
+  orgId  String    @map("org_id")
+  termId String    @unique @map("term_id")
+  state  FormState @default(DRAFT)
+  intro  String?
+  /// The fees a respondent may choose between. A fee the exco set for that
+  /// person wins over whatever they pick.
+  tierChoices FeeTier[] @default([FULL, HALF, EXCHANGE_DISCOUNT]) @map("tier_choices")
+  openedAt  DateTime? @map("opened_at")
+  closedAt  DateTime? @map("closed_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  organisation Organisation         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  term         Term                 @relation(fields: [termId], references: [id], onDelete: Cascade)
+  questions    MembershipQuestion[]
+
+  @@index([orgId])
+  @@map("membership_forms")
+}
+
+/// One question of the club's own on a membership form.
+model MembershipQuestion {
+  id       String           @id @default(cuid())
+  orgId    String           @map("org_id")
+  formId   String           @map("form_id")
+  position Int
+  type     FormQuestionType
+  label    String
+  help     String?
+  required Boolean          @default(false)
+  /// The choices, for ONE_CHOICE and MANY_CHOICES.
+  options  String[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organisation Organisation   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  form         MembershipForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([formId, position])
+  @@map("membership_questions")
+}
+
+/// One person's answers to a term's membership form.
+///
+/// Belongs to the signed-in account that sent it. It belongs to a roster row
+/// only once that is certain: straight away for an account already linked to
+/// one, otherwise when an exco member matches it or adds the person to the
+/// roster. What somebody types about who they are is never enough on its own —
+/// student IDs are printed on every attendance sheet.
+///
+/// Until then, a payment they made is held here rather than on the roster
+/// row, and moves to a FeePayment when the response is matched.
+model MembershipResponse {
+  id       String  @id @default(cuid())
+  orgId    String  @map("org_id")
+  termId   String  @map("term_id")
+  userId   String  @map("user_id")
+  memberId String? @map("member_id")
+  /// The proven address it was sent from.
+  email     String
+  fullName  String  @map("full_name")
+  studentId String? @map("student_id")
+  birthDay   Int? @map("birth_day")
+  birthMonth Int? @map("birth_month")
+  birthYear  Int? @map("birth_year")
+  /// The fee they picked, when the form let them.
+  tier    FeeTier?
+  /// `[{ questionId, label, type, value }]`, with each question's wording as
+  /// it was answered, so editing a question later cannot change an answer.
+  answers Json     @default("[]")
+
+  heldReference   String?   @map("held_reference")
+  heldProofPath   String?   @map("held_proof_path")
+  heldAmountCents Int?      @map("held_amount_cents")
+  heldAt          DateTime? @map("held_at")
+
+  matchedById String?   @map("matched_by_id")
+  matchedAt   DateTime? @map("matched_at")
+
+  submittedAt DateTime @default(now()) @map("submitted_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  term         Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
+  user         User         @relation("ResponseRespondent", fields: [userId], references: [id], onDelete: Cascade)
+  member       Member?      @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  matchedBy    User?        @relation("ResponseMatchedBy", fields: [matchedById], references: [id], onDelete: SetNull)
+
+  @@unique([termId, userId])
+  @@index([orgId, termId])
+  @@map("membership_responses")
 }
 
 /// DBS Max Income Deposit Form. Due to Student Life within 1 working day of

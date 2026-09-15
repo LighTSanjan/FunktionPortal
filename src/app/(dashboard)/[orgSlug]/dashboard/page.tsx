@@ -121,6 +121,11 @@ export default async function DashboardPage({
         member: null,
       },
     }),
+    // Membership form responses from people not on the roster yet. Any payment
+    // they made is held until somebody matches them.
+    unmatchedResponses: await tx.membershipResponse.count({
+      where: { orgId: org.id, memberId: null, term: { closedAt: null } },
+    }),
     currentTerm: await tx.term.findFirst({
       where: { orgId: org.id, startDate: { lte: now }, endDate: { gte: now } },
       select: { name: true },
@@ -128,7 +133,7 @@ export default async function DashboardPage({
     }
   })
 
-  const [pendingRequests, ownMembership, ledger, ledgerCount, coachRun, collection, ownFee, ownClaim] =
+  const [pendingRequests, ownMembership, ledger, ledgerCount, coachRun, collection, ownFee] =
     await Promise.all([
       isExco ? countPendingRequests(org.id) : Promise.resolve(0),
       getMembership(org.id, userId),
@@ -140,9 +145,6 @@ export default async function DashboardPage({
       isExco ? subscriptionWorkflow(userId, org.id, orgSlug, now) : Promise.resolve(null),
       // Everybody's own membership fee, exco included — they pay too.
       getOwnFee(userId, org.id, null),
-      dbAs(userId, (tx) =>
-        tx.user.findUnique({ where: { id: userId }, select: { claimedStudentId: true } })
-      ),
     ])
 
   const committedFor = (source: FundView['source']) =>
@@ -249,7 +251,7 @@ export default async function DashboardPage({
       title: `${data.declaredPayments} membership fee payment${data.declaredPayments === 1 ? '' : 's'} to check`,
       detail:
         'Members say they have paid and attached their PayNow confirmation. Match each one to the bank statement.',
-      href: `/${orgSlug}/fees/collection?tab=check`,
+      href: `/${orgSlug}/fees/collection?tab=payments&show=check`,
     })
   }
 
@@ -260,7 +262,18 @@ export default async function DashboardPage({
       title: `${data.pendingClaims} member${data.pendingClaims === 1 ? '' : 's'} waiting to be matched to the roster`,
       detail:
         'They have given their student ID. Each is already matched to a roster row where one carries that ID — confirming takes a click, and until then they cannot see what they owe.',
-      href: `/${orgSlug}/fees/collection#unlinked`,
+      href: `/${orgSlug}/fees/collection?tab=responses`,
+    })
+  }
+
+  if (isExco && data.unmatchedResponses > 0) {
+    alerts.push({
+      id: 'form-responses-unmatched',
+      tone: 'todo',
+      title: `${data.unmatchedResponses} membership form response${data.unmatchedResponses === 1 ? '' : 's'} to put on the roster`,
+      detail:
+        'People who filled in the form and aren’t linked to the roster yet. Match each to their row, or add them as new — any payment they made is held until you do.',
+      href: `/${orgSlug}/fees/collection?tab=responses`,
     })
   }
 
@@ -308,7 +321,6 @@ export default async function DashboardPage({
         <OwnSubscription
           orgSlug={orgSlug}
           fee={ownFee}
-          claimedStudentId={ownClaim?.claimedStudentId ?? null}
           alwaysShow
           delayMs={30}
         />
@@ -335,7 +347,6 @@ export default async function DashboardPage({
         <OwnSubscription
           orgSlug={orgSlug}
           fee={ownFee}
-          claimedStudentId={ownClaim?.claimedStudentId ?? null}
           alwaysShow={false}
           delayMs={100}
         />

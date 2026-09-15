@@ -1,6 +1,6 @@
 /** Reading a term's collection, for the member and for the exco. */
 import 'server-only'
-import type { FeeTier, PaymentStatus, FeeRoute, PaymentSource } from '@prisma/client'
+import type { FeeTier, FormState, PaymentStatus, FeeRoute, PaymentSource } from '@prisma/client'
 import { dbAs } from '@/core/db'
 import { fromDateColumn } from '@/lib/date-only'
 import { resolveFee, tierFor, TIER_LABEL, type TermRates } from './tiers'
@@ -48,7 +48,7 @@ export interface PaymentRow {
   /** A member's own declaration, or recorded by the exco off the statement. */
   source: PaymentSource | null
   /** Whether the fee was decided by the exco, fixed by a payment, or read off the roster. */
-  feeSource: 'payment' | 'exco' | 'roster'
+  feeSource: 'payment' | 'exco' | 'member' | 'roster'
   /** The exco's own fee for this member this term, if they set one. */
   arrangement: { tier: FeeTier; amountCents: number | null; note: string | null } | null
   /** The member has a portal account linked to their roster row. */
@@ -197,7 +197,7 @@ export async function listCollection(
   orgId: string,
   termId: string
 ): Promise<{ rows: PaymentRow[]; totals: CollectionTotals }> {
-  const { members, payments, arrangements, rates } = await dbAs(userId, async (tx) => {
+  const { members, payments, arrangements, choices, rates } = await dbAs(userId, async (tx) => {
     const term = await tx.term.findFirst({
       where: { id: termId, orgId },
       select: { fullFeeCents: true, halfFeeCents: true, exchangeFeeCents: true },
@@ -217,6 +217,9 @@ export async function listCollection(
             { isActive: true },
             { feePayments: { some: { termId } } },
             { feeArrangements: { some: { termId } } },
+            // And anybody whose membership form reached their row: saying
+            // you are here this term puts somebody who had left back on.
+            { membershipResponses: { some: { termId } } },
           ],
         },
         orderBy: { fullName: 'asc' },
@@ -237,12 +240,17 @@ export async function listCollection(
         where: { orgId, termId },
         select: { memberId: true, tier: true, amountCents: true, note: true },
       }),
+      choices: await tx.membershipResponse.findMany({
+        where: { orgId, termId, memberId: { not: null } },
+        select: { memberId: true, tier: true },
+      }),
       rates: term,
     }
   })
 
   const byMember = new Map(payments.map((payment) => [payment.memberId, payment]))
   const arrangementFor = new Map(arrangements.map((row) => [row.memberId, row]))
+  const choiceFor = new Map(choices.map((row) => [row.memberId!, row.tier]))
   const termRates: TermRates = rates ?? {
     fullFeeCents: 0,
     halfFeeCents: 0,
@@ -253,9 +261,11 @@ export async function listCollection(
   for (const member of members) {
     const payment = byMember.get(member.id)
     const arrangement = arrangementFor.get(member.id) ?? null
+    const choice = choiceFor.get(member.id) ?? null
     const fee = resolveFee({
       payment: payment ?? null,
       arrangement,
+      choice,
       rosterLabel: member.rosterLabel,
       isActive: member.isActive,
       rates: termRates,
@@ -270,6 +280,7 @@ export async function listCollection(
     const roster = resolveFee({
       payment: null,
       arrangement,
+      choice,
       rosterLabel: member.rosterLabel,
       isActive: member.isActive,
       rates: termRates,
@@ -353,6 +364,10 @@ function totalsFor(rows: PaymentRow[]): CollectionTotals {
 export interface OwnFee {
   member: { id: string; fullName: string } | null
   term: TermRow | null
+  /** The term's membership form, and whether it is taking responses. */
+  form: { state: FormState } | null
+  /** This person's response to it, if they have sent one. */
+  response: { onRoster: boolean; heldPayment: boolean } | null
   tier: FeeTier
   /** The roster has them as having left; there is nothing to pay. */
   owesNothing: boolean
@@ -381,10 +396,25 @@ export async function getOwnFee(
       where: { orgId, userId },
       select: { id: true, fullName: true, rosterLabel: true, isActive: true },
     })
+    const [formRow, responseRow] = term
+      ? await Promise.all([
+          tx.membershipForm.findFirst({ where: { orgId, termId: term.id }, select: { state: true } }),
+          tx.membershipResponse.findFirst({
+            where: { orgId, termId: term.id, userId },
+            select: { memberId: true, heldProofPath: true },
+          }),
+        ])
+      : [null, null]
+    const form = term ? { state: formRow?.state ?? ('DRAFT' as const) } : null
+    const response = responseRow
+      ? { onRoster: responseRow.memberId !== null, heldPayment: responseRow.heldProofPath !== null }
+      : null
     if (!member || !term) {
       return {
         member: member ? { id: member.id, fullName: member.fullName } : null,
         term,
+        form,
+        response,
         tier: 'FULL' as FeeTier,
         owesNothing: false,
         amountCents: 0,
@@ -392,7 +422,7 @@ export async function getOwnFee(
       }
     }
 
-    const [payment, arrangement] = await Promise.all([
+    const [payment, arrangement, choice] = await Promise.all([
       tx.feePayment.findUnique({
         where: { termId_memberId: { termId: term.id, memberId: member.id } },
       }),
@@ -400,10 +430,15 @@ export async function getOwnFee(
         where: { termId_memberId: { termId: term.id, memberId: member.id } },
         select: { tier: true, amountCents: true },
       }),
+      tx.membershipResponse.findFirst({
+        where: { termId: term.id, memberId: member.id },
+        select: { tier: true },
+      }),
     ])
     const fee = resolveFee({
       payment,
       arrangement,
+      choice: choice?.tier ?? null,
       rosterLabel: member.rosterLabel,
       isActive: member.isActive,
       rates: term,
@@ -416,6 +451,8 @@ export async function getOwnFee(
     return {
       member: { id: member.id, fullName: member.fullName },
       term,
+      form,
+      response,
       tier: fee.tier,
       owesNothing,
       amountCents: owesNothing ? 0 : fee.amountCents,

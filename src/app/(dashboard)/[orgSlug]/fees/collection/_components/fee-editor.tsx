@@ -6,6 +6,7 @@ import { setMemberFees, type FeeState } from '@/modules/fees/actions'
 import { TIER_CHOICES, TIER_LABEL, amountForTier, type TermRates } from '@/modules/fees/tiers'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { Button } from '@/core/ui/button'
+import { pillClass } from '../../_components/ui'
 
 type Choice = FeeTier | 'ROSTER'
 
@@ -69,11 +70,7 @@ export function FeeEditor({
             return (
               <label
                 key={option}
-                className={`lapis-press flex cursor-pointer items-baseline gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] transition-colors ${
-                  choice === option
-                    ? 'border-brand-ink bg-paper font-medium text-text'
-                    : 'border-border bg-surface text-text-muted hover:bg-surface-hover hover:text-text'
-                }`}
+                className={pillClass(choice === option)}
               >
                 <input
                   type="radio"

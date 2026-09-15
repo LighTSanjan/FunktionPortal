@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import type { FeeTier } from '@prisma/client'
 import { TIER_LABEL, type TermRates } from '@/modules/fees/tiers'
@@ -10,6 +9,8 @@ import { Badge } from '@/core/ui/badge'
 import { Button } from '@/core/ui/button'
 import { FeeEditor } from './fee-editor'
 import { RecordForm, UndoPayment } from './record-form'
+import { DecideButtons } from './decide-buttons'
+import { Notice, pillClass } from '../../_components/ui'
 
 export type RowState = 'unpaid' | 'check' | 'paid' | 'refused' | 'waived'
 
@@ -22,7 +23,7 @@ export interface FeeRowView {
   tier: FeeTier
   amountCents: number
   state: RowState
-  feeSource: 'payment' | 'exco' | 'roster'
+  feeSource: 'payment' | 'exco' | 'member' | 'roster'
   arrangement: { tier: FeeTier; amountCents: number | null; note: string | null } | null
   /** "Confirmed → Full term", from the roster label alone. */
   rosterReading: string
@@ -32,13 +33,16 @@ export interface FeeRowView {
   recorded: boolean
   outsideOsl: boolean
   reference: string | null
+  hasProof: boolean
+  /** "3 Sep", formatted on the server. */
+  declaredOn: string | null
   rejectedReason: string | null
   hasAccount: boolean
   isYou: boolean
   declaredByYou: boolean
 }
 
-type Filter = 'all' | 'unpaid' | 'check' | 'paid' | 'waived' | 'attention'
+export type Filter = 'all' | 'unpaid' | 'check' | 'paid' | 'waived' | 'attention'
 
 const FILTERS: { key: Filter; label: string; test: (row: FeeRowView) => boolean }[] = [
   { key: 'all', label: 'Everyone', test: () => true },
@@ -46,10 +50,14 @@ const FILTERS: { key: Filter; label: string; test: (row: FeeRowView) => boolean 
   { key: 'check', label: 'To check', test: (row) => row.state === 'check' },
   { key: 'paid', label: 'Paid', test: (row) => row.state === 'paid' },
   { key: 'waived', label: 'Waived', test: (row) => row.state === 'waived' },
-  { key: 'attention', label: 'Fee unclear', test: (row) => row.uncertain && row.feeSource === 'roster' },
+  {
+    key: 'attention',
+    label: 'Fee unclear',
+    test: (row) => row.uncertain && (row.feeSource === 'roster' || row.feeSource === 'member'),
+  },
 ]
 
-type Open = { memberId: string; mode: 'fee' | 'record' | 'undo' } | null
+type Open = { memberId: string; mode: 'fee' | 'record' | 'undo' | 'check' } | null
 
 /**
  * Everybody on the roster and where their fee stands, as one list.
@@ -65,15 +73,17 @@ export function FeeTable({
   closed,
   rates,
   rows,
+  initialFilter = 'all',
 }: {
   orgSlug: string
   termId: string
   closed: boolean
   rates: TermRates
   rows: FeeRowView[]
+  initialFilter?: Filter
 }) {
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<Filter>('all')
+  const [filter, setFilter] = useState<Filter>(initialFilter)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [open, setOpen] = useState<Open>(null)
   const [bulkOpen, setBulkOpen] = useState(false)
@@ -143,11 +153,7 @@ export function FeeTable({
               type="button"
               aria-pressed={filter === f.key}
               onClick={() => setFilter(f.key)}
-              className={`lapis-press inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[12.5px] font-medium transition-colors ${
-                filter === f.key
-                  ? 'border-brand-ink bg-paper text-text'
-                  : 'border-border bg-surface text-text-muted hover:bg-surface-hover hover:text-text'
-              }`}
+              className={pillClass(filter === f.key)}
             >
               {f.label}
               <span className="tabular-nums text-text-subtle">{counts[f.key]}</span>
@@ -157,12 +163,9 @@ export function FeeTable({
       </div>
 
       {flash && (
-        <p
-          className="rounded-[var(--radius-sm)] border border-success/20 bg-success/8 px-3 py-2 text-[12.5px] text-text"
-          role="status"
-        >
+        <Notice tone="success" role="status">
           {flash}
-        </p>
+        </Notice>
       )}
 
       {!closed && selectedIds.length > 0 && (
@@ -271,7 +274,7 @@ export function FeeTable({
                         <span className="block text-[13px] tabular-nums text-text">
                           {formatSgd(row.amountCents)}
                           <span className="text-text-muted"> · {TIER_LABEL[row.tier]}</span>
-                          {row.uncertain && row.feeSource === 'roster' && (
+                          {row.uncertain && (row.feeSource === 'roster' || row.feeSource === 'member') && (
                             <span className="ml-1 font-semibold text-warning" aria-label="The roster is not sure">
                               ?
                             </span>
@@ -280,7 +283,11 @@ export function FeeTable({
                         <span className="block text-[11.5px] text-text-subtle group-enabled:group-hover:text-accent-600">
                           {row.feeSource === 'exco'
                             ? row.arrangement?.note || 'Set by the exco'
-                            : row.feeSource === 'roster'
+                            : row.feeSource === 'member'
+                              ? row.uncertain
+                                ? `Check: ${row.because}`
+                                : 'Picked on the form'
+                              : row.feeSource === 'roster'
                               ? row.uncertain
                                 ? `Check: ${row.because}`
                                 : 'From the roster'
@@ -300,7 +307,6 @@ export function FeeTable({
                       {!closed && (
                         <RowAction
                           row={row}
-                          checkHref={`/${orgSlug}/fees/collection?term=${termId}&tab=check#payment-${row.paymentId}`}
                           open={open}
                           setOpen={setOpen}
                         />
@@ -333,6 +339,46 @@ export function FeeTable({
                           onDone={() => done()}
                           onCancel={() => setOpen(null)}
                         />
+                      )}
+                      {open.mode === 'check' && row.paymentId && (
+                        <div id={`payment-${row.paymentId}`} className="flex flex-wrap items-start gap-4">
+                          {row.hasProof && (
+                            <a
+                              href={`/${orgSlug}/fees/collection/${row.paymentId}/proof`}
+                              target="_blank"
+                              rel="noopener"
+                              title="Open the screenshot full size"
+                              className="block shrink-0"
+                            >
+                              {/* Streamed by a route that re-checks fee.manage on every request. */}
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={`/${orgSlug}/fees/collection/${row.paymentId}/proof`}
+                                alt={`${row.name}'s payment screenshot`}
+                                className="max-h-[260px] w-auto max-w-[200px] rounded-[var(--radius-sm)] border border-border bg-white object-contain"
+                              />
+                            </a>
+                          )}
+                          <div className="min-w-[14rem] flex-1 space-y-3">
+                            <p className="text-[13px] leading-relaxed text-text">
+                              Should show <span className="font-semibold tabular-nums">{formatSgd(row.amountCents)}</span>
+                              {row.reference && (
+                                <>
+                                  {' '}
+                                  with reference <span className="font-mono">{row.reference}</span>
+                                </>
+                              )}
+                              {row.declaredOn && <span className="text-text-muted"> · sent {row.declaredOn}</span>}
+                              {row.uncertain && <span className="block text-warning">Fee to check: {row.because}</span>}
+                            </p>
+                            <DecideButtons
+                              orgSlug={orgSlug}
+                              paymentId={row.paymentId}
+                              memberName={row.name}
+                              ownDeclaration={row.declaredByYou || row.isYou}
+                            />
+                          </div>
+                        </div>
                       )}
                       {open.mode === 'undo' && row.paymentId && (
                         <UndoPayment
@@ -393,16 +439,14 @@ function StatusBadge({ row }: { row: FeeRowView }) {
 
 function RowAction({
   row,
-  checkHref,
   open,
   setOpen,
 }: {
   row: FeeRowView
-  checkHref: string
   open: Open
   setOpen: (open: Open) => void
 }) {
-  const toggle = (mode: 'record' | 'undo') =>
+  const toggle = (mode: 'record' | 'undo' | 'check') =>
     setOpen(open?.memberId === row.memberId && open.mode === mode ? null : { memberId: row.memberId, mode })
 
   if (row.state === 'waived') return null
@@ -411,12 +455,9 @@ function RowAction({
     return row.declaredByYou || row.isYou ? (
       <span className="text-[12px] text-text-subtle">Someone else checks yours</span>
     ) : (
-      <Link
-        href={checkHref}
-        className="lapis-press inline-flex h-8 items-center rounded-[var(--radius-sm)] border border-border-strong bg-surface px-3 text-[12px] font-medium hover:bg-surface-hover"
-      >
+      <Button type="button" size="sm" onClick={() => toggle('check')}>
         Check it
-      </Link>
+      </Button>
     )
   }
 

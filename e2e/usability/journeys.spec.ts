@@ -125,16 +125,38 @@ test('the treasurer raises last month from the home screen, reads it and signs i
 
 test('the treasurer puts this term’s PayNow QR up', async () => {
   const page = await treasurer.newPage()
-  await visit(page, `/${ORG}/fees/collection?tab=setup`)
+  await visit(page, `/${ORG}/fees/collection?tab=form`)
   const png = Buffer.from(makePng(400, 400))
   await page.locator('input[name="qr"]').setInputFiles({ name: 'qr.png', mimeType: 'image/png', buffer: png })
   await page.getByRole('button', { name: 'Put the QR up' }).click()
   await expect(page.getByText('Saved. Members see it now.')).toBeVisible()
 })
 
+test('the treasurer adds a question of the club’s own and opens the form', async () => {
+  const page = await treasurer.newPage()
+  await visit(page, `/${ORG}/fees/collection?tab=form`)
+  await expect(page.getByText('Draft, not open yet')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Add a question' }).click()
+  await page.getByLabel('Question', { exact: true }).fill('Telegram handle')
+  await page.getByText('People have to answer it').click()
+  await page.getByRole('button', { name: 'Add question' }).click()
+  await expect(page.getByRole('listitem').filter({ hasText: 'Telegram handle' })).toBeVisible()
+
+  await visit(page, `/${ORG}/fees?preview=new`)
+  await expect(page.getByText('Preview.')).toBeVisible()
+  await expect(page.getByLabel('Full name')).toBeVisible()
+  await expect(page.getByRole('button', { name: /Send/ })).toBeDisabled()
+
+  await visit(page, `/${ORG}/fees/collection?tab=form`)
+  await page.getByRole('button', { name: 'Open the form' }).click()
+  await expect(page.getByText('Open for responses')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible()
+})
+
 test('the treasurer puts Ben on half a term and records his payment off the bank statement', async () => {
   const page = await treasurer.newPage()
-  await visit(page, `/${ORG}/fees/collection`)
+  await visit(page, `/${ORG}/fees/collection?tab=payments`)
   await expect(page.getByRole('link', { name: 'Membership fees' }).first()).toBeVisible()
 
   const ben = page.getByRole('listitem').filter({ hasText: 'Ben Ong' })
@@ -174,18 +196,33 @@ test('the treasurer invites a member who has no SUTD address', async () => {
   await expect(page.getByText(`Invited ${MEMBER.email}`)).toBeVisible()
 })
 
-test('the invited member signs in and says which student they are', async () => {
+test('the invited member, not on the roster yet, fills in the form and pays', async () => {
   const page = await member.newPage()
   await signInWithCode(page, MEMBER.email)
-  // From the home screen, not by knowing where the subscription page lives.
-  await expect(page.getByText('Tell the club your student ID')).toBeVisible()
-  await page.getByRole('link', { name: 'Give your student ID' }).click()
+  // From the home screen, not by knowing where the form lives.
+  await expect(page.getByText('The Trimester 1 membership form is open')).toBeVisible()
+  await page.getByRole('link', { name: 'Fill it in' }).click()
   await page.waitForURL(new RegExp(`/${ORG}/fees$`))
-  await expect(page.getByText('can’t find you on the club roster yet')).toBeVisible()
 
-  await page.getByPlaceholder(/Student ID/).fill(MEMBER.studentId)
-  await page.getByRole('button', { name: 'Send' }).click()
-  await expect(page.getByText(`You said you are`)).toBeVisible()
+  await page.getByLabel('Full name').fill('Ada Lee')
+  await page.getByLabel('Student ID').fill(MEMBER.studentId)
+  await page.getByLabel('Day').selectOption('5')
+  await page.getByLabel('Month').selectOption({ label: 'March' })
+  await page.getByLabel(/Telegram handle/).fill('@ada')
+  await page.getByRole('button', { name: /^Send/ }).click()
+  // Nothing typed is lost when something is missing.
+  await expect(page.getByText('A few things need fixing')).toBeVisible()
+  await expect(page.getByLabel('Full name')).toHaveValue('Ada Lee')
+
+  await page.getByLabel('PayNow reference').fill('PAYNOW ADA 0915')
+  await page.locator('input[name="proof"]').setInputFiles({
+    name: 'paid.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(makePng(300, 600)),
+  })
+  await page.getByRole('button', { name: 'Send, I’ve paid $70.00' }).click()
+  await expect(page.getByText('We’ve got your response')).toBeVisible()
+  await expect(page.getByText('An exco member will add you to the roster')).toBeVisible()
 })
 
 test('every screen a member can open renders, and exco screens refuse them politely', async () => {
@@ -203,28 +240,27 @@ test('every screen a member can open renders, and exco screens refuse them polit
   }
 })
 
-test('the treasurer is told about the claim and confirms it in one click', async () => {
+test('the treasurer is told about the response and matches it to the roster in one click', async () => {
   const page = await treasurer.newPage()
   await visit(page, `/${ORG}/dashboard`)
-  await page.getByText(/waiting to be matched to the roster/).click()
-  await page.waitForURL(/fees\/collection/)
-  await expect(page.getByText('Says they are')).toBeVisible()
-  await page.getByRole('button', { name: 'Confirm' }).click()
-  await expect(page.getByText('Says they are')).toHaveCount(0)
+  await page.getByText(/membership form response to put on the roster/).click()
+  await page.waitForURL(/tab=responses/)
+  await page.getByRole('button', { name: /Ada Lee/ }).click()
+  await expect(page.getByText('same student ID, same name')).toBeVisible()
+  await page.getByRole('button', { name: 'Match to this row' }).click()
+  await expect(page.getByText(/Ada Lee is on the roster as Ada Lee\. Their payment is waiting to be checked\./)).toBeVisible()
 })
 
-test('the member’s home screen now says what they owe, and takes them to pay it', async () => {
+test('the member’s home screen now says their payment is being checked', async () => {
   const page = await member.newPage()
   const { body: home } = await visit(page, `/${ORG}/dashboard`)
-  expect(home).toMatch(/\$70\.00 due/)
-  await page.getByRole('link', { name: 'Pay now' }).click()
+  expect(home).toMatch(/\$70\.00 — being checked/)
+  await page.getByRole('link', { name: 'See it' }).click()
   await page.waitForURL(new RegExp(`/${ORG}/fees$`))
-  await expect(page.getByAltText(/PayNow QR/)).toBeVisible()
+  await expect(page.getByText('On the roster as Ada Lee')).toBeVisible()
 })
 
-test('the treasurer, who is on the roster too, can reach their own subscription from home', async () => {
-  // The sidebar hides "Your subscription" from the exco, so without the home
-  // card the treasurer's only route to paying their own fee was the URL.
+test('the treasurer, who is on the roster too, fills in the form like everybody else', async () => {
   const { dbAdmin } = await import('../../src/core/db/admin')
   const org = await dbAdmin.organisation.findUniqueOrThrow({ where: { slug: ORG } })
   const user = await dbAdmin.user.findFirstOrThrow({ where: { email: TREASURER.email } })
@@ -234,6 +270,9 @@ test('the treasurer, who is on the roster too, can reach their own subscription 
 
   const page = await treasurer.newPage()
   await visit(page, `/${ORG}/dashboard`)
-  await page.getByRole('link', { name: 'Pay now' }).click()
+  await page.getByRole('link', { name: 'Fill it in' }).click()
   await page.waitForURL(new RegExp(`/${ORG}/fees$`))
+  await expect(page.getByText(`You’re on the club roster as ${TREASURER.name}`)).toBeVisible()
+  // And from the sidebar, under "You", away from the collection they run.
+  await expect(page.getByRole('link', { name: 'Your membership fee' }).first()).toBeVisible()
 })

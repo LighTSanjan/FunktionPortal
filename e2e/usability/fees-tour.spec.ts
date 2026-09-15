@@ -65,18 +65,74 @@ test('fees tour', async ({ browser }) => {
     update: {},
   })
 
+  // The form, open, with two questions, one response already matched and
+  // one from somebody who is not on the roster yet.
+  const formRow = await dbAdmin.membershipForm.upsert({
+    where: { termId: term.id },
+    create: { orgId: org.id, termId: term.id, state: 'OPEN', openedAt: new Date(), intro: 'Welcome back to FUNKtion! Fill this in to join for the term.' },
+    update: { state: 'OPEN', openedAt: new Date(), intro: 'Welcome back to FUNKtion! Fill this in to join for the term.' },
+  })
+  await dbAdmin.membershipQuestion.deleteMany({ where: { formId: formRow.id } })
+  const tele = await dbAdmin.membershipQuestion.create({
+    data: { orgId: org.id, formId: formRow.id, position: 0, type: 'SHORT_TEXT', label: 'Telegram handle', required: true, options: [] },
+  })
+  const style = await dbAdmin.membershipQuestion.create({
+    data: { orgId: org.id, formId: formRow.id, position: 1, type: 'ONE_CHOICE', label: 'What do you dance?', required: false, options: ['Popping', 'Locking', 'Both'] },
+  })
+  const stranger = await dbAdmin.user.upsert({
+    where: { email: 'zoe_new@mymail.sutd.edu.sg' },
+    create: { id: crypto.randomUUID(), email: 'zoe_new@mymail.sutd.edu.sg', name: 'Zoe New' },
+    update: {},
+  })
+  await dbAdmin.membershipResponse.upsert({
+    where: { termId_userId: { termId: term.id, userId: stranger.id } },
+    create: {
+      orgId: org.id, termId: term.id, userId: stranger.id, email: stranger.email, fullName: 'Isaac Wong', studentId: '1004007',
+      birthDay: 8, birthMonth: 11, tier: 'FULL', heldReference: 'PAYNOW 55120', heldAmountCents: 7000, heldAt: new Date(),
+      answers: [
+        { questionId: tele.id, label: tele.label, type: 'SHORT_TEXT', value: '@isaacw' },
+        { questionId: style.id, label: style.label, type: 'ONE_CHOICE', value: 'Popping' },
+      ],
+    },
+    update: {},
+  })
+  await dbAdmin.membershipResponse.upsert({
+    where: { termId_userId: { termId: term.id, userId: treasurer.id } },
+    create: {
+      orgId: org.id, termId: term.id, userId: treasurer.id, email: treasurer.email, fullName: 'Grace Ho', memberId: ids['Grace Ho'], tier: 'FULL',
+      answers: [{ questionId: tele.id, label: tele.label, type: 'SHORT_TEXT', value: '@grace' }],
+    },
+    update: {},
+  })
+
   const shots: [string, string][] = [
-    ['fees-members', ''],
-    ['fees-check', '?tab=check'],
-    ['fees-setup', '?tab=setup'],
-    ['fees-close', '?tab=close'],
+    ['fees-form', '?tab=form'],
+    ['fees-responses', '?tab=responses'],
+    ['fees-payments', '?tab=payments'],
+    ['fees-deposit', '?tab=deposit'],
   ]
   for (const [name, query] of shots) {
     await exco.goto(`/test-club/fees/collection${query}`, { waitUntil: 'networkidle' })
     await exco.screenshot({ path: `${OUT}/${name}.png`, fullPage: true })
   }
 
-  await exco.goto('/test-club/fees/collection', { waitUntil: 'networkidle' })
+  const csv = await exco.request.get(`/test-club/fees/collection/responses/export?term=${term.id}`)
+  const text = await csv.text()
+  if (!text.includes('Telegram handle') || !text.includes('@isaacw')) throw new Error(`export looks wrong: ${text.slice(0, 200)}`)
+
+  await exco.goto('/test-club/fees/collection?tab=responses', { waitUntil: 'networkidle' })
+  await exco.getByRole('button', { name: /Isaac Wong/ }).click()
+  await exco.screenshot({ path: `${OUT}/fees-response-match.png`, fullPage: true })
+  await exco.locator('form').filter({ hasText: 'Put Isaac Wong on the roster' }).screenshot({ path: `${OUT}/fees-match-form.png` })
+
+  await exco.goto('/test-club/fees/collection?tab=form', { waitUntil: 'networkidle' })
+  await exco.getByRole('button', { name: 'Add a question' }).click()
+  await exco.locator('section').filter({ hasText: '4. Your own questions' }).screenshot({ path: `${OUT}/fees-question-editor.png` })
+
+  await exco.goto('/test-club/fees/collection?tab=payments', { waitUntil: 'networkidle' })
+  await exco.getByRole('listitem').filter({ hasText: 'Hui Min Tan' }).getByRole('button', { name: 'Check it' }).click()
+  await exco.getByRole('listitem').filter({ hasText: 'Hui Min Tan' }).screenshot({ path: `${OUT}/fees-check-inline.png` })
+
   await exco.getByRole('listitem').filter({ hasText: 'Darren Goh' }).getByRole('button', { name: /Half term/ }).click()
   await exco.screenshot({ path: `${OUT}/fees-edit-fee.png`, fullPage: true })
   await exco.getByRole('button', { name: 'Cancel' }).click()
@@ -93,8 +149,10 @@ test('fees tour', async ({ browser }) => {
 
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } })
   await signInWithCode(mobile, TREASURER.email)
-  await mobile.goto('/test-club/fees/collection', { waitUntil: 'networkidle' })
-  await mobile.screenshot({ path: `${OUT}/fees-members-mobile.png`, fullPage: true })
+  await mobile.goto('/test-club/fees/collection?tab=responses', { waitUntil: 'networkidle' })
+  await mobile.screenshot({ path: `${OUT}/fees-responses-mobile.png`, fullPage: true })
+  await mobile.goto('/test-club/fees?preview=new', { waitUntil: 'networkidle' })
+  await mobile.screenshot({ path: `${OUT}/form-preview-new-mobile.png`, fullPage: true })
 
   // The member's own page, matched and owing.
   const ada = await dbAdmin.member.findFirstOrThrow({ where: { orgId: org.id, studentId: MEMBER.studentId } })
@@ -109,7 +167,8 @@ test('fees tour', async ({ browser }) => {
   const user = await dbAdmin.user.findFirstOrThrow({ where: { email: MEMBER.email } })
   if (!ada.userId) await dbAdmin.member.update({ where: { id: ada.id }, data: { userId: user.id } })
   await member.goto('/test-club/fees', { waitUntil: 'networkidle' })
-  await member.screenshot({ path: `${OUT}/member-fee-mobile.png`, fullPage: true })
-  await member.getByRole('button', { name: /I’ve paid/ }).click()
-  await member.screenshot({ path: `${OUT}/member-fee-declare-mobile.png`, fullPage: true })
+  await member.screenshot({ path: `${OUT}/member-form-mobile.png`, fullPage: true })
+  await member.getByRole('button', { name: /^Send/ }).click()
+  await member.getByText('A few things need fixing').waitFor()
+  await member.locator('form').screenshot({ path: `${OUT}/member-form-errors-mobile.png` })
 })

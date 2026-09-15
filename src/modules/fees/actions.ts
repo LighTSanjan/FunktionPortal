@@ -13,6 +13,7 @@ import { resolveFee, TIER_LABEL } from './tiers'
 import { matchRosterRow } from '@/core/auth/roster-match'
 import { splitGst, DEFAULT_GST_BASIS_POINTS } from './money'
 import { validateProof, putProof, discardProof, ProofRejected, MAX_PROOF_BYTES } from './proof'
+import { lockTermFees, writeDeclaration } from './declaration'
 import { validateQr, putQr, QrRejected, MAX_QR_BYTES } from './qr'
 
 export interface FeeState {
@@ -23,16 +24,19 @@ export interface FeeState {
 }
 
 /**
- * Take this term's fee lock for the rest of the transaction.
- *
- * Every write to a term's fees and payments, and closing it, takes the same
- * lock, so none of them can interleave: a payment undone while the collection
- * closes, or a fee changed while a payment is recorded against the old one,
- * would each leave figures that disagree for good. The volume is a few dozen
- * writes a term, so serialising them costs nothing anybody will notice.
+ * The fee a member picked on this term's membership form, if their response
+ * has reached their roster row.
  */
-async function lockTermFees(tx: Prisma.TransactionClient, termId: string): Promise<void> {
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`fees:${termId}`}, 0))`
+async function formChoice(
+  tx: Prisma.TransactionClient,
+  termId: string,
+  memberId: string
+): Promise<FeeTier | null> {
+  const response = await tx.membershipResponse.findFirst({
+    where: { termId, memberId },
+    select: { tier: true },
+  })
+  return response?.tier ?? null
 }
 
 const declareSchema = z.object({
@@ -135,6 +139,7 @@ export async function declarePayment(
     const fee = resolveFee({
       payment: null,
       arrangement,
+      choice: await formChoice(tx, term.id, member.id),
       rosterLabel: member.rosterLabel,
       isActive: member.isActive,
       rates: term,
@@ -149,92 +154,27 @@ export async function declarePayment(
 
   if (context.problem) return { error: PROBLEMS[context.problem] }
 
-  const { member, term, existingId } = context
+  const { member, term } = context
   // Uploaded outside the transaction: it leaves the database for object
   // storage, and a pooled connection should not be held open across that.
   const proofPath = await putProof(term.id, member.id, bytes, format)
 
   let late: 'CLOSED' | 'DECIDED' | null
   try {
-  late = await dbAs(userId, async (tx) => {
-    // Everything the first transaction checked is checked again here, because
-    // the upload happened in between and it is not instant. Without this, an
-    // exco member confirming during that window has their confirmation undone
-    // by the write that follows — and a collection closed during it takes a
-    // declaration it can no longer bank.
-    await lockTermFees(tx, term.id)
-    const still = await tx.term.findFirst({
-      where: { id: term.id, orgId: org.id },
-      select: { closedAt: true, fullFeeCents: true, halfFeeCents: true, exchangeFeeCents: true },
-    })
-    if (!still || still.closedAt) return 'CLOSED' as const
-
-    // Priced again under the lock: the exco may have changed this member's
-    // fee, or the term's rates, while the screenshot was uploading.
-    const arrangementNow = await tx.feeArrangement.findUnique({
-      where: { termId_memberId: { termId: term.id, memberId: member.id } },
-      select: { tier: true, amountCents: true },
-    })
-    const { tier, amountCents } = resolveFee({
-      payment: null,
-      arrangement: arrangementNow,
-      rosterLabel: member.rosterLabel,
-      isActive: member.isActive,
-      rates: still,
-    })
-    if (amountCents === 0) return 'DECIDED' as const
-    const declaredAt = new Date()
-
-    // A re-declaration replaces the last one: somebody who paid the wrong
-    // amount and paid again should not leave two claims for the exco to
-    // choose between.
-    const data = {
-      tier,
-      amountCents,
-      status: 'DECLARED' as const,
-      declaredAt,
-      declaredByUserId: userId,
-      paymentReference: parsed.data.reference,
-      paymentProofPath: proofPath,
-      source: 'DECLARATION' as const,
-      rejectedReason: null,
-      confirmedAt: null,
-      confirmedByUserId: null,
-    }
-
-    let paymentId = existingId
-    if (existingId) {
-      // Conditional on it still being undecided. A confirmation that landed
-      // while the screenshot was uploading must not be rolled back into a
-      // declaration by a request that started before it.
-      const claimed = await tx.feePayment.updateMany({
-        where: { id: existingId, status: { in: ['DECLARED', 'REJECTED'] } },
-        data,
-      })
-      if (claimed.count !== 1) return 'DECIDED' as const
-    } else {
-      const created = await tx.feePayment.create({
-        data: { orgId: org.id, termId: term.id, memberId: member.id, ...data },
-        select: { id: true },
-      })
-      paymentId = created.id
-    }
-
-    await writeAudit(
-      {
+    late = await dbAs(userId, async (tx) => {
+      await lockTermFees(tx, term.id)
+      const outcome = await writeDeclaration(tx, {
         orgId: org.id,
+        termId: term.id,
+        memberId: member.id,
+        declaredByUserId: userId,
         actorId: userId,
-        action: 'fee.declare',
-        targetType: 'FeePayment',
-        targetId: paymentId!,
-        // The reference, never the screenshot. An audit log is read by more
-        // people than the bucket is.
-        after: { tier, amountCents, reference: parsed.data.reference },
-      },
-      tx
-    )
-    return null
-  })
+        reference: parsed.data.reference,
+        proofPath,
+      })
+      if (outcome.written) return null
+      return outcome.reason === 'CLOSED' ? ('CLOSED' as const) : ('DECIDED' as const)
+    })
   } catch (error) {
     await discardProof(proofPath)
     throw error
@@ -341,6 +281,8 @@ export async function uploadPaynowQr(
   // close the collection — and a QR attached to a banked collection is a
   // payment code nobody is reconciling against.
   const raced = await dbAs(userId, async (tx) => {
+    // The lock closing takes, so the two cannot pass each other.
+    await lockTermFees(tx, term.id)
     const deposit = await tx.incomeDeposit.findFirst({
       where: { termId: term.id, orgId: org.id },
       select: { id: true },
@@ -659,6 +601,8 @@ export async function createTerm(
       },
       select: { id: true, name: true },
     })
+    // Every term has its membership form, waiting as a draft to be opened.
+    await tx.membershipForm.create({ data: { orgId: org.id, termId: term.id } })
 
     await writeAudit(
       {
@@ -718,6 +662,7 @@ export async function updateTerm(
   }
 
   const problem = await dbAs(userId, async (tx) => {
+    await lockTermFees(tx, parsed.data.termId)
     const term = await tx.term.findFirst({
       where: { id: parsed.data.termId, orgId: org.id },
       select: { id: true, incomeDeposit: { select: { id: true } } },
@@ -801,6 +746,15 @@ export async function closeCollection(
       return `${pending} declaration${pending === 1 ? '' : 's'} still to decide. Clear the queue first — a closed collection cannot take them.`
     }
 
+    // Money somebody paid through the form before anybody knew which roster
+    // row was theirs. Closing now would bank without it and strand it.
+    const held = await tx.membershipResponse.count({
+      where: { orgId: org.id, termId: term.id, heldProofPath: { not: null } },
+    })
+    if (held > 0) {
+      return `${held} form response${held === 1 ? '' : 's'} still ${held === 1 ? 'holds' : 'hold'} a payment that isn't on the roster. Sort ${held === 1 ? 'it' : 'them'} out from Responses first.`
+    }
+
     const confirmed = await tx.feePayment.aggregate({
       where: { orgId: org.id, termId: term.id, status: 'CONFIRMED', route: 'OFFICIAL' },
       _sum: { amountCents: true },
@@ -822,6 +776,13 @@ export async function closeCollection(
       series: 'INC',
       financialYear: financialYearOf(finalCollectionAt),
       projectCode: settings?.projectCode ?? '097',
+    })
+
+    // Banked in means nobody new can join through the form either. Before the
+    // term is marked closed, because nothing about a closed term changes.
+    await tx.membershipForm.updateMany({
+      where: { termId: term.id, state: { not: 'CLOSED' } },
+      data: { state: 'CLOSED', closedAt: new Date() },
     })
 
     // The unique key on termId is what actually serialises two treasurers
@@ -1163,6 +1124,7 @@ export async function setMemberFees(
       const fee = resolveFee({
         payment: null,
         arrangement,
+        choice: await formChoice(tx, term.id, member.id),
         rosterLabel: member.rosterLabel,
         isActive: member.isActive,
         rates: term,
@@ -1335,6 +1297,7 @@ export async function recordPayment(
     const fee = resolveFee({
       payment: null,
       arrangement,
+      choice: await formChoice(tx, term.id, member.id),
       rosterLabel: member.rosterLabel,
       isActive: member.isActive,
       rates: term,
