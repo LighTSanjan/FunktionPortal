@@ -41,7 +41,7 @@ export function FundsOverview({ funds, delayMs = 0 }: { funds: FundView[]; delay
           <p className="mt-1.5 text-[13px] text-text-muted">
             left of {formatSgd(granted)} across {funds.length}{' '}
             {funds.length === 1 ? 'fund' : 'funds'}
-            {spent > 0 && <> · {formatSgd(spent)} spent</>}
+            {spent > 0 && <> · {formatSgd(spent)} spent or claimed</>}
           </p>
         </div>
 

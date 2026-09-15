@@ -3,7 +3,7 @@ import { verifySession, getOrgContext } from '@/core/auth/dal'
 import { hasPermission } from '@/core/permissions'
 import { dbAs } from '@/core/db'
 import { countPendingRequests, getMembership, OFFICE_LABELS } from '@/core/access'
-import { listLedger, countLedger, SECTION_FUND, SECTION_LABEL } from '@/core/register'
+import { loadLedger, SECTION_FUND, SECTION_LABEL } from '@/core/register'
 import { rateForDate } from '@/modules/coach-claim/rates'
 import { financialYearOf } from '@/modules/references/format'
 import { fundBalances } from '@/modules/funds/balance'
@@ -130,7 +130,7 @@ export default async function DashboardPage({
       }
     })
 
-  const [shared, exco, instructors, pendingRequests, ownMembership, ledger, ledgerCount, coachRun, collection, ownFee] =
+  const [shared, exco, instructors, pendingRequests, ownMembership, fullLedger, coachRun, collection, ownFee] =
     await Promise.all([
       dbAs(userId, (tx) =>
         tx.term.findFirst({
@@ -150,8 +150,7 @@ export default async function DashboardPage({
         : Promise.resolve([]),
       isExco ? countPendingRequests(org.id) : Promise.resolve(0),
       getMembership(org.id, userId),
-      isExco ? listLedger(userId, org.id, { take: 6 }) : Promise.resolve([]),
-      isExco ? countLedger(userId, org.id) : Promise.resolve(0),
+      isExco ? loadLedger(userId, org.id) : Promise.resolve([]),
       // The two jobs, resumable. Built from the same rows the screens read,
       // so a step cannot claim to be done when it is not.
       isExco ? coachPaymentsWorkflow(userId, org.id, orgSlug, now) : Promise.resolve(null),
@@ -159,6 +158,9 @@ export default async function DashboardPage({
       // Everybody's own membership fee, exco included — they pay too.
       getOwnFee(userId, org.id, null),
     ])
+
+  const ledger = fullLedger.slice(0, 6)
+  const ledgerCount = fullLedger.length
 
   const data = {
     financialYear: exco?.financialYear ?? currentYear,

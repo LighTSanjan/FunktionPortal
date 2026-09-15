@@ -2,7 +2,7 @@ import 'server-only'
 
 import type { RegisterSection } from '@prisma/client'
 import { dbAs } from '@/core/db'
-import { sameReference } from '@/lib/reference-match'
+import { onSheet, type LedgerDocument } from '@/lib/reference-match'
 
 export const SECTION_FUND: Record<RegisterSection, 'SEED' | 'INCOME' | 'DONATION' | 'UNOFFICIAL'> = {
   SEED_FUND: 'SEED',
@@ -55,11 +55,6 @@ function toAmount(row: {
   return -spent
 }
 
-interface LedgerFilter {
-  section?: RegisterSection
-  financialYear?: number
-}
-
 /**
  * The register as the club keeps it: every row imported from the spreadsheet,
  * and every document the portal itself raised that is not on it yet.
@@ -67,63 +62,42 @@ interface LedgerFilter {
  * Invoices and deposits raised here used to be missing from the register
  * altogether, so the portal's register stopped in whatever month the sheet
  * was last imported while the fund balances carried on. A portal document
- * that was also typed into the sheet is matched on its reference number —
- * loosely, because the sheet is typed by hand — and shown once, as the
- * sheet has it.
+ * that was also typed into the sheet is shown once, as the sheet has it —
+ * matched by lib/reference-match, which copes with a mistyped number without
+ * mistaking one document for another.
+ *
+ * Loaded once per request; filter, count and total the result in memory
+ * rather than reading the whole register again for each figure on a page.
  */
-async function ledgerRows(userId: string, orgId: string, filter: LedgerFilter): Promise<LedgerEntry[]> {
+export async function loadLedger(userId: string, orgId: string): Promise<LedgerEntry[]> {
   const { imported, invoices, deposits } = await dbAs(userId, async (tx) => ({
-    imported: await tx.registerEntry.findMany({
-      where: {
-        orgId,
-        ...(filter.section ? { section: filter.section } : {}),
-        ...(filter.financialYear ? { financialYear: filter.financialYear } : {}),
+    imported: await tx.registerEntry.findMany({ where: { orgId } }),
+    invoices: await tx.invoice.findMany({
+      where: { orgId, status: { not: 'VOID' }, referenceNumber: { isNot: null } },
+      select: {
+        id: true,
+        fundSource: true,
+        totalCents: true,
+        periodMonth: true,
+        invoiceDate: true,
+        submittedToOslAt: true,
+        referenceNumber: { select: { formatted: true, financialYear: true } },
+        instructor: { select: { fullName: true, danceStyle: true } },
       },
     }),
-    invoices:
-      filter.section && filter.section !== 'SEED_FUND' && filter.section !== 'INCOME'
-        ? []
-        : await tx.invoice.findMany({
-            where: {
-              orgId,
-              status: { not: 'VOID' },
-              referenceNumber: filter.financialYear ? { financialYear: filter.financialYear } : { isNot: null },
-              ...(filter.section ? { fundSource: filter.section === 'SEED_FUND' ? 'SEED' : 'INCOME' } : {}),
-            },
-            select: {
-              id: true,
-              fundSource: true,
-              totalCents: true,
-              subtotalCents: true,
-              periodMonth: true,
-              invoiceDate: true,
-              submittedToOslAt: true,
-              referenceNumber: { select: { formatted: true, financialYear: true } },
-              instructor: { select: { fullName: true, danceStyle: true } },
-            },
-          }),
-    deposits:
-      filter.section && filter.section !== 'INCOME'
-        ? []
-        : await tx.incomeDeposit.findMany({
-            where: {
-              orgId,
-              referenceNumber: filter.financialYear ? { financialYear: filter.financialYear } : { isNot: null },
-            },
-            select: {
-              id: true,
-              eventName: true,
-              netCents: true,
-              finalCollectionAt: true,
-              referenceNumber: { select: { formatted: true, financialYear: true } },
-            },
-          }),
+    deposits: await tx.incomeDeposit.findMany({
+      where: { orgId, referenceNumber: { isNot: null } },
+      select: {
+        id: true,
+        eventName: true,
+        netCents: true,
+        finalCollectionAt: true,
+        referenceNumber: { select: { formatted: true, financialYear: true } },
+      },
+    }),
   }))
 
-  const onSheet = (reference: string | undefined) =>
-    reference !== undefined && imported.some((row) => sameReference(row.referenceNumber, reference))
-
-  const rows: (LedgerEntry & { sheetRowNumber: number | null })[] = imported.map((row) => ({
+  const rows: (LedgerEntry & { sheetRowNumber: number | null; sourceId: string })[] = imported.map((row) => ({
     id: row.id,
     section: row.section,
     financialYear: row.financialYear,
@@ -136,56 +110,99 @@ async function ledgerRows(userId: string, orgId: string, filter: LedgerFilter): 
     bankedInAt: row.bankedInAt,
     fromPortal: false,
     sheetRowNumber: row.sheetRowNumber,
+    sourceId: row.sourceId,
   }))
 
+  /** The sheet's rows for one section and year, in the matcher's shape. */
+  const sheetFor = (section: RegisterSection, financialYear: number, income: boolean): LedgerDocument[] =>
+    rows
+      .filter((row) => !row.fromPortal && row.section === section && row.financialYear === financialYear && (row.amountCents > 0) === income)
+      .map((row) => ({ reference: row.reference, amountCents: Math.abs(row.amountCents), date: row.documentDate ?? row.bankedInAt }))
+
+  const groups = new Map<string, typeof invoices>()
   for (const invoice of invoices) {
-    const reference = invoice.referenceNumber?.formatted
-    if (!reference || onSheet(reference)) continue
-    rows.push({
-      id: `invoice-${invoice.id}`,
-      section: invoice.fundSource === 'SEED' ? 'SEED_FUND' : 'INCOME',
-      financialYear: invoice.referenceNumber!.financialYear,
-      reference,
-      // The way the sheet words a coach's month.
-      description: `${invoice.instructor.danceStyle} Instructor Fee ${MONTH_NAMES[invoice.periodMonth - 1]}`,
-      payeeName: invoice.instructor.fullName,
-      documentDate: invoice.invoiceDate,
-      amountCents: -invoice.totalCents,
-      submittedToOslAt: invoice.submittedToOslAt,
-      bankedInAt: null,
-      fromPortal: true,
-      sheetRowNumber: null,
+    const key = `${invoice.fundSource}:${invoice.referenceNumber!.financialYear}`
+    groups.set(key, [...(groups.get(key) ?? []), invoice])
+  }
+  for (const [key, group] of groups) {
+    const [source, year] = key.split(':')
+    const section: RegisterSection = source === 'SEED' ? 'SEED_FUND' : 'INCOME'
+    const known = onSheet(
+      sheetFor(section, Number(year), false),
+      group.map((invoice) => ({ reference: invoice.referenceNumber!.formatted, amountCents: invoice.totalCents, date: invoice.invoiceDate }))
+    )
+    group.forEach((invoice, i) => {
+      if (known.has(i)) return
+      rows.push({
+        id: `invoice-${invoice.id}`,
+        section,
+        financialYear: Number(year),
+        reference: invoice.referenceNumber!.formatted,
+        // The way the sheet words a coach's month.
+        description: `${invoice.instructor.danceStyle} Instructor Fee ${MONTH_NAMES[invoice.periodMonth - 1]}`,
+        payeeName: invoice.instructor.fullName,
+        documentDate: invoice.invoiceDate,
+        amountCents: -invoice.totalCents,
+        submittedToOslAt: invoice.submittedToOslAt,
+        bankedInAt: null,
+        fromPortal: true,
+        sheetRowNumber: null,
+        sourceId: invoice.id,
+      })
     })
   }
 
-  for (const deposit of deposits) {
-    const reference = deposit.referenceNumber?.formatted
-    if (!reference || onSheet(reference)) continue
-    rows.push({
-      id: `deposit-${deposit.id}`,
-      section: 'INCOME',
-      financialYear: deposit.referenceNumber!.financialYear,
-      reference,
-      description: deposit.eventName,
-      payeeName: null,
-      documentDate: deposit.finalCollectionAt,
-      // Net of GST: the register's income column is kept without it.
-      amountCents: deposit.netCents,
-      submittedToOslAt: null,
-      bankedInAt: deposit.finalCollectionAt,
-      fromPortal: true,
-      sheetRowNumber: null,
+  const years = [...new Set(deposits.map((deposit) => deposit.referenceNumber!.financialYear))]
+  for (const year of years) {
+    const group = deposits.filter((deposit) => deposit.referenceNumber!.financialYear === year)
+    const known = onSheet(
+      sheetFor('INCOME', year, true),
+      group.map((deposit) => ({ reference: deposit.referenceNumber!.formatted, amountCents: deposit.netCents, date: deposit.finalCollectionAt }))
+    )
+    group.forEach((deposit, i) => {
+      if (known.has(i)) return
+      rows.push({
+        id: `deposit-${deposit.id}`,
+        section: 'INCOME',
+        financialYear: year,
+        reference: deposit.referenceNumber!.formatted,
+        description: deposit.eventName,
+        payeeName: null,
+        documentDate: deposit.finalCollectionAt,
+        // Net of GST: the register's income column is kept without it.
+        amountCents: deposit.netCents,
+        submittedToOslAt: null,
+        bankedInAt: deposit.finalCollectionAt,
+        fromPortal: true,
+        sheetRowNumber: null,
+        sourceId: deposit.id,
+      })
     })
   }
 
-  // Newest first; undated rows after dated ones, in the sheet's own order.
-  rows.sort((a, b) => {
-    if (a.documentDate && b.documentDate) return b.documentDate.getTime() - a.documentDate.getTime()
-    if (a.documentDate) return -1
-    if (b.documentDate) return 1
-    return b.financialYear - a.financialYear || (b.sheetRowNumber ?? 0) - (a.sheetRowNumber ?? 0)
-  })
-  return rows.map(({ sheetRowNumber: _sheetRowNumber, ...entry }) => entry)
+  // Newest first; undated rows after dated ones. Ties fall back to the year,
+  // the sheet's own order and the row's identity, so the same register reads
+  // in the same order on every visit.
+  rows.sort(
+    (a, b) =>
+      (b.documentDate?.getTime() ?? -Infinity) - (a.documentDate?.getTime() ?? -Infinity) ||
+      b.financialYear - a.financialYear ||
+      (b.sheetRowNumber ?? Number.MAX_SAFE_INTEGER) - (a.sheetRowNumber ?? Number.MAX_SAFE_INTEGER) ||
+      a.sourceId.localeCompare(b.sourceId)
+  )
+  return rows.map(({ sheetRowNumber: _row, sourceId: _source, ...entry }) => entry)
+}
+
+export function filterLedger(
+  rows: LedgerEntry[],
+  options: { section?: RegisterSection; financialYear?: number; take?: number } = {}
+): LedgerEntry[] {
+  const filtered = rows.filter(
+    (row) =>
+      (!options.section || row.section === options.section) &&
+      (!options.financialYear || row.financialYear === options.financialYear)
+  )
+  return options.take ? filtered.slice(0, options.take) : filtered
 }
 
 export async function listLedger(
@@ -193,16 +210,10 @@ export async function listLedger(
   orgId: string,
   options: { section?: RegisterSection; financialYear?: number; take?: number } = {}
 ): Promise<LedgerEntry[]> {
-  const rows = await ledgerRows(userId, orgId, options)
-  return options.take ? rows.slice(0, options.take) : rows
+  return filterLedger(await loadLedger(userId, orgId), options)
 }
 
-export async function countLedger(userId: string, orgId: string): Promise<number> {
-  return (await ledgerRows(userId, orgId, {})).length
-}
-
-export async function ledgerYears(userId: string, orgId: string): Promise<number[]> {
-  const rows = await ledgerRows(userId, orgId, {})
+export function ledgerYears(rows: LedgerEntry[]): number[] {
   return [...new Set(rows.map((row) => row.financialYear))].sort((a, b) => b - a)
 }
 
@@ -213,18 +224,12 @@ export interface LedgerTotals {
   rows: number
 }
 
-/** Return totals for every section, including empty ones. */
-export async function ledgerTotals(
-  userId: string,
-  orgId: string,
-  options: { financialYear?: number } = {}
-): Promise<LedgerTotals[]> {
-  const rows = await ledgerRows(userId, orgId, options)
-
+/** Totals for every section, including empty ones. */
+export function ledgerTotals(rows: LedgerEntry[], options: { financialYear?: number } = {}): LedgerTotals[] {
   const bySection = new Map<RegisterSection, LedgerTotals>(
     SECTION_ORDER.map((section) => [section, { section, inCents: 0, outCents: 0, rows: 0 }])
   )
-  for (const row of rows) {
+  for (const row of filterLedger(rows, options)) {
     const totals = bySection.get(row.section)!
     if (row.amountCents >= 0) totals.inCents += row.amountCents
     else totals.outCents += -row.amountCents

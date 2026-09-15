@@ -392,6 +392,9 @@ export async function voidMonth(
         status: true,
         periodYear: true,
         periodMonth: true,
+        invoiceDate: true,
+        fundSource: true,
+        totalCents: true,
         attendanceSheetId: true,
         referenceNumberId: true,
         submittedToOslAt: true,
@@ -403,6 +406,23 @@ export async function voidMonth(
     if (invoice.status === 'PAID') {
       return 'That month is recorded as paid. Take the payment back first — money moved against it.'
     }
+
+    // An unsigned sheet shows its fund balance live; once void it stops
+    // moving. Keep the figure it last showed, not the one from when it was
+    // raised or last signed.
+    const sheet = invoice.attendanceSheetId
+      ? await tx.attendanceSheet.findUnique({ where: { id: invoice.attendanceSheetId }, select: { verifiedAt: true } })
+      : null
+    const liveBalance =
+      sheet && !sheet.verifiedAt
+        ? await clubFundBalanceAfter(tx, {
+            orgId: org.id,
+            invoiceDate: fromDateColumn(invoice.invoiceDate),
+            fundSource: invoice.fundSource,
+            claimCents: invoice.totalCents,
+            invoiceId: invoice.id,
+          })
+        : undefined
 
     const voidedAt = new Date()
     // Conditional on still being live and unpaid, so two people voiding at
@@ -416,7 +436,10 @@ export async function voidMonth(
     if (claimed.count !== 1) return 'Somebody else changed that month a moment ago. Reload to see it.'
 
     if (invoice.attendanceSheetId) {
-      await tx.attendanceSheet.update({ where: { id: invoice.attendanceSheetId }, data: { voidedAt } })
+      await tx.attendanceSheet.update({
+        where: { id: invoice.attendanceSheetId },
+        data: { voidedAt, ...(liveBalance !== undefined ? { clubFundBalanceCents: liveBalance } : {}) },
+      })
     }
     if (invoice.referenceNumberId) {
       await tx.referenceNumber.update({

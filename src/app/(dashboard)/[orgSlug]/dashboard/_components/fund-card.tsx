@@ -85,14 +85,14 @@ export function FundCard({ fund, delayMs = 0 }: { fund: FundView; delayMs?: numb
 
       {fund.spentCents > 0 && (
         <p className="mt-2.5 text-[11.5px] text-text-muted">
-          {formatSgd(fund.spentCents)} spent
+          {/* "Spent" alone overstated it: a claim raised here is committed
+              the moment it is raised, well before OSL pay it. */}
+          {fund.committedCents > 0
+            ? `${formatSgd(fund.spentCents)} spent or claimed`
+            : `${formatSgd(fund.spentCents)} spent`}
           {fund.priorSpendCents > 0 && fund.committedCents > 0 && (
-            <>
-              {' '}
-              ({formatSgd(fund.priorSpendCents)} before the portal)
-            </>
+            <> ({formatSgd(fund.committedCents)} claimed through the portal)</>
           )}
-          {fund.priorSpendCents > 0 && fund.committedCents === 0 && ' before the portal'}
         </p>
       )}
 

@@ -24,7 +24,7 @@
 import 'server-only'
 import type { FundSource, Prisma } from '@prisma/client'
 import { financialYearOf } from '@/modules/references/format'
-import { sameReference } from '@/lib/reference-match'
+import { onSheet, type LedgerDocument } from '@/lib/reference-match'
 
 export interface FundBalance {
   source: FundSource
@@ -63,11 +63,11 @@ export async function fundBalances(
       referenceNumber: { financialYear },
       ...(options.excludeInvoiceId ? { NOT: { id: options.excludeInvoiceId } } : {}),
     },
-    select: { fundSource: true, totalCents: true, referenceNumber: { select: { formatted: true } } },
+    select: { fundSource: true, totalCents: true, invoiceDate: true, referenceNumber: { select: { formatted: true } } },
   })
   const deposits = await tx.incomeDeposit.findMany({
     where: { orgId, referenceNumber: { financialYear } },
-    select: { netCents: true, referenceNumber: { select: { formatted: true } } },
+    select: { netCents: true, finalCollectionAt: true, referenceNumber: { select: { formatted: true } } },
   })
   const purchases = await tx.purchaseRequest.findMany({
     where: { orgId, status: { in: ['APPROVED', 'PURCHASED', 'CLOSED'] } },
@@ -81,18 +81,43 @@ export async function fundBalances(
   })
   const imported = await tx.registerEntry.findMany({
     where: { orgId, financialYear, sourceType: 'RegisterImport', referenceNumber: { not: null } },
-    select: { referenceNumber: true },
+    select: {
+      section: true,
+      referenceNumber: true,
+      documentDate: true,
+      bankedInAt: true,
+      incomeCents: true,
+      expenseWithGstCents: true,
+      expenseWithoutGstCents: true,
+    },
   })
 
-  const onRegister = (reference: string | null | undefined) =>
-    reference ? imported.some((row) => sameReference(row.referenceNumber, reference)) : false
+  // What the sheet already has, per section, in the shape the matcher reads.
+  const sheet = (section: 'SEED_FUND' | 'INCOME', income: boolean): LedgerDocument[] =>
+    imported
+      .filter((row) => row.section === section && (income ? (row.incomeCents ?? 0) > 0 : (row.incomeCents ?? 0) === 0))
+      .map((row) => ({
+        reference: row.referenceNumber,
+        amountCents: income ? (row.incomeCents ?? 0) : (row.expenseWithGstCents ?? row.expenseWithoutGstCents ?? 0),
+        date: row.documentDate ?? row.bankedInAt,
+      }))
 
   const committed = new Map<FundSource, number>()
   const add = (source: FundSource, cents: number) => committed.set(source, (committed.get(source) ?? 0) + cents)
 
-  for (const invoice of invoices) {
-    if (onRegister(invoice.referenceNumber?.formatted)) continue
-    add(invoice.fundSource, invoice.totalCents)
+  for (const source of ['SEED', 'INCOME'] as const) {
+    const mine = invoices.filter((invoice) => invoice.fundSource === source)
+    const known = onSheet(
+      sheet(source === 'SEED' ? 'SEED_FUND' : 'INCOME', false),
+      mine.map((invoice) => ({
+        reference: invoice.referenceNumber?.formatted ?? null,
+        amountCents: invoice.totalCents,
+        date: invoice.invoiceDate,
+      }))
+    )
+    mine.forEach((invoice, i) => {
+      if (!known.has(i)) add(source, invoice.totalCents)
+    })
   }
   for (const purchase of purchases) {
     const approvedOn = purchase.presidentApprovedAt ?? purchase.treasurerApprovedAt ?? purchase.createdAt
@@ -100,8 +125,16 @@ export async function fundBalances(
     add(purchase.fundSource, purchase.amountCents)
   }
   // Every collection is income: the deposit form banks into the income fund.
+  const bankedOnSheet = onSheet(
+    sheet('INCOME', true),
+    deposits.map((deposit) => ({
+      reference: deposit.referenceNumber?.formatted ?? null,
+      amountCents: deposit.netCents,
+      date: deposit.finalCollectionAt,
+    }))
+  )
   const bankedCents = deposits
-    .filter((deposit) => !onRegister(deposit.referenceNumber?.formatted))
+    .filter((_, i) => !bankedOnSheet.has(i))
     .reduce((sum, deposit) => sum + deposit.netCents, 0)
 
   return accounts.map((account) => {

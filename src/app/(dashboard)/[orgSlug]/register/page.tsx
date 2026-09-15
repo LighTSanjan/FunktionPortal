@@ -4,7 +4,7 @@ import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
 import { formatSgd } from '@/modules/coach-claim/money'
-import { listLedger, ledgerTotals, ledgerYears, SECTION_LABEL, type LedgerEntry } from '@/core/register'
+import { loadLedger, filterLedger, ledgerTotals, ledgerYears, SECTION_LABEL, type LedgerEntry } from '@/core/register'
 import { FUND_INK } from '../dashboard/_components/spend-ring'
 import { SECTION_FUND } from '@/core/register'
 
@@ -30,13 +30,12 @@ export default async function RegisterPage({
     : undefined
   const financialYear = /^\d{4}$/.test(yearParam ?? '') ? Number(yearParam) : undefined
 
-  const [entries, totals, years] = await Promise.all([
-    listLedger(userId, org.id, { section, financialYear }),
-    // The cards follow the year filter; the list of years does not, or picking
-    // one would remove every other year's chip and strand the reader there.
-    ledgerTotals(userId, org.id, { financialYear }),
-    ledgerYears(userId, org.id),
-  ])
+  const ledger = await loadLedger(userId, org.id)
+  const entries = filterLedger(ledger, { section, financialYear })
+  // The cards follow the year filter; the list of years does not, or picking
+  // one would remove every other year's chip and strand the reader there.
+  const totals = ledgerTotals(ledger, { financialYear })
+  const years = ledgerYears(ledger)
   const shown = entries.reduce(
     (acc, entry) => {
       if (entry.amountCents >= 0) acc.in += entry.amountCents
