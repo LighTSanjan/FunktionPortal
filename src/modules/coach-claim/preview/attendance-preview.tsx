@@ -10,6 +10,10 @@ import { DEFAULT_VERIFYING_OFFICE } from '../types'
 import { formatSgd, formatHours } from '../money'
 import { FALLBACK_BAND_COLORS, MONTHS, shortDate, longDate } from '../theme'
 import { Paper, Eyebrow, Fact, Hairline, PAPER, SignatureStamp } from './paper'
+import { fitWithin } from '../image-size'
+
+/** The masthead's logo box, matching the .docx. */
+const LOGO_BOX = { width: 130, height: 72 }
 
 /**
  * Summarise uniform sessions; list hours when durations or rates differ.
@@ -43,9 +47,22 @@ export function AttendanceSheetPreview({ data }: { data: AttendanceSheetDocData 
   return (
     <Paper landscape={landscape}>
       <div className="flex items-center gap-4">
-        <p className="m-0 shrink-0 font-semibold" style={{ fontSize: 20 }}>
-          {data.organisationName}
-        </p>
+        {branding.logo ? (
+          // The same bytes the .docx stamps, inlined, so the page shows
+          // exactly the logo the month was raised under and no storage URL
+          // is handed to the browser.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`data:image/${branding.logo.format === 'jpg' ? 'jpeg' : 'png'};base64,${Buffer.from(branding.logo.bytes).toString('base64')}`}
+            alt={data.organisationName}
+            className="shrink-0"
+            style={{ ...fitWithin(branding.logo, LOGO_BOX), objectFit: 'contain' }}
+          />
+        ) : (
+          <p className="m-0 shrink-0 font-semibold" style={{ fontSize: 20 }}>
+            {data.organisationName}
+          </p>
+        )}
         <div>
           <p className="m-0 font-semibold" style={{ fontSize: 18 }}>
             Coaches Monthly Attendance Sheet

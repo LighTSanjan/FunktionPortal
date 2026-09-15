@@ -82,11 +82,24 @@ export const DEFAULT_VERIFYING_OFFICE = 'Treasurer'
  * a rebrand, a new logo, or a handover to a committee that words things
  * differently is a row in the database rather than a pull request.
  */
+/** A logo image, read from storage, with what it takes to place it. */
+export interface BrandLogo {
+  bytes: Buffer
+  format: 'png' | 'jpg'
+  width: number
+  height: number
+}
+
 export interface Branding {
   /** Standfirst under the sheet's title. */
   tagline?: string
-  /** Letterhead wordmark, already loaded. Omitted renders the club name. */
-  logo?: Buffer
+  /**
+   * Storage key of the logo the month was raised under. Kept in the snapshot,
+   * so a later logo does not change a document already sent.
+   */
+  logoKey?: string
+  /** That logo, loaded at render. Omitted renders the club name. */
+  logo?: BrandLogo
   /**
    * The banded rule under the masthead, one colour per band, as RRGGBB
    * without the hash. Any number of bands; empty draws no rule.

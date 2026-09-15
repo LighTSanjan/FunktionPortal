@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { getOrgContext, requirePermission } from '@/core/auth/dal'
 import { dbAs } from '@/core/db'
 import { writeAudit } from '@/core/audit'
+import { LogoRejected, MAX_LOGO_BYTES, putLogo, validateLogo } from '@/modules/branding/logo'
 
 export interface OrgSettingsState {
   error: string | null
@@ -135,4 +136,81 @@ export async function updateOrgSettings(
 
   revalidatePath(`/${orgSlug}`, 'layout')
   return { error: null, ok: true }
+}
+
+/**
+ * Replace the logo printed on the organisation's documents.
+ *
+ * Stored under a fresh key and never overwritten: months already raised keep
+ * the logo they were raised under (see modules/branding/logo.ts).
+ */
+export async function uploadOrgLogo(
+  orgSlug: string,
+  _prev: OrgSettingsState,
+  formData: FormData
+): Promise<OrgSettingsState> {
+  const { org } = await getOrgContext(orgSlug)
+  const { userId } = await requirePermission(org.id, 'org.manage_settings')
+
+  const file = formData.get('logo')
+  if (!(file instanceof File) || file.size === 0) return { error: 'Choose the logo image.' }
+  if (file.size > MAX_LOGO_BYTES) return { error: `That image is over ${MAX_LOGO_BYTES / 1_000_000} MB.` }
+
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  let format
+  try {
+    format = validateLogo(bytes).format
+  } catch (error) {
+    if (error instanceof LogoRejected) return { error: error.message }
+    throw error
+  }
+
+  const key = await putLogo(org.id, bytes, format)
+  await dbAs(userId, async (tx) => {
+    const before = await tx.organisationSettings.findUnique({
+      where: { orgId: org.id },
+      select: { brandLogoUrl: true },
+    })
+    await tx.organisationSettings.update({ where: { orgId: org.id }, data: { brandLogoUrl: key } })
+    await writeAudit(
+      {
+        orgId: org.id,
+        actorId: userId,
+        action: 'org.logo_update',
+        targetType: 'Organisation',
+        targetId: org.id,
+        before: { logo: before?.brandLogoUrl ?? null },
+        after: { logo: key },
+      },
+      tx
+    )
+  })
+
+  revalidatePath(`/${orgSlug}`, 'layout')
+  return { error: null, ok: true }
+}
+
+export async function removeOrgLogo(orgSlug: string): Promise<void> {
+  const { org } = await getOrgContext(orgSlug)
+  const { userId } = await requirePermission(org.id, 'org.manage_settings')
+  await dbAs(userId, async (tx) => {
+    const before = await tx.organisationSettings.findUnique({
+      where: { orgId: org.id },
+      select: { brandLogoUrl: true },
+    })
+    if (!before?.brandLogoUrl) return
+    await tx.organisationSettings.update({ where: { orgId: org.id }, data: { brandLogoUrl: null } })
+    await writeAudit(
+      {
+        orgId: org.id,
+        actorId: userId,
+        action: 'org.logo_remove',
+        targetType: 'Organisation',
+        targetId: org.id,
+        before: { logo: before.brandLogoUrl },
+      },
+      tx
+    )
+  })
+  revalidatePath(`/${orgSlug}`, 'layout')
 }

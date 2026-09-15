@@ -3,6 +3,8 @@ import { dbAs } from '@/core/db'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
 import { OrgSettingsForm } from './_components/org-settings-form'
+import { LogoForm } from './_components/logo-form'
+import { logoDataUri, readLogo } from '@/modules/branding/logo'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,6 +22,8 @@ export default async function OrganisationSettingsPage({
     tx.organisationSettings.findUnique({ where: { orgId: org.id } })
   )
 
+  const logo = await readLogo(settings?.brandLogoUrl)
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -31,6 +35,16 @@ export default async function OrganisationSettingsPage({
         title="Organisation"
         subtitle="The facts the portal prints on documents and files them under. None of it is written into the code, so a rebrand, a change of project code or a different student organisation entirely is this form rather than a deployment."
       />
+
+      <Card>
+        <CardContent className="space-y-4 py-6">
+          <div>
+            <h2 className="text-[15px] font-semibold text-text">Logo</h2>
+            <p className="mt-1 text-[13px] text-text-muted">Printed on the club&rsquo;s documents.</p>
+          </div>
+          <LogoForm orgSlug={orgSlug} currentLogo={logo ? logoDataUri(logo) : null} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="py-6">

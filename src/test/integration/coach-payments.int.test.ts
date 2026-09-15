@@ -18,6 +18,7 @@ import {
   signMonth,
 } from '@/modules/coach-claim/run-actions'
 import { uploadSignature } from '@/modules/signatures/actions'
+import { uploadOrgLogo } from '@/actions/organisation'
 import { coachPaymentsWorkflow } from '@/modules/workflow/coach-payments'
 import { getMonthlyRun } from '@/modules/coach-claim/monthly-run'
 import { GET as downloadDocument } from '@/app/(dashboard)/[orgSlug]/monthly-run/[invoiceId]/download/[document]/route'
@@ -253,6 +254,28 @@ describe('a month of coach payments', () => {
       // Only the treasurer uploaded a specimen, so only their signing stamps one.
       expect(Object.keys(zip.files).some((name) => name.startsWith('word/media/') && !name.endsWith('/'))).toBe(true)
     }
+  })
+
+  it('puts the club logo at the top of the attendance sheet, and refuses a member uploading one', async () => {
+    const logo = pngFile(400, 200, 'logo.png')
+
+    as(member)
+    expect((await outcome(() => uploadOrgLogo(org.slug, { error: null }, form({ logo })))).kind).toBe('denied')
+
+    as(treasurer)
+    await ok(() => uploadOrgLogo(org.slug, { error: null }, form({ logo })))
+
+    const response = await downloadDocument(new Request('http://test/'), {
+      params: Promise.resolve({ orgSlug: org.slug, invoiceId, document: 'attendance-sheet.docx' }),
+    })
+    const zip = await JSZip.loadAsync(Buffer.from(await response.arrayBuffer()))
+    const expected = Buffer.from(await logo.arrayBuffer())
+    const media = Object.keys(zip.files).filter((name) => name.startsWith('word/media/') && !name.endsWith('/'))
+    const images = await Promise.all(media.map((name) => zip.file(name)!.async('nodebuffer')))
+    expect(images.some((image) => image.equals(expected))).toBe(true)
+    // With a logo, the masthead shows it instead of the club's name as text.
+    const xml = await zip.file('word/document.xml')!.async('string')
+    expect(xml).toContain('Coaches Monthly Attendance Sheet')
   })
 
   it('keeps the coach’s bank account number sealed in the database, and readable on the invoice', async () => {

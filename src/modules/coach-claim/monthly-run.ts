@@ -252,7 +252,7 @@ export async function buildClaimContext(
 
   const settings = await tx.organisationSettings.findUnique({
     where: { orgId: args.orgId },
-    select: { tagline: true, brandBandColors: true, billToName: true, billToAddressLines: true },
+    select: { tagline: true, brandLogoUrl: true, brandBandColors: true, billToName: true, billToAddressLines: true },
   })
 
   const fund = await tx.fundAccount.findFirst({
@@ -281,6 +281,7 @@ export async function buildClaimContext(
     organisationName: args.orgName,
     branding: {
       tagline: settings?.tagline ?? undefined,
+      logoKey: settings?.brandLogoUrl ?? undefined,
       bandColors: settings?.brandBandColors?.length ? settings.brandBandColors : undefined,
     },
     billTo:

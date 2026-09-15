@@ -14,6 +14,7 @@ import 'server-only'
 import type { Prisma, ExcoOffice } from '@prisma/client'
 import { OFFICE_LABELS } from '@/core/access'
 import { readSignature } from '@/modules/signatures'
+import { readLogo } from '@/modules/branding/logo'
 import { fromDateColumn } from '@/lib/date-only'
 import {
   MonthNotFrozenError,
@@ -24,6 +25,7 @@ import {
 } from './snapshot'
 import type {
   AttendanceSheetDocData,
+  BrandLogo,
   FundSource,
   InvoiceDocData,
   SignatureImage,
@@ -75,6 +77,7 @@ interface Loaded {
   invoice: InvoiceDocData
   sheet: AttendanceSheetDocData
   signaturePath: string | null
+  logoKey: string | null
 }
 
 /**
@@ -101,6 +104,15 @@ export async function loadMonthDocuments(
   const sheetRow = invoice.attendanceSheet
   const snapshot = readSnapshot(sheetRow?.snapshot)
   if (!snapshot) throw new MonthNotFrozenError()
+
+  // The logo the month was raised under. Months raised before logos were
+  // recorded in the snapshot take the club's current one: they have never
+  // carried a logo at all, so there is no earlier version to preserve.
+  const logoKey =
+    snapshot.branding?.logoKey ??
+    (await tx.organisationSettings.findUnique({ where: { orgId: args.orgId }, select: { brandLogoUrl: true } }))
+      ?.brandLogoUrl ??
+    null
 
   const lines = linesFrom(
     invoice.lines.map((line) => ({
@@ -148,6 +160,7 @@ export async function loadMonthDocuments(
     invoice: toInvoiceDoc(invoice, lines, snapshot, verification),
     sheet: toSheetDoc(invoice, lines, snapshot, sheetRow?.clubFundBalanceCents ?? null, verification),
     signaturePath: verifiedAt ? (sheetRow?.signatureImagePath ?? null) : null,
+    logoKey,
   }
 }
 
@@ -225,9 +238,15 @@ function toSheetDoc(
  * and the transaction should not be held open across that.
  */
 export async function withSignature(loaded: Loaded): Promise<MonthDocuments> {
-  const signature: SignatureImage | null = await readSignature(loaded.signaturePath)
+  const [signature, logo]: [SignatureImage | null, BrandLogo | null] = await Promise.all([
+    readSignature(loaded.signaturePath),
+    readLogo(loaded.logoKey),
+  ])
+  const sheet: AttendanceSheetDocData = logo
+    ? { ...loaded.sheet, branding: { ...loaded.sheet.branding, logo } }
+    : loaded.sheet
   if (!signature) {
-    return { summary: loaded.summary, invoice: loaded.invoice, sheet: loaded.sheet }
+    return { summary: loaded.summary, invoice: loaded.invoice, sheet }
   }
   return {
     summary: loaded.summary,
@@ -236,9 +255,9 @@ export async function withSignature(loaded: Loaded): Promise<MonthDocuments> {
       endorsement: { ...loaded.invoice.endorsement, signatureImage: signature },
     },
     sheet: {
-      ...loaded.sheet,
-      verification: loaded.sheet.verification
-        ? { ...loaded.sheet.verification, signatureImage: signature }
+      ...sheet,
+      verification: sheet.verification
+        ? { ...sheet.verification, signatureImage: signature }
         : undefined,
     },
   }

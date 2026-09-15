@@ -6,6 +6,7 @@ import {
 } from 'docx'
 import type { AttendanceSheetDocData, ClaimLine } from './types'
 import { signatureBlock } from './signature-block'
+import { fitWithin } from './image-size'
 import { DEFAULT_VERIFYING_OFFICE } from './types'
 import { formatSgd, formatHours } from './money'
 import { FONT, SIZE, INK, INK_SOFT, RULE, HEADER_FILL, FALLBACK_BAND_COLORS, MONTHS, shortDate, longDate } from './theme'
@@ -101,6 +102,9 @@ function claimWorking(lines: ClaimLine[]): string | null {
     .join('  +  ')
 }
 
+/** The logo's box in the masthead, in pixels at 96dpi. */
+const LOGO_BOX = { width: 130, height: 72 }
+
 export function buildAttendanceSheet(data: AttendanceSheetDocData): Document {
   const { instructor, sessions, roster } = data
   const period = `${MONTHS[data.periodMonth - 1]} ${data.periodYear}`.toUpperCase()
@@ -117,9 +121,18 @@ export function buildAttendanceSheet(data: AttendanceSheetDocData): Document {
     ...(branding.tagline ? [line(branding.tagline, { size: SIZE.small, color: INK_SOFT })] : []),
   ]
 
+  // Fitted inside the masthead cell by its own proportions: the club's
+  // wordmark is wide and short, and stretching it into a square is the one
+  // thing a logo must never look like.
   const mark = logo
     ? [new Paragraph({
-        children: [new ImageRun({ data: logo, type: 'png', transformation: { width: 92, height: 92 } })],
+        children: [
+          new ImageRun({
+            data: logo.bytes,
+            type: logo.format,
+            transformation: fitWithin(logo, LOGO_BOX),
+          }),
+        ],
       })]
     : [line(data.organisationName, { size: SIZE.masthead, bold: true })]
 
@@ -128,7 +141,7 @@ export function buildAttendanceSheet(data: AttendanceSheetDocData): Document {
     borders: { ...NO_BORDERS, insideHorizontal: NONE, insideVertical: NONE },
     rows: [
       new TableRow({
-        children: [cell(mark, 14), cell(title, 86, VerticalAlign.CENTER)],
+        children: [cell(mark, logo ? 22 : 14), cell(title, logo ? 78 : 86, VerticalAlign.CENTER)],
       }),
     ],
   })
