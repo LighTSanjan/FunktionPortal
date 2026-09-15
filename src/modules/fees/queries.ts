@@ -248,12 +248,19 @@ export async function listCollection(
   orgId: string,
   termId: string
 ): Promise<{ rows: PaymentRow[]; totals: CollectionTotals }> {
-  const { members, payments, arrangements, rates } = await dbAs(userId, async (tx) => {
+  const { members, payments, arrangements, rates, charges } = await dbAs(userId, async (tx) => {
     const term = await tx.term.findFirst({
       where: { id: termId, orgId },
-      select: { fullFeeCents: true, halfFeeCents: true, exchangeFeeCents: true },
+      select: { fullFeeCents: true, halfFeeCents: true, exchangeFeeCents: true, closedAt: true },
     })
+    // A closed collection is read from what was written down when it closed,
+    // not from today's roster. Terms closed before that was kept have none,
+    // and are still worked out live.
+    const charges = term?.closedAt
+      ? await tx.termCloseCharge.findMany({ where: { orgId, termId } })
+      : []
     return {
+      charges,
       // Active members, plus anybody who has a payment against this term.
       // Starting from the active roster alone drops a confirmed payer who has
       // since graduated — while closing the collection still banks their
@@ -264,11 +271,14 @@ export async function listCollection(
       members: await tx.member.findMany({
         where: {
           orgId,
-          OR: [
-            { isActive: true },
-            { feePayments: { some: { termId } } },
-            { feeArrangements: { some: { termId } } },
-          ],
+          OR:
+            charges.length > 0
+              ? [{ id: { in: charges.map((charge) => charge.memberId) } }, { feePayments: { some: { termId } } }]
+              : [
+                  { isActive: true },
+                  { feePayments: { some: { termId } } },
+                  { feeArrangements: { some: { termId } } },
+                ],
         },
         orderBy: { fullName: 'asc' },
         select: {
@@ -300,17 +310,28 @@ export async function listCollection(
     exchangeFeeCents: null,
   }
 
+  const chargeFor = new Map(charges.map((charge) => [charge.memberId, charge]))
+  const frozen = charges.length > 0
+
   const rows: PaymentRow[] = []
   for (const member of members) {
     const payment = byMember.get(member.id)
     const arrangement = arrangementFor.get(member.id) ?? null
-    const fee = resolveFee({
+    const charge = chargeFor.get(member.id)
+    // The label as it was when the collection closed, so a relabel next term
+    // does not reach back.
+    const rosterLabel = charge ? charge.rosterLabel : member.rosterLabel
+    const live = resolveFee({
       payment: payment ?? null,
       arrangement,
-      rosterLabel: member.rosterLabel,
+      rosterLabel,
       isActive: member.isActive,
       rates: termRates,
     })
+    const fee =
+      frozen && charge && !payment
+        ? { ...live, tier: charge.tier, amountCents: charge.amountCents, charged: charge.amountCents > 0 || charge.onRoster }
+        : live
     // Nobody who has left owes anything, and a row for them on the collection
     // screen is a row somebody will chase — unless they already paid, in
     // which case their money is in the total and the row has to be there to
@@ -318,13 +339,14 @@ export async function listCollection(
     if (!fee.charged && !payment) continue
     // A payment fixes the figure, but the question of whether the roster was
     // sure is still worth asking about a row nobody has decided.
-    const roster = resolveFee({
+    const rosterNow = resolveFee({
       payment: null,
       arrangement,
-      rosterLabel: member.rosterLabel,
+      rosterLabel,
       isActive: member.isActive,
       rates: termRates,
     })
+    const roster = frozen ? { ...rosterNow, certain: true, charged: charge?.onRoster ?? false } : rosterNow
     rows.push({
       id: payment?.id ?? null,
       memberId: member.id,
@@ -353,7 +375,7 @@ export async function listCollection(
       // carries the same guess — a member is never asked which tier they are
       // on — so clearing the flag on sight of one would hide the warning at
       // exactly the moment somebody is about to confirm the guessed amount.
-      rosterFee: rosterFeeLabel(member.rosterLabel),
+      rosterFee: rosterFeeLabel(rosterLabel),
       tierUncertain: !roster.certain,
       tierBecause: roster.because,
       onRoster: roster.charged,

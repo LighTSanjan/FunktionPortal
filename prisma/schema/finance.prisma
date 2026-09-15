@@ -172,6 +172,7 @@ model Member {
   attendance   SessionAttendance[]
   feePayments  FeePayment[]
   feeArrangements FeeArrangement[]
+  closeCharges    TermCloseCharge[]
   membershipResponses MembershipResponse[]
   formRecipients  MembershipFormRecipient[]
   purchaseRequests PurchaseRequest[]
@@ -544,6 +545,7 @@ model Term {
   organisation  Organisation       @relation(fields: [orgId], references: [id], onDelete: Cascade)
   feePayments   FeePayment[]
   feeArrangements FeeArrangement[]
+  closeCharges   TermCloseCharge[]
   membershipForm MembershipForm?
   membershipResponses MembershipResponse[]
   incomeDeposit IncomeDeposit?
@@ -633,6 +635,26 @@ model FeeArrangement {
   @@unique([termId, memberId])
   @@index([orgId])
   @@map("fee_arrangements")
+}
+
+/// Who was charged what when a collection closed. A closed term is read from
+/// these rather than from the live roster, which keeps moving.
+model TermCloseCharge {
+  termId      String  @map("term_id")
+  memberId    String  @map("member_id")
+  orgId       String  @map("org_id")
+  tier        FeeTier
+  amountCents Int     @map("amount_cents")
+  rosterLabel String? @map("roster_label")
+  onRoster    Boolean @map("on_roster")
+
+  organisation Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  term         Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@id([termId, memberId])
+  @@index([orgId])
+  @@map("term_close_charges")
 }
 
 /// A term's membership form: what members fill in to join for the term and

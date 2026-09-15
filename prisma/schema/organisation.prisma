@@ -28,6 +28,7 @@ model Organisation {
   terms              Term[]
   feePayments        FeePayment[]
   feeArrangements    FeeArrangement[]
+  termCloseCharges   TermCloseCharge[]
   membershipForms    MembershipForm[]
   membershipQuestions MembershipQuestion[]
   membershipResponses MembershipResponse[]

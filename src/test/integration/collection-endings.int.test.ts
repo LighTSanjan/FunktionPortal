@@ -160,6 +160,21 @@ describe('how a collection ends', () => {
       expect(after.restingState ?? '').not.toMatch(/Waiting on/)
     })
 
+    it('stays as it was when it closed, whatever happens to the roster afterwards', async () => {
+      as(treasurer)
+      const before = await listCollection(treasurer.id, org.id, termId)
+      const newcomer = await addRosterMember(org, { fullName: 'Zed Newcomer', studentId: '1000077', rosterLabel: 'Confirmed' })
+      await dbAdmin.member.update({ where: { id: ids['Ben Ong'] }, data: { rosterLabel: 'Graduated', isActive: false } })
+
+      const after = await listCollection(treasurer.id, org.id, termId)
+      expect(after.rows.map((row) => row.memberName)).not.toContain('Zed Newcomer')
+      expect(after.rows.find((row) => row.memberName === 'Ben Ong')?.amountCents).toBe(7_000)
+      expect(after.totals.owedCents).toBe(before.totals.owedCents)
+
+      await dbAdmin.member.update({ where: { id: ids['Ben Ong'] }, data: { rosterLabel: 'Confirmed', isActive: true } })
+      await dbAdmin.member.delete({ where: { id: newcomer.id } })
+    })
+
     it('prints the day it was banked on the deposit form when no final collection date was set', async () => {
       as(treasurer)
       const input = await depositFormInput(treasurer.id, org.id, org.name, termId)

@@ -15,6 +15,7 @@ import { matchRosterRow } from '@/core/auth/roster-match'
 import { splitGst, DEFAULT_GST_BASIS_POINTS } from './money'
 import { validateProof, putProof, discardProof, ProofRejected, MAX_PROOF_BYTES } from './proof'
 import { lockTermFees, writeDeclaration } from './declaration'
+import { writeCloseCharges } from './close-charges'
 import { validateQr, putQr, QrRejected, MAX_QR_BYTES } from './qr'
 
 export interface FeeState {
@@ -755,6 +756,7 @@ export async function closeCollection(
         where: { termId: term.id, state: { not: 'CLOSED' } },
         data: { state: 'CLOSED', closedAt: new Date() },
       })
+      await writeCloseCharges(tx, org.id, term.id)
       await tx.term.update({ where: { id: term.id }, data: { closedAt: new Date() } })
       await writeAudit(
         {
@@ -797,6 +799,7 @@ export async function closeCollection(
     // The unique key on termId is what actually serialises two treasurers
     // pressing this at once. The precheck above is for the message; this is
     // for the outcome.
+    await writeCloseCharges(tx, org.id, term.id)
     await tx.term.update({ where: { id: term.id }, data: { closedAt: new Date() } })
 
     const deposit = await tx.incomeDeposit.create({
