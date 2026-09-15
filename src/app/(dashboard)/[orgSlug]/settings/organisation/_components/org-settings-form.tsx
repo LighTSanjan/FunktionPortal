@@ -11,6 +11,7 @@ export interface OrgSettingsValues {
   name: string
   tagline: string
   institutionShortName: string
+  oslContactName: string
   submissionEmail: string
   billToName: string
   billToAddressLines: string
@@ -80,18 +81,27 @@ export function OrgSettingsForm({
         title="Filing"
         blurb="Where the paperwork goes, and the numbers it is filed under. Changing the project code changes every reference number issued from now on; numbers already issued keep theirs."
       >
-        <FormField
-          label="Submission address"
-          htmlFor="submissionEmail"
-          hint="Fills the To: field when you send a month. The portal never sends on your behalf."
-        >
-          <Input
-            id="submissionEmail"
-            name="submissionEmail"
-            type="email"
-            defaultValue={values.submissionEmail}
-          />
-        </FormField>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <FormField
+            label="OSL representative"
+            htmlFor="oslContactName"
+            hint="Who at the Office of Student Life handles the club. The month's email goes to them."
+          >
+            <Input id="oslContactName" name="oslContactName" defaultValue={values.oslContactName} />
+          </FormField>
+          <FormField
+            label="Their email"
+            htmlFor="submissionEmail"
+            hint="Where the signed PDFs are sent. The portal never sends on your behalf."
+          >
+            <Input
+              id="submissionEmail"
+              name="submissionEmail"
+              type="email"
+              defaultValue={values.submissionEmail}
+            />
+          </FormField>
+        </div>
         <div className="grid gap-5 sm:grid-cols-2">
           <FormField
             label="Project code"

@@ -484,17 +484,46 @@ body {
    Keyed on data-print rather than on utility classes: a class name is a
    styling decision that can change, while "this is chrome, not document" is a
    fact about the element. */
+/* A4, and landscape for a sheet with more class dates than fit across a
+   portrait page — the same rule the .docx uses. Named pages let one PDF mix
+   the two. */
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+@page landscape {
+  size: A4 landscape;
+  margin: 12mm;
+}
+
 @media print {
+  [data-print='sheet'][data-orientation='landscape'] {
+    page: landscape;
+  }
+
   [data-print='hide'] {
     display: none !important;
   }
 
-  /* The shell holds the page in a fixed-height scroller. Left alone, a print
-     job is one screenful and the rest is silently dropped. */
+  /* The shell holds the page in a fixed-height scroller, inside flex boxes.
+     Left alone, a print job is one screenful and the rest is silently
+     dropped — and page breaks are ignored inside flex, so the two documents
+     ran together on a single page. The boxes around the page go back to
+     plain blocks for printing. */
+  body *:has([data-print='page']) {
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
   html,
   body,
   [data-print='page'],
-  [data-print='page'] * {
+  /* Not inside a document: the documents size their own parts, and the
+     coloured band under the masthead is 5px tall because it says so. */
+  [data-print='page'] *:not([data-print='sheet'] *) {
     height: auto !important;
     max-height: none !important;
     overflow: visible !important;
@@ -510,12 +539,19 @@ body {
 
   /* Each document is a sheet of paper, and two sheets are two pages. */
   [data-print='sheet'] {
-    break-inside: avoid;
     break-after: page;
     box-shadow: none !important;
     border: none !important;
     padding: 0 !important;
     background: #fff !important;
+  }
+
+  /* The paper itself: no drop shadow, and the page margin does the work the
+     on-screen padding did. */
+  [data-print='sheet'] > div {
+    box-shadow: none !important;
+    padding: 0 !important;
+    width: 100% !important;
   }
 
   [data-print='sheet']:last-of-type {

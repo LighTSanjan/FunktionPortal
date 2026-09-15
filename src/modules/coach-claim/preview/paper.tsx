@@ -30,6 +30,7 @@ export function Paper({
   return (
     <div
       data-print="sheet"
+      data-orientation={landscape ? 'landscape' : 'portrait'}
       className="overflow-x-auto rounded-[var(--radius-md)] border border-border bg-[var(--sunk,#F1EFEA)] p-3 sm:p-5"
     >
       <div

@@ -93,6 +93,9 @@ model OrganisationSettings {
   /// screen and fills the mail client's To: field; the portal never sends on
   /// anybody's behalf.
   submissionEmail    String? @map("submission_email")
+  /// The person at the Office of Student Life that address belongs to — the
+  /// club's OSL representative, named at the top of the month's email.
+  oslContactName     String? @map("osl_contact_name")
   /// Telegram group the portal posts reminders into.
   telegramChatId     String? @map("telegram_chat_id")
 

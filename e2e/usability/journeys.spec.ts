@@ -99,7 +99,28 @@ test('the treasurer raises last month from the home screen, reads it and signs i
   await page.getByRole('button', { name: /Verify without a stamp|Sign both documents/ }).click()
   await expect(page.getByRole('heading', { name: 'Signed' })).toBeVisible()
 
-  await visit(page, `${page.url()}/print`)
+  const monthUrl = page.url()
+  await visit(page, `${monthUrl}/print`)
+
+  // The month's email and the one PDF that goes with it.
+  await visit(page, monthUrl)
+  await expect(page.getByText(/^Coach Payment for /)).toBeVisible()
+  await expect(page.getByText(/attached are the necessary documents for instructor's payment/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Start the email' })).toHaveCount(0)
+
+  const download = page.waitForEvent('download', { timeout: 90_000 })
+  await page.getByRole('button', { name: 'Download signed PDF' }).click()
+  const file = await download
+  expect(file.suggestedFilename()).toMatch(/Kai Smith .*\.pdf$/)
+  const pdf = await (await import('node:fs/promises')).readFile((await file.path())!)
+  expect(pdf.subarray(0, 5).toString()).toBe('%PDF-')
+  await file.saveAs('test-results/signed-month.pdf')
+  // The invoice and the attendance sheet: at least two pages.
+  const { PDFDocument } = await import('pdf-lib')
+  expect((await PDFDocument.load(pdf)).getPageCount()).toBeGreaterThanOrEqual(2)
+
+  await page.getByRole('button', { name: 'Mark as sent' }).click()
+  await expect(page.getByText(/Marked as sent on/)).toBeVisible()
 })
 
 test('the treasurer puts this term’s PayNow QR up', async () => {

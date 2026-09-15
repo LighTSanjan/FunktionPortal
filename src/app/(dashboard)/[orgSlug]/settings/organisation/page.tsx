@@ -54,6 +54,7 @@ export default async function OrganisationSettingsPage({
               name: org.name,
               tagline: settings?.tagline ?? '',
               institutionShortName: settings?.institutionShortName ?? '',
+              oslContactName: settings?.oslContactName ?? '',
               submissionEmail: settings?.submissionEmail ?? '',
               billToName: settings?.billToName ?? '',
               billToAddressLines: (settings?.billToAddressLines ?? []).join('\n'),

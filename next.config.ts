@@ -4,7 +4,7 @@ import type { NextConfig } from 'next'
 // carries a fresh nonce each time.
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["@prisma/adapter-pg", "pg"],
+  serverExternalPackages: ["@prisma/adapter-pg", "pg", "playwright-core", "@sparticuz/chromium"],
   experimental: {
     serverActions: {
       // Payment screenshots and QR images are allowed up to 5 MB; the default

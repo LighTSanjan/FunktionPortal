@@ -15,6 +15,7 @@ import { NO_OFFICE } from '@/modules/coach-claim/documents'
 import { OFFICE_LABELS } from '@/core/access'
 import { SignPanel } from './_components/sign-panel'
 import { SendPanel } from './_components/send-panel'
+import { coachPaymentEmail } from '@/modules/coach-claim/osl-email'
 import { PaidToggle } from '../_components/paid-toggle'
 
 export const dynamic = 'force-dynamic'
@@ -42,21 +43,34 @@ export default async function MonthDocumentsPage({
     if (documents === 'NOT_FROZEN') return 'NOT_FROZEN' as const
     if (!documents) return null
 
-    const [user, settings, membership] = await Promise.all([
+    const [user, settings, membership, monthInvoices] = await Promise.all([
       tx.user.findUnique({ where: { id: userId }, select: { signatureImagePath: true } }),
       tx.organisationSettings.findUnique({
         where: { orgId: org.id },
-        select: { submissionEmail: true },
+        select: { submissionEmail: true, oslContactName: true },
       }),
       tx.organisationMembership.findUnique({
         where: { userId_orgId: { userId, orgId: org.id } },
         select: { office: true },
+      }),
+      // Every coach billed for this month, for the one email that carries them all.
+      tx.invoice.findMany({
+        where: {
+          orgId: org.id,
+          periodYear: documents.summary.periodYear,
+          periodMonth: documents.summary.periodMonth,
+          status: { not: 'VOID' },
+        },
+        orderBy: { documentNo: 'asc' },
+        select: { instructor: { select: { fullName: true, shortCode: true } } },
       }),
     ])
     return {
       documents,
       hasSpecimen: Boolean(user?.signatureImagePath),
       submissionEmail: settings?.submissionEmail ?? null,
+      oslContactName: settings?.oslContactName ?? null,
+      monthCoaches: monthInvoices.map((row) => row.instructor),
       viewerOffice: membership?.office ?? null,
     }
   })
@@ -93,16 +107,11 @@ export default async function MonthDocumentsPage({
   // portal cannot observe: the money moves in OSL's accounts.
   const paid = summary.status === 'PAID'
 
-  const subject = `${summary.referenceNumber} — Coach invoice and attendance sheet, ${period} — ${org.name}`
-  const body =
-    `Dear Office of Student Life,\n\n` +
-    `Please find attached the coach invoice and the verified attendance sheet for ` +
-    `${summary.instructorName}, covering ${period}.\n\n` +
-    `Reference: ${summary.referenceNumber}\n` +
-    `Invoice: ${summary.documentNo}, dated ${longDate(summary.invoiceDate)}\n` +
-    `Amount: ${formatSgd(summary.totalCents)}\n` +
-    `Fund: ${summary.fundSource === 'SEED' ? 'Seed Fund' : 'Income'}\n\n` +
-    `Thank you,\n${viewerName}\n${org.name}`
+  const { subject, body } = coachPaymentEmail({
+    periodYear: summary.periodYear,
+    periodMonth: summary.periodMonth,
+    coaches: loaded.monthCoaches,
+  })
 
   return (
     <div className="mx-auto max-w-[1080px] space-y-5">
@@ -199,7 +208,9 @@ export default async function MonthDocumentsPage({
           <SendPanel
             orgSlug={orgSlug}
             invoiceId={invoiceId}
+            toName={loaded.oslContactName}
             to={loaded.submissionEmail}
+            coachCount={loaded.monthCoaches.length}
             subject={subject}
             body={body}
             submittedOn={

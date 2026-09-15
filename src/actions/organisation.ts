@@ -33,6 +33,7 @@ const settingsSchema = z.object({
   name: z.string().trim().min(2, 'The organisation needs a name').max(120, 'That name is too long'),
   tagline: optionalText,
   institutionShortName: optionalText,
+  oslContactName: optionalText,
   submissionEmail: z
     .union([z.literal(''), z.string().trim().email('That is not an email address')])
     .transform((value) => value || null),
@@ -73,6 +74,7 @@ export async function updateOrgSettings(
     name: formData.get('name') ?? '',
     tagline: formData.get('tagline') ?? '',
     institutionShortName: formData.get('institutionShortName') ?? '',
+    oslContactName: formData.get('oslContactName') ?? '',
     submissionEmail: formData.get('submissionEmail') ?? '',
     billToName: formData.get('billToName') ?? '',
     billToAddressLines: formData.get('billToAddressLines') ?? '',
@@ -121,6 +123,7 @@ export async function updateOrgSettings(
           cluster: beforeSettings?.cluster ?? null,
           gstBasisPoints: beforeSettings?.gstBasisPoints ?? null,
           submissionEmail: beforeSettings?.submissionEmail ?? null,
+          oslContactName: beforeSettings?.oslContactName ?? null,
         },
         after: {
           name,
@@ -128,6 +131,7 @@ export async function updateOrgSettings(
           cluster: settings.cluster,
           gstBasisPoints,
           submissionEmail: settings.submissionEmail,
+          oslContactName: settings.oslContactName,
         },
       },
       tx
