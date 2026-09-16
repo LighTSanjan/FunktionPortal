@@ -16,6 +16,13 @@ function makeRequest(path: string): NextRequest {
   return new NextRequest(new URL(`http://localhost:3000${path}`))
 }
 
+/** A button press: the form posted a server action from a page already open. */
+function makeAction(path: string): NextRequest {
+  const request = new NextRequest(new URL(`http://localhost:3000${path}`), { method: 'POST' })
+  request.headers.set('next-action', '60dcd202b1fc640da88256d3145b9b33149646bac8')
+  return request
+}
+
 describe('proxy', () => {
   beforeEach(() => {
     mockUser = null
@@ -93,6 +100,41 @@ describe('proxy', () => {
     mockUser = { id: 'user-1' }
     const res = await proxy(makeRequest('/acme/dashboard'))
     expect(res.headers.get('location')).toBeNull()
+  })
+
+  // A plain redirect answers a button press with HTML, which the router
+  // cannot read: whoever pressed it got "An unexpected response was received
+  // from the server." instead of the sign-in page.
+  it('turns a button press away in the way the router understands', async () => {
+    const request = makeAction('/acme/fees?edit=1')
+    const res = await proxy(request)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('location')).toBeNull()
+    expect(res.headers.get('content-type')).toBe('text/plain')
+    expect(res.headers.get('x-action-redirect')).toBe(
+      `/sign-in?callbackUrl=${encodeURIComponent('/acme/fees')};push`
+    )
+    // And it still remembers where they were, for after they sign in.
+    expect(res.cookies.get('funktion-return-to')?.value).toBe('/acme/fees?edit=1')
+  })
+
+  it('sends a button pressed on a sign-in page left open home the same way', async () => {
+    mockUser = { id: 'user-1' }
+    const res = await proxy(makeAction('/sign-in'))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('x-action-redirect')).toBe('/;push')
+  })
+
+  it('still redirects a page load, which is a navigation and not an action', async () => {
+    const res = await proxy(makeRequest('/acme/fees'))
+    expect(res.status).toBe(307)
+    expect(res.headers.get('x-action-redirect')).toBeNull()
+  })
+
+  it('does not mistake a plain POST for an action', async () => {
+    const res = await proxy(new NextRequest(new URL('http://localhost:3000/acme/fees'), { method: 'POST' }))
+    expect(res.status).toBe(307)
+    expect(res.headers.get('x-action-redirect')).toBeNull()
   })
 })
 

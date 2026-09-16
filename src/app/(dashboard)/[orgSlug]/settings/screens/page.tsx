@@ -103,6 +103,13 @@ export default async function ScreensPage({ params }: { params: Promise<{ orgSlu
         { label: 'Page not found (404)', href: '/this-page-does-not-exist' },
         { label: 'Record not found', href: `${base}/instructors/not-a-real-coach` },
         { label: 'Crash (500)', href: `${base}/settings/screens/crash` },
+        {
+          label: 'Page out of step',
+          href: `${base}/settings/screens/out-of-step`,
+          // Reloading this one throws again by design, so it gets its own tab.
+          newTab: true,
+          note: 'after a deploy, in a tab left open',
+        },
         { label: 'Exco only', href: `${base}/no-access` },
       ],
     },

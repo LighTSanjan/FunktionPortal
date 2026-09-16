@@ -7,7 +7,7 @@
  *
  * `for` limits a photo to some pages; leave it out and it can turn up on any.
  */
-export type ErrorKind = 'not-found' | 'crash' | 'no-access' | 'offline'
+export type ErrorKind = 'not-found' | 'crash' | 'no-access' | 'offline' | 'stale'
 
 export interface ErrorFace {
   src: string

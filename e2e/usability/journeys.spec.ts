@@ -323,3 +323,53 @@ test('a shared link to the form, opened signed out, lands on the form after sign
   await page.waitForURL(new RegExp(`/${ORG}/dashboard$`))
   await fresh.close()
 })
+
+test('a tab older than the server says so, and offers a reload', async ({ browser }) => {
+  const fresh = await browser.newContext()
+  const page = await fresh.newPage()
+  await page.goto('/sign-in')
+
+  // What a tab left open across a deploy gets back: the action id it holds
+  // is not in the new build. Faked here because the alternative is deploying
+  // mid-test, and the response is the whole of what the browser sees.
+  await page.route('**/sign-in', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue()
+    await route.fulfill({
+      status: 404,
+      headers: { 'content-type': 'text/plain', 'x-nextjs-action-not-found': '1' },
+      body: 'Server action not found.',
+    })
+  })
+
+  await page.locator('#email').fill(MEMBER.email)
+  await page.getByRole('button', { name: 'Email me a code' }).click()
+
+  // Not "Somebody tripped over a cable": nothing tripped, the page is old.
+  await expect(page.getByRole('heading', { name: 'This page is out of step' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+
+  await page.unroute('**/sign-in')
+  await page.getByRole('button', { name: 'Reload the page' }).click()
+  await expect(page.locator('#email')).toBeVisible()
+  await fresh.close()
+})
+
+test('a button pressed after the session ran out goes to sign-in, not an error', async ({ browser }) => {
+  const fresh = await browser.newContext()
+  const page = await fresh.newPage()
+  await signInWithCode(page, MEMBER.email)
+  await page.goto(`/${ORG}/fees?edit=1`)
+  await expect(page.getByRole('button', { name: 'Save changes' })).toBeVisible()
+
+  // What a session running out looks like from a page already open.
+  await fresh.clearCookies()
+  await page.getByRole('button', { name: 'Save changes' }).click()
+
+  // The proxy turns the button press away. Before, the browser followed a
+  // redirect to HTML and the router threw "An unexpected response was
+  // received from the server." at whoever pressed it.
+  await page.waitForURL(/\/sign-in/)
+  await expect(page.getByRole('button', { name: 'Email me a code' })).toBeVisible()
+  await expect(page.getByText('Sign in and you’ll go straight back to the page you opened.')).toBeVisible()
+  await fresh.close()
+})

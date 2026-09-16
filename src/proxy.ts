@@ -70,6 +70,35 @@ function isPrefetch(request: NextRequest): boolean {
   return request.headers.has('next-router-prefetch') || request.headers.get('purpose') === 'prefetch'
 }
 
+/** A button press, not a page load: the form posted a server action. */
+function isServerAction(request: NextRequest): boolean {
+  return request.method === 'POST' && request.headers.has('next-action')
+}
+
+/**
+ * Send a server action somewhere else.
+ *
+ * A plain redirect is wrong here. The browser follows it, gets HTML back
+ * where the router wanted a server response, and throws "An unexpected
+ * response was received from the server." — which is what somebody pressing
+ * a button after their session ran out actually saw. The router does
+ * understand a redirect named in a header on an empty text/plain body, and
+ * takes the whole page there, which is what should happen.
+ *
+ * If a future Next stops reading this header the old behaviour comes back:
+ * an error screen rather than a wrong page. e2e/usability/journeys.spec.ts
+ * covers it.
+ */
+function redirectAction(to: URL): NextResponse {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'content-type': 'text/plain',
+      'x-action-redirect': `${to.pathname}${to.search};push`,
+    },
+  })
+}
+
 async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
   let supabaseResponse = NextResponse.next({
@@ -110,7 +139,7 @@ async function updateSession(request: NextRequest) {
   if (!user && !matches(pathname, AUTH_PAGES)) {
     const signInUrl = new URL('/sign-in', request.url)
     signInUrl.searchParams.set('callbackUrl', pathname)
-    const response = NextResponse.redirect(signInUrl)
+    const response = isServerAction(request) ? redirectAction(signInUrl) : NextResponse.redirect(signInUrl)
     // Remembered across every step of getting in, so the page they opened is
     // the page they land on. See return-path.ts.
     const returnTo = readReturnPath(`${pathname}${request.nextUrl.search}`)
@@ -127,7 +156,10 @@ async function updateSession(request: NextRequest) {
   }
 
   if (user && matches(pathname, AUTH_PAGES)) {
-    return NextResponse.redirect(new URL('/', request.url))
+    const home = new URL('/', request.url)
+    // A sign-in page left open in one tab while another tab signed in: the
+    // button belongs to a page they no longer need, so take them home.
+    return isServerAction(request) ? redirectAction(home) : NextResponse.redirect(home)
   }
 
   // Arrived somewhere real: whatever they were on their way to is either

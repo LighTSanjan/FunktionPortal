@@ -2,6 +2,7 @@
 
 import './globals.css'
 import { ErrorScene } from '@/core/ui/error-scene'
+import { isStaleClientError } from '@/core/ui/stale-client'
 
 /**
  * When even the root layout fails. It replaces the whole document, so it
@@ -16,21 +17,23 @@ export default function GlobalError({
   reset: () => void
   unstable_retry?: () => void
 }) {
+  const stale = isStaleClientError(error)
+
   return (
     <html lang="en" className="light">
       <body className="min-h-screen bg-bg px-4 font-sans">
-        <title>Something broke</title>
+        <title>{stale ? 'This page is out of step' : 'Something broke'}</title>
         <div aria-hidden="true" className="lapis-band -mx-4 h-[7px]" />
         <ErrorScene
-          kind="crash"
-          reference={error.digest}
+          kind={stale ? 'stale' : 'crash'}
+          reference={stale ? undefined : error.digest}
           actions={
             <button
               type="button"
-              onClick={() => (unstable_retry ?? reset)()}
+              onClick={() => (stale ? window.location.reload() : (unstable_retry ?? reset)())}
               className="lapis-stack inline-flex h-11 items-center rounded-[var(--radius-md)] bg-accent-500 px-5 text-[14px] font-medium text-white hover:bg-accent-400"
             >
-              Try again
+              {stale ? 'Reload the page' : 'Try again'}
             </button>
           }
         />

@@ -34,6 +34,11 @@ const COPY: Record<ErrorKind, { code: string; title: string; body: string }> = {
     title: 'The music stopped',
     body: 'The portal could not be reached. Check your connection and try again.',
   },
+  stale: {
+    code: '↻',
+    title: 'This page is out of step',
+    body: 'This tab can no longer load what it needs — usually because the portal was updated while it sat open. Reload the page to get a fresh copy. Anything already saved is safe.',
+  },
 }
 
 function pickFace(kind: ErrorKind, seed: string): ErrorFace | null {
