@@ -1,6 +1,23 @@
+<div align="center">
+
+<img src="docs/assets/funktion-logo.png" alt="FUNKtion" width="240">
+
 # FUNKtion Treasury
 
-The treasury portal for FUNKtion, SUTD's Ultimate Popping & Locking Dance Club.
+**The treasury portal for FUNKtion — SUTD's Ultimate Popping & Locking Dance Club.**
+
+Every fact gets entered once. Every document is a rendering of it.
+
+[![CI](https://github.com/DarKSanjan/FunktionPortal/actions/workflows/ci.yml/badge.svg)](https://github.com/DarKSanjan/FunktionPortal/actions/workflows/ci.yml)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-304890?style=flat-square&logo=nextdotjs&logoColor=white)](https://nextjs.org)
+[![React 19](https://img.shields.io/badge/React-19-58C0E8?style=flat-square&logo=react&logoColor=white)](https://react.dev)
+[![TypeScript 5](https://img.shields.io/badge/TypeScript-5-304890?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Prisma 7](https://img.shields.io/badge/Prisma-7-F05820?style=flat-square&logo=prisma&logoColor=white)](https://www.prisma.io)
+[![Supabase](https://img.shields.io/badge/Postgres-Supabase-F8A838?style=flat-square&logo=supabase&logoColor=white)](https://supabase.com)
+
+<img src="docs/assets/band.svg" alt="" width="100%" height="10">
+
+</div>
 
 It keeps the club's financial facts in one place and derives the documents and summaries from
 those records. The detailed implementation history and remaining work are in
