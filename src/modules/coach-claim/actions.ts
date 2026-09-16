@@ -222,10 +222,6 @@ function redactBank<T extends { bankAccountNo?: string | null }>(row: T): Record
   }
 }
 
-// ─────────────────────────────────────────────
-// Class sessions
-// ─────────────────────────────────────────────
-
 const sessionSchema = z.object({
   // Blank is a real answer, not a missing one: it means the club met and
   // nobody was paid to teach. See ClassSession.instructorId.

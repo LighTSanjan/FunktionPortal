@@ -8,10 +8,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    // Register control-total tests under prisma/data must run in CI too.
     include: ['src/**/*.{test,spec}.{ts,tsx}', 'prisma/**/*.{test,spec}.{ts,tsx}'],
-    // Integration tests need the throwaway database stack and their own
-    // setup; they run under vitest.integration.config.ts, never here.
     exclude: ['**/node_modules/**', 'src/test/integration/**'],
     coverage: {
       reporter: ['text', 'json', 'html'],

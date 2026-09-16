@@ -172,7 +172,6 @@ export default async function FeesPage({
         ? 'The form is closed'
         : 'Not open yet'
 
-  // ── An exco member previewing ──
   if (preview) {
     return (
       <Shell header={header}>
@@ -201,7 +200,6 @@ export default async function FeesPage({
     )
   }
 
-  // ── A form sent to particular people, and this is not one of them ──
   if (!response && !formIsFor(form, member?.id ?? null)) {
     return (
       <Shell header={header}>
@@ -216,7 +214,6 @@ export default async function FeesPage({
     )
   }
 
-  // ── The form, to fill in ──
   if (formOpen && (!response || editing)) {
     return (
       <Shell header={header}>
@@ -237,7 +234,6 @@ export default async function FeesPage({
     )
   }
 
-  // ── Not open, and nothing sent ──
   if (!response) {
     const closedLine =
       form.state === 'DRAFT'
@@ -291,7 +287,6 @@ export default async function FeesPage({
     )
   }
 
-  // ── What they sent, and where their payment stands ──
   const onRoster = Boolean(member)
   const amountCents = payment?.amountCents ?? response.held?.amountCents ?? fee.amountCents
   const status = payment?.status ?? (response.held ? 'HELD' : null)

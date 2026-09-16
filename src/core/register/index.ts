@@ -55,20 +55,7 @@ function toAmount(row: {
   return -spent
 }
 
-/**
- * The register as the club keeps it: every row imported from the spreadsheet,
- * and every document the portal itself raised that is not on it yet.
- *
- * Invoices and deposits raised here used to be missing from the register
- * altogether, so the portal's register stopped in whatever month the sheet
- * was last imported while the fund balances carried on. A portal document
- * that was also typed into the sheet is shown once, as the sheet has it —
- * matched by lib/reference-match, which copes with a mistyped number without
- * mistaking one document for another.
- *
- * Loaded once per request; filter, count and total the result in memory
- * rather than reading the whole register again for each figure on a page.
- */
+/** Imported register rows plus unmatched portal documents, loaded once per request. */
 export async function loadLedger(userId: string, orgId: string): Promise<LedgerEntry[]> {
   const { imported, invoices, deposits } = await dbAs(userId, async (tx) => ({
     imported: await tx.registerEntry.findMany({ where: { orgId } }),
@@ -190,7 +177,19 @@ export async function loadLedger(userId: string, orgId: string): Promise<LedgerE
       (b.sheetRowNumber ?? Number.MAX_SAFE_INTEGER) - (a.sheetRowNumber ?? Number.MAX_SAFE_INTEGER) ||
       a.sourceId.localeCompare(b.sourceId)
   )
-  return rows.map(({ sheetRowNumber: _row, sourceId: _source, ...entry }) => entry)
+  return rows.map((row) => ({
+    id: row.id,
+    section: row.section,
+    financialYear: row.financialYear,
+    reference: row.reference,
+    description: row.description,
+    payeeName: row.payeeName,
+    documentDate: row.documentDate,
+    amountCents: row.amountCents,
+    submittedToOslAt: row.submittedToOslAt,
+    bankedInAt: row.bankedInAt,
+    fromPortal: row.fromPortal,
+  }))
 }
 
 export function filterLedger(

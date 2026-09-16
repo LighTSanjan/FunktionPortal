@@ -1,7 +1,6 @@
 /** Auth queries, cached per request. */
 import { cache } from 'react'
-import { redirect } from 'next/navigation'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { createSupabaseServer } from './supabase-server'
 import { dbAdmin } from '@/core/db/admin'
 import { PermissionDeniedError } from '@/core/auth/errors'
@@ -19,8 +18,7 @@ export interface OrgContext {
   membership: { id: string; role: OrgRole; isActive: boolean }
 }
 
-/** Retry cold-pool reads three times before making the final attempt. */
-export async function retryOnce<T>(
+export async function retryWithBackoff<T>(
   read: () => Promise<T>,
   isEmpty: (result: T) => boolean
 ): Promise<T> {
@@ -29,9 +27,7 @@ export async function retryOnce<T>(
     try {
       const result = await read()
       if (!isEmpty(result)) return result
-    } catch {
-      // fall through to the next attempt
-    }
+    } catch {}
     await new Promise((resolve) => setTimeout(resolve, delay))
   }
   return read()
@@ -61,7 +57,7 @@ export const verifySessionAllowingUnproven = cache(async (): Promise<VerifiedSes
     redirect('/sign-in')
   }
 
-  const appUser = await retryOnce(
+  const appUser = await retryWithBackoff(
     () =>
       dbAdmin.user.findUnique({
         where: { id: user.id },
@@ -87,7 +83,7 @@ export const getOrgContext = cache(
   async (slug: string): Promise<OrgContext> => {
     const session = await verifySession()
 
-    const org = await retryOnce(
+    const org = await retryWithBackoff(
       () =>
         dbAdmin.organisation.findUnique({
           where: { slug },
@@ -100,7 +96,7 @@ export const getOrgContext = cache(
       notFound()
     }
 
-    const membership = await retryOnce(
+    const membership = await retryWithBackoff(
       () =>
         dbAdmin.organisationMembership.findUnique({
           where: {
@@ -126,7 +122,7 @@ export async function requirePermission(
 ): Promise<{ userId: string; role: OrgRole }> {
   const session = await verifySession()
 
-  const membership = await retryOnce(
+  const membership = await retryWithBackoff(
     () =>
       dbAdmin.organisationMembership.findUnique({
         where: {

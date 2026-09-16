@@ -1,7 +1,7 @@
 import { verifySession, getOrgContext } from '@/core/auth'
 import { hasPermission } from '@/core/permissions'
 import { AppShell } from '@/core/ui/shell'
-import { resolveNav, resolveNavGroups } from '@/modules/register'
+import { resolveNavGroups } from '@/modules/register'
 
 export default async function OrgDashboardLayout({
   children,
@@ -15,9 +15,7 @@ export default async function OrgDashboardLayout({
   const { org, membership } = await getOrgContext(orgSlug)
 
   const navGroups = resolveNavGroups(membership.role)
-  // Flat, for the mobile sheet and the command palette, which search rather
-  // than browse and so have no use for the grouping.
-  const navEntries = resolveNav(membership.role)
+  const navEntries = navGroups.flatMap((group) => group.entries)
 
   const canManageSettings = hasPermission(membership.role, 'org.manage_settings')
 

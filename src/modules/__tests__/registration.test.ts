@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { resolveNav, resolveNavGroups } from '@/modules/register'
+import { isNavEntryActive } from '@/core/navigation'
+import { resolveNavGroups } from '@/modules/register'
 
 describe('navigation', () => {
   it('groups the exco portal by what they came to do', () => {
@@ -18,9 +19,7 @@ describe('navigation', () => {
   })
 
   it('shows members only sections they may open', () => {
-    // Their own membership fee and their own access request. Everything else in
-    // the portal reads the roster, the fund balances or the register.
-    expect(resolveNav('MEMBER').map((entry) => entry.label)).toEqual([
+    expect(resolveNavGroups('MEMBER').flatMap((group) => group.entries).map((entry) => entry.label)).toEqual([
       'Home',
       'Your membership fee',
       'Your access',
@@ -40,8 +39,11 @@ describe('navigation', () => {
   })
 
   it('keeps the attendance import out of the sidebar', () => {
-    // It is done once or twice a trimester and it is one of two ways to do
-    // the same job. It belongs in settings, beside the roster it imports.
-    expect(resolveNav('EXCO').map((entry) => entry.href)).not.toContain('/attendance')
+    expect(resolveNavGroups('EXCO').flatMap((group) => group.entries).map((entry) => entry.href)).not.toContain('/attendance')
+  })
+
+  it('does not mark the collection screen as the member fee page', () => {
+    expect(isNavEntryActive('/funktion/fees/collection', '/funktion/fees')).toBe(false)
+    expect(isNavEntryActive('/funktion/fees', '/funktion/fees')).toBe(true)
   })
 })

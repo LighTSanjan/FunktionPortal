@@ -109,10 +109,6 @@ export function missingForInvoice(row: InstructorRow): string[] {
   return missing
 }
 
-// ─────────────────────────────────────────────
-// Class sessions
-// ─────────────────────────────────────────────
-
 export interface SessionRow {
   id: string
   heldOn: Date

@@ -1,26 +1,4 @@
-/**
- * What is left in each of the club's funds for one financial year.
- *
- * One calculation, read by the dashboard, the fund picker on Coach payments,
- * the attendance sheet's "Balance of Club Fund", and the register. They used
- * to disagree: the dashboard subtracted every year's invoices from this
- * year's grant, never added what membership fees had banked, and the
- * attendance sheet printed the opening balance as though nothing had been
- * spent since April.
- *
- * A fund's year is the register's year:
- *
- *   opening balance + income the register recorded
- *   + membership collections banked in through the portal (net of GST, the
- *     way the register's income column is kept)
- *   − spending the register recorded
- *   − invoices and approved purchases raised in the portal
- *
- * The register is the club's own record from before the portal and is
- * imported into `fund_accounts` as the prior columns. A portal document that
- * is also already on the imported register — matched on its reference number
- * — is counted once, from the register.
- */
+/** Fund balance = opening + income − prior spend − portal commitments. */
 import 'server-only'
 import type { FundSource, Prisma } from '@prisma/client'
 import { financialYearOf } from '@/modules/references/format'
@@ -53,8 +31,6 @@ export async function fundBalances(
   financialYear: number,
   options: { excludeInvoiceId?: string } = {}
 ): Promise<FundBalance[]> {
-  // One after another: these share the caller's transaction, and a
-  // transaction is one connection.
   const accounts = await tx.fundAccount.findMany({ where: { orgId, financialYear }, orderBy: { source: 'asc' } })
   const invoices = await tx.invoice.findMany({
     where: {
@@ -92,7 +68,6 @@ export async function fundBalances(
     },
   })
 
-  // What the sheet already has, per section, in the shape the matcher reads.
   const sheet = (section: 'SEED_FUND' | 'INCOME', income: boolean): LedgerDocument[] =>
     imported
       .filter((row) => row.section === section && (income ? (row.incomeCents ?? 0) > 0 : (row.incomeCents ?? 0) === 0))
@@ -124,7 +99,6 @@ export async function fundBalances(
     if (financialYearOf(approvedOn) !== financialYear) continue
     add(purchase.fundSource, purchase.amountCents)
   }
-  // Every collection is income: the deposit form banks into the income fund.
   const bankedOnSheet = onSheet(
     sheet('INCOME', true),
     deposits.map((deposit) => ({
