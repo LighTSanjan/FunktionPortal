@@ -2,9 +2,6 @@ import type { OrgRole } from '@prisma/client'
 
 const MEMBER_PERMISSIONS = [
   'access.request',
-  // Declaring a payment is a claim about your own money, not a decision about
-  // the club's. Confirming one is the decision, and it is exco-only — the two
-  // are deliberately different permissions held by different people.
   'fee.declare',
 ] as const
 

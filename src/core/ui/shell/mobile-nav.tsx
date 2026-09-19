@@ -5,7 +5,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Menu, Settings, X } from 'lucide-react'
-import type { NavEntry } from '@/core/navigation'
+import { isNavEntryActive, type NavEntry } from '@/core/navigation'
 import { cn } from '@/lib/utils'
 
 interface MobileNavProps {
@@ -63,7 +63,7 @@ function MobileNavInner({
               <ul className="space-y-0.5">
                 {navEntries.map((entry) => {
                   const href = `/${orgSlug}${entry.href}`
-                  const active = pathname === href || pathname.startsWith(`${href}/`)
+                  const active = isNavEntryActive(pathname, href)
 
                   return (
                     <li key={entry.href}>

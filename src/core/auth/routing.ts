@@ -3,7 +3,7 @@ import 'server-only'
 import { cache } from 'react'
 import { createSupabaseServer } from './supabase-server'
 import { dbAdmin } from '@/core/db/admin'
-import { retryOnce } from './dal'
+import { retryWithBackoff } from './dal'
 
 /** Resolve the first route before an organisation context exists. */
 export type HomeDestination =
@@ -21,13 +21,13 @@ export const resolveHomeDestination = cache(
 
     if (!user) return { kind: 'sign-in' }
 
-    const appUser = await retryOnce(
+    const appUser = await retryWithBackoff(
       () => dbAdmin.user.findUnique({ where: { id: user.id }, select: { emailProvenAt: true } }),
       (result) => !result
     )
     if (!appUser?.emailProvenAt) return { kind: 'verify-email' }
 
-    const membership = await retryOnce(
+    const membership = await retryWithBackoff(
       () =>
         dbAdmin.organisationMembership.findFirst({
           where: { userId: user.id, isActive: true },

@@ -5,7 +5,6 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  // Avoid exhausting the local database pool with concurrent logins.
   workers: process.env.CI ? 1 : 3,
   reporter: 'html',
   use: {

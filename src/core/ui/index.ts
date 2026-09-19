@@ -1,7 +1,3 @@
-/**
- * Core UI barrel export.
- * All primitives accessible from @/core/ui
- */
 export { Button, type ButtonProps } from './button'
 export { Input, type InputProps } from './input'
 export { Select, type SelectProps } from './select'

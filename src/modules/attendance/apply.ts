@@ -67,7 +67,6 @@ export async function applyParsedSheet(
     }),
   ])
 
-  // ── Members ──────────────────────────────────────────────
   const { matched, unmatched } = matchMembers(parsed.members, existingMembers)
   const memberIdByRow = new Map<number, string>()
 

@@ -2,21 +2,6 @@ import type { OrgRole } from '@prisma/client'
 import type { NavEntry, NavGroup } from '@/core/navigation'
 import { hasPermission } from '@/core/permissions'
 
-/**
- * What the sidebar offers, grouped by what somebody came to do.
- *
- * It used to be a flat list of seven: Your access, Register, Instructors,
- * Classes, Attendance import, Membership fee, Monthly run. That is the schema,
- * not the job. A treasurer arrives thinking "the coaches need paying for
- * August", which is the monthly run, the classes and the import — three
- * entries of equal weight with nothing to say they belong together, and no
- * hint that two of them are inputs to the third.
- *
- * So: two jobs at the top, the things you look up below them, and setup in
- * settings. "Attendance import" in particular was a top-level destination for
- * something done once or twice a trimester, next to a screen that does the
- * same job by hand.
- */
 const GROUPS: readonly { label: string | null; entries: readonly NavEntry[] }[] = [
   {
     label: null,
@@ -25,8 +10,6 @@ const GROUPS: readonly { label: string | null; entries: readonly NavEntry[] }[] 
         label: 'Home',
         href: '/dashboard',
         icon: 'Home',
-        // Everybody has this. `access.request` is the one permission every
-        // role holds, which makes it the honest way to say "always".
         permission: 'access.request',
       },
     ],
@@ -60,8 +43,6 @@ const GROUPS: readonly { label: string | null; entries: readonly NavEntry[] }[] 
         permission: 'session.view',
       },
       {
-        // Was "Register", which in a dance club means the attendance
-        // register — the thing this is not.
         label: 'Transactions',
         href: '/register',
         icon: 'ClipboardList',
@@ -79,9 +60,6 @@ const GROUPS: readonly { label: string | null; entries: readonly NavEntry[] }[] 
     label: 'You',
     entries: [
       {
-        // Their own membership form and fee. The exco join and pay like
-        // everybody else, so they get it too: kept under "You", away from the
-        // collection they run, so the two are never a word apart in one list.
         label: 'Your membership fee',
         href: '/fees',
         icon: 'Wallet',
@@ -97,11 +75,6 @@ const GROUPS: readonly { label: string | null; entries: readonly NavEntry[] }[] 
   },
 ]
 
-/**
- * Below this, headings cost more than they give: an ordinary member sees
- * Home, their membership fee and their access request, and three headings over
- * three items is a filing system for a drawer with three things in it.
- */
 const GROUPING_WORTHWHILE = 4
 
 export function resolveNavGroups(role: OrgRole): NavGroup[] {
@@ -115,9 +88,4 @@ export function resolveNavGroups(role: OrgRole): NavGroup[] {
     return [{ label: null, entries: groups.flatMap((group) => group.entries) }]
   }
   return groups
-}
-
-/** Flat, for anything that just needs the reachable destinations. */
-export function resolveNav(role: OrgRole): NavEntry[] {
-  return resolveNavGroups(role).flatMap((group) => group.entries)
 }

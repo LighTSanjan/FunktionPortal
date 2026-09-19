@@ -838,14 +838,14 @@ flowchart TD
 
 <section>
   <h2>Build sequence</h2>
-  <p>Status checked against the repository on 10 September 2026. The dates below are the original sequence, not a claim that unfinished phases have shipped.</p>
+  <p>Status checked against the repository on 16 September 2026. The dates below are the original sequence, not a claim that unfinished phases have shipped.</p>
   <ol class="phases">
     <li class="phase">
       <div class="phase-n">01</div>
       <div>
-        <div class="when">Complete for coach-led sessions</div>
+        <div class="when">Complete</div>
         <h4>Invoice and attendance generation</h4>
-        <p>Sign-in, roles, instructors, sessions, attendance, monthly runs and generated <code>.docx</code> downloads are live. Reference numbers are allocated transactionally. Self-practice sessions and re-raising a voided month remain open.</p>
+        <p>Sign-in, roles, instructors, sessions, attendance, self-practice dates, monthly runs and generated <code>.docx</code> downloads are live. Reference numbers are allocated transactionally, and a voided month can be raised again with a fresh reference.</p>
       </div>
     </li>
     <li class="phase">
@@ -1187,7 +1187,7 @@ flowchart TD
 <section>
   <h2>Organised by job, not by table</h2>
   <p>The sidebar was a flat list of seven &mdash; Your access, Register, Instructors, Classes, Attendance import, Subscription, Monthly run. That is the schema. A treasurer arrives thinking &ldquo;the coaches need paying for August&rdquo;, which spans three of those entries with nothing to say they belong together and no hint that two of them are inputs to the third.</p>
-  <p>A second opinion on the whole portal, asked for bluntly, came back with the same verdict and a list of concrete dead ends. It is now <strong>Home</strong>, then <strong>Work</strong> (Coach payments, Subscriptions), then <strong>Records</strong> (Classes, Transactions, Coaches), then <strong>You</strong>. Grouping appears only once there is enough to group, so an ordinary member gets a flat list of three rather than three headings over three items.</p>
+    <p>A second opinion on the whole portal, asked for bluntly, came back with the same verdict and a list of concrete dead ends. It is now <strong>Home</strong>, then <strong>Work</strong> (Coach payments, Membership fees), then <strong>Records</strong> (Classes, Transactions, Coaches), then <strong>You</strong>. Grouping appears only once there is enough to group, so an ordinary member gets a flat list of three rather than three headings over three items.</p>
   <ul>
     <li><strong>Attendance import moved into settings.</strong> It is done once or twice a trimester and it is one of two ways into the same rows. It sat level with the month&rsquo;s work, next to a screen that does the same job by hand, and the Classes screen claimed to be &ldquo;the only place a date or a duration is entered&rdquo; &mdash; which the import contradicts.</li>
     <li><strong>&ldquo;Register&rdquo; became &ldquo;Transactions&rdquo;.</strong> In a dance club, a register is the attendance register. The portal used the word for both, in the same sidebar.</li>
@@ -1250,7 +1250,6 @@ flowchart TD
     <li>A spend-over-time chart. Now that the registers are imported there is enough dated history to draw one honestly &mdash; it was not worth adding while pre-portal spend was a single undated lump.</li>
     <li>Four coach payments in the FY2026 register (June and July) carry no reference number at all. The numbers were never allocated, so the series has no gap to answer for, but the register rows cannot be tied back to a document.</li>
     <li><code>IV24-097-0024</code> is missing from the FY2024 register entirely. Either a document was voided without being recorded as voided, or a row never got written down; nobody currently knows which, and OSL will ask.</li>
-    <li>Re-raising a voided month. Voiding is modelled; raising a replacement is refused, because the unique key on (org, coach, month) has to be cleared first and the replacement needs a fresh reference number rather than the voided one.</li>
     <li>Instructor photographs. The card is already built to take one &mdash; <code>photoUrl</code> is threaded through the component &mdash; but there is no column and no upload yet, so every plate is currently initials. The signature upload has now laid the private-bucket path it would follow.</li>
     <li>Storage policies on <code>storage.objects</code>, added from the Supabase SQL editor. Signature access is authorised in the application today and there is nothing a migration here can do about the second layer.</li>
     <li>Production authentication email. Supabase's built-in sender is for development and is too rate-limited for a club-wide signup. Configure a transactional SMTP provider in Supabase before launch; no application email SDK is needed. Email confirmation on sign-up is still on and has to be turned off from the Supabase dashboard &mdash; the portal holds no management credential for the project and the connector exposes no auth settings.</li>

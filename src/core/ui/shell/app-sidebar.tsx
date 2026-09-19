@@ -17,7 +17,7 @@ import {
   Wallet,
   type LucideIcon,
 } from 'lucide-react'
-import type { NavGroup } from '@/core/navigation'
+import { isNavEntryActive, type NavGroup } from '@/core/navigation'
 import { BRAND } from '@/core/brand'
 import { cn } from '@/lib/utils'
 
@@ -48,16 +48,6 @@ function collapsedSnapshot(): boolean {
 function subscribe(callback: () => void): () => void {
   window.addEventListener('storage', callback)
   return () => window.removeEventListener('storage', callback)
-}
-
-/**
- * Prefix matching, with one exception: "Your membership fee" is /fees and the
- * exco's "Membership fees" is /fees/collection, so a plain prefix test lights
- * both when you are on the collection screen.
- */
-function isActive(pathname: string, href: string, orgSlug: string): boolean {
-  if (href === `/${orgSlug}/fees`) return pathname === href
-  return pathname === href || pathname.startsWith(`${href}/`)
 }
 
 function NavIcon({ name }: { name: string }) {
@@ -131,7 +121,7 @@ export function AppSidebar({
             <ul className="space-y-0.5">
               {group.entries.map((entry) => {
                 const href = `/${orgSlug}${entry.href}`
-                const active = isActive(pathname, href, orgSlug)
+                const active = isNavEntryActive(pathname, href)
 
                 return (
                   <li key={entry.href}>

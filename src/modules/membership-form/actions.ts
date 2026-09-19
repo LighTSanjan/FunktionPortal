@@ -42,8 +42,6 @@ async function ensureForm(tx: Prisma.TransactionClient, orgId: string, termId: s
   return tx.membershipForm.create({ data: { orgId, termId } })
 }
 
-// ─── The exco running the form ──────────────────────────────────────
-
 /**
  * Open the form for responses, close it, or open it again.
  *
@@ -376,8 +374,6 @@ export async function moveQuestion(
   return { error: null, ok: true }
 }
 
-// ─── Filling it in ──────────────────────────────────────────────────
-
 const referenceSchema = z
   .string()
   .trim()
@@ -705,8 +701,6 @@ export async function submitMembershipForm(
 
 class LateDecision extends Error {}
 
-// ─── The exco putting a response on the roster ──────────────────────
-
 const matchSchema = z.object({
   responseId: z.string().min(1),
   target: z.string().min(1, 'Pick a roster row, or add them as new'),
@@ -981,4 +975,3 @@ export async function clearHeldPayment(
   revalidateForm(orgSlug)
   return { error: null, ok: true, message: 'Held payment cleared.' }
 }
-
