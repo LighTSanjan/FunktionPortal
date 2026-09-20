@@ -16,7 +16,9 @@ export const metadata: Metadata = {
   },
   description: BRAND.description,
   icons: {
-    icon: '/favicon.svg',
+    icon: [{ url: '/funktion-icon.png', type: 'image/png', sizes: '560x560' }],
+    shortcut: '/funktion-icon.png',
+    apple: '/funktion-icon.png',
   },
 }
 

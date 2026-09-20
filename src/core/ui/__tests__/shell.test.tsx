@@ -79,6 +79,16 @@ describe('AppSidebar', () => {
     expect(screen.getByLabelText('Collapse sidebar')).toBeInTheDocument()
   })
 
+  it('keeps the real club wordmark when collapsed', async () => {
+    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navGroups={mockGroups} />)
+    fireEvent.click(screen.getByLabelText('Collapse sidebar'))
+
+    await waitFor(() => {
+      expect(screen.getByAltText('Acme Inc')).toHaveAttribute('src', '/funktion-logo.svg')
+    })
+    expect(document.querySelector('img[src="/funktion-icon.png"]')).not.toBeInTheDocument()
+  })
+
   it('marks active nav item', () => {
     pathname = '/acme/sessions'
     render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navGroups={mockGroups} />)

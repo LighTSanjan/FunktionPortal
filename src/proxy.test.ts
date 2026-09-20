@@ -146,7 +146,7 @@ describe('public files', () => {
   })
 
   it('serves root-level assets without redirecting to sign-in', async () => {
-    for (const path of ['/funktion-mark.svg', '/favicon.svg', '/og.png', '/club-photo.jpg']) {
+    for (const path of ['/funktion-icon.png', '/favicon.svg', '/og.png', '/club-photo.jpg']) {
       const res = await proxy(makeRequest(path))
       expect(res.headers.get('location'), `${path} should pass through`).toBeNull()
     }
