@@ -103,6 +103,7 @@ export function AppSidebar({
               width={1000}
               height={677}
               unoptimized
+              loading="eager"
               className="h-8 w-10 object-contain"
             />
           ) : (
@@ -112,6 +113,7 @@ export function AppSidebar({
               width={1000}
               height={677}
               unoptimized
+              loading="eager"
               className="h-11 w-auto"
             />
           )}

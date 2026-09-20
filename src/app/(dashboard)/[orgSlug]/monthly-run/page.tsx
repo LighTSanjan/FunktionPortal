@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ChevronDown, Landmark } from 'lucide-react'
 import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { dbAs } from '@/core/db'
 import { PageHeader } from '@/core/ui/page-header'
@@ -211,16 +212,23 @@ export default async function MonthlyRunPage({
       )}
 
       {canMarkOutside && (
-        <Card>
-          <CardContent className="space-y-3 py-5">
-            <div>
-              <p className="text-[14px] font-semibold">Already paid before the portal?</p>
-              <p className="mt-1 max-w-[68ch] text-[13px] leading-relaxed text-text-muted">
-                If {label}&rsquo;s coaches were claimed for and paid some other way, mark it here
-                so it stops showing as unclaimed. No documents are raised and no reference numbers
-                are used.
-              </p>
-            </div>
+        <details className="group overflow-hidden rounded-[var(--radius-md)] border border-border bg-surface">
+          <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3.5 transition-colors hover:bg-surface-hover [&::-webkit-details-marker]:hidden">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning">
+              <Landmark className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13.5px] font-semibold text-text">Were these coaches paid elsewhere?</span>
+              <span className="mt-0.5 block text-[12px] leading-relaxed text-text-muted">
+                Record it here without creating another invoice or attendance sheet.
+              </span>
+            </span>
+            <span className="hidden rounded-full bg-surface-hover px-2.5 py-1 text-[11px] font-medium text-text-muted sm:inline">
+              Exceptional payment
+            </span>
+            <ChevronDown className="h-4 w-4 shrink-0 text-text-subtle transition-transform group-open:rotate-180" aria-hidden="true" />
+          </summary>
+          <div className="border-t border-border bg-paper/45 px-4 py-4 sm:px-5">
             <PaidOutsideToggle
               orgSlug={orgSlug}
               period={period}
@@ -229,8 +237,8 @@ export default async function MonthlyRunPage({
               coaches={active.map((entry) => ({ id: entry.instructorId, name: entry.fullName, amountCents: entry.subtotalCents }))}
               defaultPaidOn={isoDate(singaporeDay(new Date()))}
             />
-          </CardContent>
-        </Card>
+          </div>
+        </details>
       )}
 
       {idle.length > 0 && (

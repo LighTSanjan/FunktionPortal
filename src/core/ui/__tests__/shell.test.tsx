@@ -120,6 +120,36 @@ describe('AppHeader', () => {
     expect(screen.getByText('Sign out')).toBeInTheDocument()
   })
 
+  it('shows active work in the notification menu', () => {
+    render(
+      <AppHeader
+        {...defaultHeaderProps}
+        notifications={[
+          {
+            id: 'access-requests',
+            tone: 'urgent',
+            title: '2 access requests waiting',
+            detail: 'Another exco member must decide them.',
+            href: '/acme/settings/access',
+          },
+        ]}
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText('Notifications, 1 active'))
+    expect(screen.getByRole('menu', { name: 'Notifications' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /2 access requests waiting/i })).toHaveAttribute(
+      'href',
+      '/acme/settings/access'
+    )
+  })
+
+  it('explains an empty notification queue', () => {
+    render(<AppHeader {...defaultHeaderProps} />)
+    fireEvent.click(screen.getByLabelText('Notifications'))
+    expect(screen.getByText('Nothing needs attention')).toBeInTheDocument()
+  })
+
 })
 
 describe('CommandPalette', () => {
