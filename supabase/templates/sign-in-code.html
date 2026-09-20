@@ -21,9 +21,9 @@
   before the person does, and a one-time link opened once no longer works.
 
   Built for email clients, which are not browsers: tables for layout, every
-  style inline, no SVG, no web fonts. The images load from the public
-  email-assets bucket in Supabase Storage — email can only show images at a
-  public address.
+  style inline, no SVG, no web fonts. The images load from the portal's public
+  email-assets route. Supabase replaces SiteURL with the configured public app
+  URL, so local Mailpit and production use the same template.
 -->
 </head>
 <body style="margin:0; padding:0; background-color:#FBF8F3;">
@@ -54,7 +54,7 @@
           <!-- Logo -->
           <tr>
             <td align="center" style="padding:0 0 22px;">
-              <img src="https://mgvytxhistkdyzchugjf.supabase.co/storage/v1/object/public/email-assets/funktion-logo-560.png"
+              <img src="{{ .SiteURL }}/api/email-assets/logo"
                    width="220" alt="FUNKtion" class="logo" style="display:block; width:220px; max-width:60%; height:auto; border:0;">
             </td>
           </tr>
@@ -116,7 +116,7 @@
           <!-- The crew -->
           <tr>
             <td style="padding:36px 0 0;">
-              <img src="https://mgvytxhistkdyzchugjf.supabase.co/storage/v1/object/public/email-assets/funktion-crew-1120.jpg"
+              <img src="{{ .SiteURL }}/api/email-assets/crew"
                    width="520" alt="The FUNKtion crew" style="display:block; width:100%; max-width:520px; height:auto; border:2px solid #111114; border-radius:16px;">
             </td>
           </tr>

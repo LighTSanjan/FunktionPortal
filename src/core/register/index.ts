@@ -95,7 +95,7 @@ export async function loadLedger(userId: string, orgId: string): Promise<LedgerE
     amountCents: toAmount(row),
     submittedToOslAt: row.submittedToOslAt,
     bankedInAt: row.bankedInAt,
-    fromPortal: false,
+    fromPortal: row.sourceType !== 'RegisterImport',
     sheetRowNumber: row.sheetRowNumber,
     sourceId: row.sourceId,
   }))

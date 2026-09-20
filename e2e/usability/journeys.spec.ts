@@ -56,6 +56,12 @@ test('the treasurer signs in with a code to their SUTD address and lands on thei
   await expect(page.getByText('Your work')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Coach payments' })).toBeVisible()
   await expect(page.getByRole('link', { name: /Raise .* documents/ })).toBeVisible()
+
+  const searchTrigger = page.getByRole('button', { name: 'Open command palette' })
+  await searchTrigger.click()
+  await expect(page.getByPlaceholder('Search pages...')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(searchTrigger).toBeFocused()
 })
 
 test('every screen renders for the treasurer', async () => {
@@ -229,8 +235,6 @@ test('the invited member, not on the roster yet, fills in the form and pays', as
 
   await page.getByLabel('Full name').fill('Ada Lee')
   await page.getByLabel('Student ID').fill(MEMBER.studentId)
-  await page.getByLabel('Day').selectOption('5')
-  await page.getByLabel('Month').selectOption({ label: 'March' })
   await page.getByLabel(/Telegram handle/).fill('@ada')
   await page.getByRole('button', { name: /^Send/ }).click()
   // Nothing typed is lost when something is missing.
@@ -283,6 +287,13 @@ test('the member’s home screen now says their payment is being checked', async
   await expect(page.getByText('On the roster as Ada Lee')).toBeVisible()
 })
 
+test('banking stays unavailable while a payment is waiting to be checked', async () => {
+  const page = await treasurer.newPage()
+  await visit(page, `/${ORG}/fees/collection?tab=deposit`)
+  await expect(page.getByText(/Check \d+ pending payments? first/)).toBeVisible()
+  await expect(page.getByRole('button', { name: /Bank in/ })).toBeDisabled()
+})
+
 test('the treasurer, who is on the roster too, fills in the form like everybody else', async () => {
   const { dbAdmin } = await import('../../src/core/db/admin')
   const org = await dbAdmin.organisation.findUniqueOrThrow({ where: { slug: ORG } })
@@ -295,7 +306,14 @@ test('the treasurer, who is on the roster too, fills in the form like everybody 
   await visit(page, `/${ORG}/dashboard`)
   await page.getByRole('link', { name: 'Fill it in' }).click()
   await page.waitForURL(new RegExp(`/${ORG}/fees$`))
-  await expect(page.getByText(`You’re on the club roster as ${TREASURER.name}`)).toBeVisible()
+  const name = page.getByLabel('Full name')
+  const studentId = page.getByLabel('Student ID')
+  await expect(name).toHaveValue(TREASURER.name)
+  await expect(studentId).toHaveValue('1000009')
+  await expect(name).toHaveAttribute('required', '')
+  await expect(studentId).toHaveAttribute('required', '')
+  await name.fill(`${TREASURER.name} Jr`)
+  await expect(name).toHaveValue(`${TREASURER.name} Jr`)
   // And from the sidebar, under "You", away from the collection they run.
   await expect(page.getByRole('link', { name: 'Your membership fee' }).first()).toBeVisible()
 })

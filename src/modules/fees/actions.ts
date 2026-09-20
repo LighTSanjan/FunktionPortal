@@ -524,8 +524,9 @@ const createTermSchema = z
     name: z.string().trim().min(1, 'Give the term a name').max(60, 'That name is very long'),
     startDate: z.string().trim().min(1, 'When does the term start?'),
     endDate: z.string().trim().min(1, 'When does the term end?'),
-    fullFee: z.coerce.number().min(0, 'A fee cannot be negative'),
-    halfFee: z.coerce.number().min(0, 'A fee cannot be negative'),
+    copyFromTermId: z.string().trim().optional(),
+    fullFee: z.string(),
+    halfFee: z.string(),
   })
   .refine((value) => value.endDate > value.startDate, {
     message: 'The term has to end after it starts',
@@ -539,9 +540,9 @@ const createTermSchema = z
  * could never reach subscription collection or the attendance import, because
  * both are read against a term and both simply refused to load without one.
  *
- * Rates are asked for here rather than left to a second screen: a term with no
- * rates is a term that charges nothing, and a collection that quietly collects
- * nothing is worse than one that has not been set up.
+ * The first term asks for rates. Every later term copies the previous rates,
+ * so starting a new period is one decision rather than the same fee setup
+ * questionnaire again. Rates can still be changed on the collection screen.
  */
 export async function createTerm(
   orgSlug: string,
@@ -555,18 +556,25 @@ export async function createTerm(
     name: formData.get('name') ?? '',
     startDate: formData.get('startDate') ?? '',
     endDate: formData.get('endDate') ?? '',
-    fullFee: formData.get('fullFee') ?? '0',
-    halfFee: formData.get('halfFee') ?? '0',
+    copyFromTermId: String(formData.get('copyFromTermId') ?? '').trim() || undefined,
+    fullFee: String(formData.get('fullFee') ?? ''),
+    halfFee: String(formData.get('halfFee') ?? ''),
   })
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'That term is not valid' }
   }
 
-  const { name, startDate, endDate, fullFee, halfFee } = parsed.data
+  const { name, startDate, endDate, copyFromTermId } = parsed.data
 
   const from = parseDate(startDate)
   const to = parseDate(endDate)
   if (!from || !to) return { error: 'Those dates are not valid.' }
+
+  const fullFee = Number(parsed.data.fullFee)
+  const halfFee = Number(parsed.data.halfFee)
+  if (!copyFromTermId && (!Number.isFinite(fullFee) || !Number.isFinite(halfFee) || fullFee < 0 || halfFee < 0)) {
+    return { error: 'Enter valid full-term and half-term fees.' }
+  }
 
   const problem = await dbAs(userId, async (tx) => {
     const clash = await tx.term.findFirst({
@@ -575,14 +583,23 @@ export async function createTerm(
     })
     if (clash) return `There is already a term called ${name}.`
 
+    const copied = copyFromTermId
+      ? await tx.term.findFirst({
+          where: { id: copyFromTermId, orgId: org.id },
+          select: { fullFeeCents: true, halfFeeCents: true, exchangeFeeCents: true },
+        })
+      : null
+    if (copyFromTermId && !copied) return 'The previous term no longer exists. Reload the page.'
+
     const term = await tx.term.create({
       data: {
         orgId: org.id,
         name,
         startDate: from,
         endDate: to,
-        fullFeeCents: Math.round(fullFee * 100),
-        halfFeeCents: Math.round(halfFee * 100),
+        fullFeeCents: copied?.fullFeeCents ?? Math.round(fullFee * 100),
+        halfFeeCents: copied?.halfFeeCents ?? Math.round(halfFee * 100),
+        exchangeFeeCents: copied?.exchangeFeeCents ?? null,
       },
       select: { id: true, name: true },
     })
@@ -596,7 +613,7 @@ export async function createTerm(
         action: 'fee.term_created',
         targetType: 'Term',
         targetId: term.id,
-        after: { name: term.name, startDate, endDate },
+        after: { name: term.name, startDate, endDate, copiedRatesFrom: copyFromTermId ?? null },
       },
       tx
     )

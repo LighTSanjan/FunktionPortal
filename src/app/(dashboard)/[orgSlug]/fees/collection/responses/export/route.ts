@@ -7,7 +7,7 @@ import { toCsv } from '@/modules/membership-form/csv'
 
 /**
  * Every response to a term's form as a spreadsheet — what "View in Sheets"
- * was for on the Google Form. Exco only, never cached: it carries birthdays.
+ * was for on the Google Form. Exco only and never cached.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = await params
@@ -30,13 +30,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ orgS
     }
   }
 
-  const header = ['Sent', 'Name', 'Student ID', 'Email', 'Birthday', 'On the roster as', ...columns.map((c) => c.label)]
+  const header = ['Sent', 'Name', 'Student ID', 'Email', 'On the roster as', ...columns.map((c) => c.label)]
   const rows = responses.map((response) => [
     response.submittedAt.toISOString().slice(0, 16).replace('T', ' '),
     response.fullName,
     response.studentId ?? '',
     response.email,
-    response.birthday ?? '',
     response.memberName ?? 'Not matched yet',
     ...columns.map((c) => answerText(response.answers.find((a) => a.questionId === c.id)?.value)),
   ])

@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import { Search } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import type { NavEntry } from '@/core/navigation'
 import { cn } from '@/lib/utils'
 
@@ -34,6 +34,8 @@ function CommandPaletteInner({
   const [query, setQuery] = React.useState('')
   const [selectedIndex, setSelectedIndex] = React.useState(0)
   const inputRef = React.useRef<HTMLInputElement>(null)
+  const dialogRef = React.useRef<HTMLDivElement>(null)
+  const returnFocusRef = React.useRef<HTMLElement | null>(null)
   const filtered = React.useMemo(() => {
     const search = query.trim().toLowerCase()
     return search
@@ -42,16 +44,41 @@ function CommandPaletteInner({
   }, [navEntries, query])
 
   React.useEffect(() => {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
     const timeout = setTimeout(() => inputRef.current?.focus(), 50)
-    return () => clearTimeout(timeout)
+    return () => {
+      clearTimeout(timeout)
+      returnFocusRef.current?.focus()
+    }
   }, [])
 
   React.useEffect(() => {
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
+    function handleDialogKeys(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+        return
+      }
+
+      if (event.key !== 'Tab') return
+      const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+      )
+      if (!focusable?.length) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
+    document.addEventListener('keydown', handleDialogKeys)
+    return () => document.removeEventListener('keydown', handleDialogKeys)
   }, [onClose])
 
   function navigate(entry: NavEntry) {
@@ -80,6 +107,7 @@ function CommandPaletteInner({
     >
       <div className="absolute inset-0 bg-bg/80 backdrop-blur-sm" aria-hidden="true" />
       <div
+        ref={dialogRef}
         className="relative w-full max-w-lg rounded-[var(--radius-lg)] border border-border bg-surface shadow-2xl"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
@@ -105,6 +133,14 @@ function CommandPaletteInner({
             aria-expanded="true"
             aria-controls="cmd-list"
           />
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-[var(--radius-sm)] p-1.5 text-text-subtle transition-colors hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-500"
+            aria-label="Close command palette"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
         </div>
 
         <ul id="cmd-list" role="listbox" className="max-h-[300px] overflow-y-auto p-1">

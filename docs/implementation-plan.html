@@ -867,9 +867,9 @@ flowchart TD
     <li class="phase">
       <div class="phase-n">03</div>
       <div>
-        <div class="when">Current &middot; verification and user acceptance</div>
+        <div class="when">Current &middot; second stabilisation pass in verification; user acceptance next</div>
         <h4>Stabilise the existing portal</h4>
-        <p>Complete the dependency and test-isolation work, keep unit, integration, production-build and browser journeys green, remove development-only screens from production navigation, and resolve usability blockers found during live testing. Then run the real treasurer through coach payments, attendance, fee collection, deposit generation, access and audit scenarios using disposable data. No new finance workflow begins until the accepted scenarios and any defects found in them are closed.</p>
+        <p>The dependency and test-isolation work is complete. The follow-up pass fixes authentication-email images, removes birthday collection from the fee form, makes signed-in identity fields pre-filled but correctable and visibly required, carries rates into a new term, records outside-portal coach payments against the real fund, and adds exceptional manual register entries. After automated and browser verification, run the real treasurer through coach payments, attendance, fee collection, deposit generation, access and audit scenarios using disposable data. No new finance workflow begins until the accepted scenarios and any defects found in them are closed.</p>
       </div>
     </li>
     <li class="phase">
@@ -885,7 +885,7 @@ flowchart TD
       <div>
         <div class="when">Not started</div>
         <h4>Budgeting and contract administration</h4>
-        <p>Add the annual budget, rolling forecast, planned-versus-committed-versus-actual view, and fund warnings. Extend the current instructor record beyond its contract reference and rate into a contract lifecycle: document and approval record, start and end dates, contracted-hour allowance, scheduled and used hours, the ten-hour warning, renewal, evaluation and Purchase Award Form tracking.</p>
+        <p>Add an <strong>Insights</strong> tab over the annual budget and rolling forecast: planned-versus-committed-versus-actual by fund, projected cash left at the March year end, over/under-budget explanations, restricted or expiring money, and a simple &ldquo;can we afford this?&rdquo; scenario for member welfare or another proposed spend. Every projection must show its assumptions and flag missing or stale inputs rather than manufacturing certainty. Extend the current instructor record beyond its contract reference and rate into a contract lifecycle: document and approval record, start and end dates, contracted-hour allowance, scheduled and used hours, the ten-hour warning, renewal, evaluation and Purchase Award Form tracking.</p>
       </div>
     </li>
     <li class="phase">
@@ -1269,8 +1269,6 @@ flowchart TD
   <h2>Still open</h2>
   <ul>
     <li><strong>User acceptance.</strong> The automated suites cover the current workflows, but the active phase is a treasurer-led pass through each accepted scenario with disposable data. Defects found there are fixed before procurement, budgeting or contract administration expands the scope.</li>
-    <li><strong>Production-only navigation.</strong> The settings screen currently exposes the internal screen catalogue and intentional error previews to users with settings access. Keep them available to development and automated tours, but remove them from production navigation before user acceptance is signed off.</li>
-    <li><strong>Bank-in blockers.</strong> The server correctly refuses to close a collection with undecided declarations or unmatched paid responses. The page should disable the Bank In action and point to the blocking records instead of waiting for the server error.</li>
     <li>A spend-over-time chart. Now that the registers are imported there is enough dated history to draw one honestly &mdash; it was not worth adding while pre-portal spend was a single undated lump.</li>
     <li>Four coach payments in the FY2026 register (June and July) carry no reference number at all. The numbers were never allocated, so the series has no gap to answer for, but the register rows cannot be tied back to a document.</li>
     <li><code>IV24-097-0024</code> is missing from the FY2024 register entirely. Either a document was voided without being recorded as voided, or a row never got written down; nobody currently knows which, and OSL will ask.</li>
@@ -1280,7 +1278,7 @@ flowchart TD
     <li>A real fee collection. The flow is built and nobody has run one through it. The first term it is used for should be one somebody is watching.</li>
     <li>Reminders. The deadlines are computed and shown; nothing sends them yet. That is part of phase 06, after the existing portal passes user acceptance.</li>
     <li>Procurement (phase 04). The schema models a Purchase Request and derives its form type from the amount; no screen reads it yet. When it arrives it is a third workflow, and the card and the strip on the home screen are already the shape it should take.</li>
-    <li>Budget and full contract administration (phase 05). Monthly invoices and contract references already work; annual budgets, forecasts, contract documents, total-hour allowances, remaining-hour alerts, renewals, evaluations and Purchase Award Forms do not.</li>
+    <li>Insights, budget and full contract administration (phase 05). The planned Insights tab will answer how much should remain by March, where the club is over or under plan, and whether a proposed member-welfare spend fits after commitments. Monthly invoices and contract references already work; annual budgets, forecasts, scenario inputs, contract documents, total-hour allowances, remaining-hour alerts, renewals, evaluations and Purchase Award Forms do not.</li>
     <li>Register sync writeback (phase 07). The registers import; nothing writes back to Drive.</li>
     <li>A real treasurer has not yet accepted the portal. Verification so far is by typecheck, lint, production build, unit and integration tests, live-database browser journeys and rendered document comparisons. Phase 03 adds the human pass rather than treating automated coverage as acceptance.</li>
   </ul>

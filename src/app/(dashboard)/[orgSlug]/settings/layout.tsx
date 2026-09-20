@@ -1,5 +1,6 @@
 import { getOrgContext } from '@/core/auth/dal'
 import { hasPermission } from '@/core/permissions'
+import { screenPreviewsEnabled } from '@/core/screen-previews'
 import { SettingsNav } from './_components/settings-nav'
 
 export default async function SettingsLayout({
@@ -24,7 +25,9 @@ export default async function SettingsLayout({
     { slug: 'access', label: 'Access requests', permission: 'org.manage_members' },
     { slug: 'invitations', label: 'Invitations', permission: 'org.manage_members' },
     { slug: 'audit-log', label: 'Audit Log', permission: 'audit.view' },
-    { slug: 'screens', label: 'All screens', permission: 'org.manage_settings' },
+    ...(screenPreviewsEnabled()
+      ? [{ slug: 'screens', label: 'Screen previews', permission: 'org.manage_settings' }]
+      : []),
   ].filter((tab) => tab.permission === null || hasPermission(membership.role, tab.permission))
 
   return (

@@ -52,6 +52,9 @@ export function loadIsolatedTestEnv(): Record<string, string> {
   // Older generated .env.test files predate this explicit setting; the
   // application already used the same loopback URL as its test-only default.
   env.MAILPIT_URL ||= 'http://localhost:58025'
+  // The screen gallery includes intentional 404/500 states and is never
+  // exposed by default in a real production environment. Visual tours opt in.
+  env.ENABLE_SCREEN_PREVIEWS ||= 'true'
 
   assertIsolatedTestEnv(env)
 

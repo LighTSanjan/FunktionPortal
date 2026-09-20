@@ -7,7 +7,6 @@ import { fieldName, type Answer, type Question } from '@/modules/membership-form
 import { formatSgd } from '@/modules/coach-claim/money'
 import { Button } from '@/core/ui/button'
 import { Input } from '@/core/ui/input'
-import { Select } from '@/core/ui/select'
 import { Textarea } from '@/core/ui/textarea'
 import { Label } from '@/core/ui/label'
 import { cn } from '@/lib/utils'
@@ -18,10 +17,8 @@ export interface MembershipFormProps {
   termId: string
   termName: string
   questions: Question[]
-  /** Who they are, from the roster, when their account is linked to it. */
-  rosterName: { fullName: string; studentId: string | null } | null
-  /** Their student ID, read off a student-ID email address. Not editable. */
-  lockedStudentId: string | null
+  /** Signed-in identity defaults. They remain editable in case the record is wrong. */
+  identity: { fullName: string; studentId: string | null }
   /** What they pay: the term's rate, or what the exco set for them. Never their choice. */
   fee: { amountCents: number; label: string; note: string | null }
   /** Where a payment already stands. Only NONE and REJECTED ask for one. */
@@ -31,19 +28,11 @@ export interface MembershipFormProps {
   previous: {
     fullName: string
     studentId: string | null
-    birthDay: number | null
-    birthMonth: number | null
-    birthYear: number | null
     answers: Answer[]
   } | null
   /** An exco member looking at it: everything shows, nothing sends. */
   preview: boolean
 }
-
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-]
 
 /**
  * The membership form.
@@ -54,7 +43,7 @@ const MONTHS = [
  * moment the connection drops.
  */
 export function MembershipForm(props: MembershipFormProps) {
-  const { orgSlug, termId, questions, rosterName, lockedStudentId, fee, payment, previous, preview } = props
+  const { orgSlug, termId, questions, identity, fee, payment, previous, preview } = props
   const router = useRouter()
   const [screenshot, setScreenshot] = useState<string | null>(null)
   const [state, act, pending] = useActionState<FormActionState, FormData>(
@@ -90,8 +79,8 @@ export function MembershipForm(props: MembershipFormProps) {
       noValidate
       onSubmit={(event) => {
         // Not `action={act}`: React clears a form once its action finishes, and
-        // somebody told to fix their birthday should not have to type
-        // everything else again.
+        // somebody told to fix one field should not have to type everything
+        // else again.
         event.preventDefault()
         const data = new FormData(event.currentTarget)
         startTransition(() => act(data))
@@ -105,102 +94,47 @@ export function MembershipForm(props: MembershipFormProps) {
         </Notice>
       )}
 
+      <p className="text-[12px] text-text-subtle">
+        <span className="font-semibold text-danger" aria-hidden="true">*</span> Required
+      </p>
+
       <Section n={++section} title="About you">
-        {rosterName ? (
-          <p className="text-[14px] leading-relaxed text-text">
-            You&rsquo;re on the club roster as <span className="font-semibold">{rosterName.fullName}</span>
-            {rosterName.studentId && (
-              <span className="text-text-muted">
-                {' '}
-                · <span className="tabular-nums">{rosterName.studentId}</span>
-              </span>
-            )}
-            .
+        <div className="space-y-4">
+          <p className="text-[13px] leading-relaxed text-text-muted">
+            We filled these from your signed-in account or the roster. Correct them here if needed.
           </p>
-        ) : (
-          <div className="space-y-4">
-            <p className="text-[13px] leading-relaxed text-text-muted">
-              New to FUNKtion, or signed in with a different email from last time? Tell us who you are and the exco
-              will put you on the roster.
-            </p>
-            <Field label="Full name" htmlFor="fullName" error={errors.fullName} hint="As on your student card.">
-              <Input
-                id="fullName"
-                name="fullName"
-                autoComplete="name"
-                maxLength={120}
-                defaultValue={previous?.fullName ?? ''}
-                aria-invalid={errors.fullName ? true : undefined}
-              />
-            </Field>
-            <Field
-              label="Student ID"
-              htmlFor="studentId"
-              error={errors.studentId}
-              hint={lockedStudentId ? 'From the email you signed in with.' : 'The seven digits on your student card.'}
-            >
-              <Input
-                id="studentId"
-                name="studentId"
-                inputMode="numeric"
-                autoComplete="off"
-                maxLength={20}
-                readOnly={Boolean(lockedStudentId)}
-                defaultValue={lockedStudentId ?? previous?.studentId ?? ''}
-                placeholder="1001234"
-                className="tabular-nums"
-                aria-invalid={errors.studentId ? true : undefined}
-              />
-            </Field>
-            <fieldset className="space-y-1.5">
-              <legend className="text-[13px] font-medium text-text">Birthday</legend>
-              <div className="grid grid-cols-[5rem_1fr_6rem] gap-2">
-                <Select
-                  name="birthDay"
-                  aria-label="Day"
-                  defaultValue={previous?.birthDay ? String(previous.birthDay) : ''}
-                  aria-invalid={errors.birthday ? true : undefined}
-                >
-                  <option value="">Day</option>
-                  {Array.from({ length: 31 }, (_, i) => (
-                    <option key={i + 1} value={i + 1}>
-                      {i + 1}
-                    </option>
-                  ))}
-                </Select>
-                <Select
-                  name="birthMonth"
-                  aria-label="Month"
-                  defaultValue={previous?.birthMonth ? String(previous.birthMonth) : ''}
-                  aria-invalid={errors.birthday ? true : undefined}
-                >
-                  <option value="">Month</option>
-                  {MONTHS.map((month, i) => (
-                    <option key={month} value={i + 1}>
-                      {month}
-                    </option>
-                  ))}
-                </Select>
-                <Input
-                  name="birthYear"
-                  aria-label="Year (optional)"
-                  inputMode="numeric"
-                  maxLength={4}
-                  placeholder="Year"
-                  defaultValue={previous?.birthYear ? String(previous.birthYear) : ''}
-                  className="tabular-nums"
-                />
-              </div>
-              {errors.birthday ? (
-                <p className="text-[12px] text-danger" role="alert">
-                  {errors.birthday}
-                </p>
-              ) : (
-                <p className="text-[12px] text-text-subtle">So the club can wish you a happy birthday. The year is optional.</p>
-              )}
-            </fieldset>
-          </div>
-        )}
+          <Field label="Full name" htmlFor="fullName" error={errors.fullName} hint="As on your student card." required>
+            <Input
+              id="fullName"
+              name="fullName"
+              autoComplete="name"
+              maxLength={120}
+              defaultValue={previous?.fullName ?? identity.fullName}
+              required
+              aria-invalid={errors.fullName ? true : undefined}
+            />
+          </Field>
+          <Field
+            label="Student ID"
+            htmlFor="studentId"
+            error={errors.studentId}
+            hint="The seven digits on your student card."
+            required
+          >
+            <Input
+              id="studentId"
+              name="studentId"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={20}
+              defaultValue={previous?.studentId ?? identity.studentId ?? ''}
+              placeholder="1001234"
+              className="tabular-nums"
+              required
+              aria-invalid={errors.studentId ? true : undefined}
+            />
+          </Field>
+        </div>
       </Section>
 
       <Section n={++section} title="Your membership">
@@ -272,12 +206,14 @@ export function MembershipForm(props: MembershipFormProps) {
               htmlFor="reference"
               error={errors.reference}
               hint="From your confirmation. It’s how the exco find you on the bank statement."
+              required
             >
               <Input
                 id="reference"
                 name="reference"
                 maxLength={64}
                 autoComplete="off"
+                required
                 aria-invalid={errors.reference ? true : undefined}
               />
             </Field>
@@ -287,12 +223,14 @@ export function MembershipForm(props: MembershipFormProps) {
               htmlFor="proof"
               error={errors.proof}
               hint="PNG or JPEG. Only the exco ever see it."
+              required
             >
               <input
                 id="proof"
                 type="file"
                 name="proof"
                 accept="image/png,image/jpeg"
+                required
                 onChange={(event) => {
                   const file = event.currentTarget.files?.[0]
                   setScreenshot(file ? URL.createObjectURL(file) : null)
@@ -357,9 +295,9 @@ function QuestionField({
       <div className="space-y-1.5">
         <Label htmlFor={id}>{label}</Label>
         {question.type === 'SHORT_TEXT' ? (
-          <Input id={id} name={name} maxLength={200} defaultValue={typeof previous === 'string' ? previous : ''} aria-invalid={error ? true : undefined} />
+          <Input id={id} name={name} maxLength={200} required={question.required} defaultValue={typeof previous === 'string' ? previous : ''} aria-invalid={error ? true : undefined} />
         ) : (
-          <Textarea id={id} name={name} rows={3} maxLength={2000} defaultValue={typeof previous === 'string' ? previous : ''} aria-invalid={error ? true : undefined} />
+          <Textarea id={id} name={name} rows={3} maxLength={2000} required={question.required} defaultValue={typeof previous === 'string' ? previous : ''} aria-invalid={error ? true : undefined} />
         )}
         {footer}
       </div>
@@ -369,7 +307,7 @@ function QuestionField({
   const options = question.type === 'YES_NO' ? ['Yes', 'No'] : question.options
   const many = question.type === 'MANY_CHOICES'
   return (
-    <fieldset className="space-y-2">
+    <fieldset className="space-y-2" aria-required={question.required}>
       <legend className="text-[13px] font-medium text-text">{label}</legend>
       <div className="flex flex-wrap gap-2">
         {options.map((option) => (
@@ -379,6 +317,7 @@ function QuestionField({
             name={name}
             value={option}
             defaultChecked={Array.isArray(previous) ? previous.includes(option) : previous === option}
+            required={question.required && !many}
           />
         ))}
       </div>
@@ -393,15 +332,17 @@ function ChoicePill({
   name,
   value,
   defaultChecked,
+  required,
 }: {
   type: 'radio' | 'checkbox'
   name: string
   value: string
   defaultChecked: boolean
+  required: boolean
 }) {
   return (
     <label className={cn(pillClass(false), 'has-[:checked]:border-brand-ink has-[:checked]:bg-paper has-[:checked]:text-text')}>
-      <input type={type} name={name} value={value} defaultChecked={defaultChecked} className="accent-[var(--brand-ink)]" />
+      <input type={type} name={name} value={value} defaultChecked={defaultChecked} required={required} className="accent-[var(--brand-ink)]" />
       {value}
     </label>
   )
@@ -426,17 +367,22 @@ function Field({
   htmlFor,
   hint,
   error,
+  required,
   children,
 }: {
   label: string
   htmlFor: string
   hint?: string
   error?: string
+  required?: boolean
   children: React.ReactNode
 }) {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={htmlFor}>{label}</Label>
+      <Label htmlFor={htmlFor}>
+        {label}
+        {required && <span className="ml-0.5 text-danger" aria-hidden="true">*</span>}
+      </Label>
       {children}
       {error ? (
         <p className="text-[12px] text-danger" role="alert">

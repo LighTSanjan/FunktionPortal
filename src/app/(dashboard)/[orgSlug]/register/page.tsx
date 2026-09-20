@@ -7,6 +7,9 @@ import { formatSgd } from '@/modules/coach-claim/money'
 import { loadLedger, filterLedger, ledgerTotals, ledgerYears, SECTION_LABEL, type LedgerEntry } from '@/core/register'
 import { FUND_INK } from '../dashboard/_components/spend-ring'
 import { SECTION_FUND } from '@/core/register'
+import { isoDate } from '@/modules/coach-claim/theme'
+import { singaporeDay } from '@/lib/date-only'
+import { ManualTransactionForm } from './_components/manual-transaction-form'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,6 +55,16 @@ export default async function RegisterPage({
         title="Transaction register"
         subtitle="Every movement of club money the exco have recorded — the OSL register, the unofficial one the committee keep themselves, and the invoices and bank-ins raised here that aren't on the spreadsheet yet."
       />
+
+      <details className="rounded-[var(--radius-md)] border border-border bg-surface p-5">
+        <summary className="cursor-pointer text-[14px] font-semibold text-text">Record a transaction manually</summary>
+        <p className="mt-2 max-w-[72ch] text-[12.5px] leading-relaxed text-text-muted">
+          Use this for money that did not come through a portal workflow. It appears in the register and updates the matching fund balance immediately.
+        </p>
+        <div className="mt-5">
+          <ManualTransactionForm orgSlug={orgSlug} today={isoDate(singaporeDay(new Date()))} />
+        </div>
+      </details>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {totals.map((total, i) => (

@@ -17,12 +17,15 @@ export function CloseButton({
   termId,
   bankable,
   nothingToBank = false,
+  blockedReason,
 }: {
   orgSlug: string
   termId: string
   /** What will be banked in, already formatted. */
   bankable: string
   nothingToBank?: boolean
+  /** Why the collection cannot close yet. The linked checklist sits above. */
+  blockedReason?: string
 }) {
   const [sure, setSure] = useState(false)
   const [state, close, pending] = useActionState<FeeState, FormData>(
@@ -32,12 +35,19 @@ export function CloseButton({
 
   return (
     <form action={close} className="space-y-3">
+      {blockedReason && (
+        <div id="close-collection-blocked">
+          <Notice tone="warning">
+            {blockedReason} Use the checklist above to resolve it.
+          </Notice>
+        </div>
+      )}
       {state.error && (
         <Notice tone="danger" role="alert">
           {state.error}
         </Notice>
       )}
-      {sure ? (
+      {sure && !blockedReason ? (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[13px] text-text">
             {nothingToBank
@@ -52,7 +62,12 @@ export function CloseButton({
           </Button>
         </div>
       ) : (
-        <Button type="button" onClick={() => setSure(true)}>
+        <Button
+          type="button"
+          onClick={() => setSure(true)}
+          disabled={Boolean(blockedReason)}
+          aria-describedby={blockedReason ? 'close-collection-blocked' : undefined}
+        >
           {nothingToBank ? 'Close the collection' : `Bank in ${bankable}`}
         </Button>
       )}
