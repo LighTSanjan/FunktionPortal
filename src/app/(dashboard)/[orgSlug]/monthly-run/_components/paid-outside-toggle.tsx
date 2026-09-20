@@ -38,13 +38,24 @@ export function PaidOutsideToggle({
   return (
     <form action={act} className="flex flex-col gap-4">
       {settled ? (
-        <button
-          type="submit"
-          disabled={pending}
-          className="self-start text-[12.5px] font-medium text-text-subtle underline-offset-4 hover:underline disabled:opacity-50"
-        >
-          Not paid after all
-        </button>
+        <div className="max-w-[34rem] space-y-3 rounded-[var(--radius-sm)] border border-border bg-paper p-3">
+          <p className="text-[12.5px] leading-relaxed text-text-muted">
+            Reversing this keeps the recorded payments as void rows and removes them from the balances. The reason stays in the audit log.
+          </p>
+          <FormField label="Why reverse this record?" htmlFor="outside-reversal-reason" required>
+            <Input
+              id="outside-reversal-reason"
+              name="reversalReason"
+              minLength={5}
+              maxLength={500}
+              required
+              placeholder="Bank statement shows this month was not paid"
+            />
+          </FormField>
+          <Button type="submit" variant="danger" size="sm" loading={pending}>
+            Reverse outside payment record
+          </Button>
+        </div>
       ) : (
         <>
           <div className="grid gap-3">

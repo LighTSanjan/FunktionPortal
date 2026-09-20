@@ -56,7 +56,7 @@ export async function fundBalances(
     },
   })
   const imported = await tx.registerEntry.findMany({
-    where: { orgId, financialYear, sourceType: 'RegisterImport', referenceNumber: { not: null } },
+    where: { orgId, financialYear, sourceType: 'RegisterImport', referenceNumber: { not: null }, voidedAt: null },
     select: {
       section: true,
       referenceNumber: true,
@@ -68,7 +68,7 @@ export async function fundBalances(
     },
   })
   const adjustments = await tx.registerEntry.findMany({
-    where: { orgId, financialYear, sourceType: { not: 'RegisterImport' } },
+    where: { orgId, financialYear, sourceType: { not: 'RegisterImport' }, voidedAt: null },
     select: {
       section: true,
       incomeCents: true,

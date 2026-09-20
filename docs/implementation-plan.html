@@ -867,9 +867,9 @@ flowchart TD
     <li class="phase">
       <div class="phase-n">03</div>
       <div>
-        <div class="when">Current &middot; second stabilisation pass in verification; user acceptance next</div>
+        <div class="when">Current &middot; production-safety pass verified; user acceptance next</div>
         <h4>Stabilise the existing portal</h4>
-        <p>The dependency and test-isolation work is complete. The follow-up pass fixes authentication-email images, removes birthday collection from the fee form, makes signed-in identity fields pre-filled but correctable and visibly required, carries rates into a new term, records outside-portal coach payments against the real fund, and adds exceptional manual register entries. After automated and browser verification, run the real treasurer through coach payments, attendance, fee collection, deposit generation, access and audit scenarios using disposable data. No new finance workflow begins until the accepted scenarios and any defects found in them are closed.</p>
+        <p>The dependency and test-isolation work is complete. The follow-up pass fixes authentication-email images, removes birthday collection from the fee form, makes signed-in identity fields pre-filled but correctable and visibly required, carries rates into a new term, records outside-portal coach payments against the real fund, and adds exceptional manual register entries. Manual entries and outside-portal coach payments now use reason-required, reversible voids rather than destructive deletion; totals exclude voids while the original row and immutable before/after audit history remain visible. Access requests, invitation revocation, financial-setting changes, signatures and the first-exco bootstrap are audited, with structured privacy-safe runtime logs and optional high-risk security email alerts. After automated and browser verification, run the real treasurer through coach payments, attendance, fee collection, deposit generation, access and audit scenarios using disposable data. No new finance workflow begins until the accepted scenarios and any defects found in them are closed.</p>
       </div>
     </li>
     <li class="phase">
@@ -891,9 +891,9 @@ flowchart TD
     <li class="phase">
       <div class="phase-n">06</div>
       <div>
-        <div class="when">Not started</div>
+        <div class="when">Runbook complete; provider configuration pending</div>
         <h4>Operations and production services</h4>
-        <p>Add scheduled reminders and configure production email, private storage policies, backup and recovery, monitoring, retention and document access. Deployment is done after the accepted portal has a named owner and production data policy, rather than treating a successful build as production readiness.</p>
+        <p>The production runbook now defines high-risk alerts, structured logging, a 24-hour recovery-point target, a four-hour recovery-time target, targeted record correction, restore-to-a-separate-environment recovery and quarterly restore drills. Configure the verified email sender and recipients, Supabase backup tier, an independent encrypted backup for database exports and Storage objects, retention, monitoring and named restore approvers before live financial data is accepted. A whole-portal rollback is deliberately not exposed as an in-app button: production recovery must be rehearsed, approved and restored beside production before any controlled cut-over. Scheduled reminders and final document-access policy remain to be configured.</p>
       </div>
     </li>
     <li class="phase">

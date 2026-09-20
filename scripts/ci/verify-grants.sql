@@ -90,12 +90,28 @@ BEGIN
     RAISE EXCEPTION 'FAIL: authenticated must NOT have EXECUTE on write_audit_log';
   END IF;
 
+  FOR ok IN
+    SELECT has_table_privilege('app_user', 'audit_logs', privilege)
+    FROM unnest(ARRAY['INSERT', 'UPDATE', 'DELETE']) AS privilege
+  LOOP
+    IF ok THEN
+      RAISE EXCEPTION 'FAIL: app_user must not write audit_logs directly';
+    END IF;
+  END LOOP;
+
   -- app_user must not be able to TRUNCATE — RLS doesn't apply to it, so a
   -- leaked APP_USER_DATABASE_URL or a raw-SQL bug could otherwise wipe the
   -- register in one statement.
   SELECT has_table_privilege('app_user', 'invoices', 'TRUNCATE') INTO ok;
   IF ok THEN
     RAISE EXCEPTION 'FAIL: app_user must NOT have TRUNCATE on invoices';
+  END IF;
+
+  -- Register entries are financial evidence. Corrections use the void state;
+  -- the application role must never hard-delete the original row.
+  SELECT has_table_privilege('app_user', 'register_entries', 'DELETE') INTO ok;
+  IF ok THEN
+    RAISE EXCEPTION 'FAIL: app_user must NOT have DELETE on register_entries';
   END IF;
 
   SELECT has_table_privilege('app_user', '_prisma_migrations', 'SELECT') INTO ok;

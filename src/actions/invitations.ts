@@ -92,7 +92,7 @@ export async function revokeInvitation(orgSlug: string, invitationId: string): P
   const { org } = await getOrgContext(orgSlug)
   const { userId } = await requirePermission(org.id, 'org.manage_members')
 
-  await dbAs(userId, async (tx) => {
+  const changed = await dbAs(userId, async (tx) => {
     const revoked = await tx.invitation.updateMany({
       where: { id: invitationId, orgId: org.id, status: 'PENDING' },
       data: { status: 'REVOKED' },
@@ -103,6 +103,8 @@ export async function revokeInvitation(orgSlug: string, invitationId: string): P
         tx
       )
     }
+    return revoked.count === 1
   })
+  if (changed) await alert('access_changed', { what: 'invitation revoked', club: org.slug })
   revalidatePath(`/${orgSlug}/settings/invitations`)
 }

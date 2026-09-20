@@ -1,6 +1,8 @@
 import 'server-only'
 
 import { dbAdmin } from '@/core/db/admin'
+import { dbAs } from '@/core/db'
+import { writeAudit } from '@/core/audit'
 import type { ExcoOffice, OrgRole } from '@prisma/client'
 
 export const REQUEST_TTL_DAYS = 21
@@ -100,16 +102,27 @@ export async function createAccessRequest(args: {
   reason: string
   expiresAt: Date
 }): Promise<{ id: string }> {
-  return dbAdmin.accessRequest.create({
-    data: {
+  return dbAs(args.userId, async (tx) => {
+    const request = await tx.accessRequest.create({
+      data: {
+        orgId: args.orgId,
+        userId: args.userId,
+        requestedRole: 'EXCO',
+        requestedOffice: args.requestedOffice,
+        reason: args.reason,
+        expiresAt: args.expiresAt,
+      },
+      select: { id: true },
+    })
+    await writeAudit({
       orgId: args.orgId,
-      userId: args.userId,
-      requestedRole: 'EXCO',
-      requestedOffice: args.requestedOffice,
-      reason: args.reason,
-      expiresAt: args.expiresAt,
-    },
-    select: { id: true },
+      actorId: args.userId,
+      action: 'access.request',
+      targetType: 'AccessRequest',
+      targetId: request.id,
+      after: { requestedRole: 'EXCO', requestedOffice: args.requestedOffice },
+    }, tx)
+    return request
   })
 }
 
@@ -118,11 +131,24 @@ export async function cancelOwnRequest(
   userId: string,
   requestId: string
 ): Promise<number> {
-  const { count } = await dbAdmin.accessRequest.updateMany({
-    where: { id: requestId, orgId, userId, status: 'PENDING' },
-    data: { status: 'CANCELLED' },
+  return dbAs(userId, async (tx) => {
+    const { count } = await tx.accessRequest.updateMany({
+      where: { id: requestId, orgId, userId, status: 'PENDING' },
+      data: { status: 'CANCELLED' },
+    })
+    if (count === 1) {
+      await writeAudit({
+        orgId,
+        actorId: userId,
+        action: 'access.withdraw',
+        targetType: 'AccessRequest',
+        targetId: requestId,
+        before: { status: 'PENDING' },
+        after: { status: 'CANCELLED' },
+      }, tx)
+    }
+    return count
   })
-  return count
 }
 
 export async function findRequest(orgId: string, requestId: string) {
@@ -145,7 +171,7 @@ export async function settleRequest(args: {
   decision: 'APPROVED' | 'REJECTED'
   decisionNote: string | null
 }): Promise<{ settled: false } | { settled: true; subjectUserId: string; grantRole: OrgRole; grantOffice: ExcoOffice | null }> {
-  return dbAdmin.$transaction(async (tx) => {
+  return dbAs(args.reviewerUserId, async (tx) => {
     const claimed = await tx.accessRequest.updateMany({
       where: {
         id: args.requestId,
@@ -173,8 +199,8 @@ export async function settleRequest(args: {
       })
     }
 
-    await tx.auditLog.create({
-      data: {
+    await writeAudit(
+      {
         orgId: args.orgId,
         actorId: args.reviewerUserId,
         action: approved ? 'access.approve' : 'access.reject',
@@ -188,7 +214,8 @@ export async function settleRequest(args: {
           grantedOffice: approved ? request.requestedOffice : null,
         },
       },
-    })
+      tx
+    )
 
     return {
       settled: true as const,

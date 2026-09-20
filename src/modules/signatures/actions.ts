@@ -100,7 +100,7 @@ export async function removeSignature(orgSlug: string): Promise<SignatureState> 
   const { org } = await getOrgContext(orgSlug)
   const { userId } = await verifySession()
 
-  await dbAs(userId, async (tx) => {
+  const removed = await dbAs(userId, async (tx) => {
     const before = await tx.user.findUnique({
       where: { id: userId },
       select: { signatureImagePath: true },
@@ -125,6 +125,8 @@ export async function removeSignature(orgSlug: string): Promise<SignatureState> 
     )
     return before.signatureImagePath
   })
+
+  if (removed) await alert('signature_replaced', { club: orgSlug, what: 'signature removed' })
 
   revalidatePath(`/${orgSlug}/settings/signature`)
   return { error: null, ok: true }

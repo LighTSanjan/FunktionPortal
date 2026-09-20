@@ -3,7 +3,11 @@ import { addInstructorRate, saveInstructor, saveSession } from '@/modules/coach-
 import { markMonthPaidOutside } from '@/modules/coach-claim/run-actions'
 import { createTerm, updateTerm } from '@/modules/fees/actions'
 import { fundBalances } from '@/modules/funds/balance'
-import { createManualRegisterEntry } from '@/modules/register/actions'
+import {
+  createManualRegisterEntry,
+  restoreManualRegisterEntry,
+  voidManualRegisterEntry,
+} from '@/modules/register/actions'
 import { financialYearOf } from '@/modules/references/format'
 import { dbAs } from '@/core/db'
 import { listLedger } from '@/core/register'
@@ -30,6 +34,7 @@ const fy = financialYearOf(today)
 let org: TestOrg
 let treasurer: TestUser
 let coachId: string
+let refreshmentsEntryId: string
 
 async function balance(source: 'SEED' | 'INCOME') {
   const rows = await dbAs(treasurer.id, (tx) => fundBalances(tx, org.id, fy))
@@ -76,6 +81,49 @@ describe('manually recorded finance movements', () => {
     const ledger = await listLedger(treasurer.id, org.id, { section: 'INCOME', financialYear: fy })
     expect(ledger.filter((row) => row.description.startsWith('Workshop')).map((row) => row.amountCents).sort((a, b) => a - b)).toEqual([-12_525, 50_000])
     expect(ledger.filter((row) => row.description.startsWith('Workshop')).every((row) => row.fromPortal)).toBe(true)
+    refreshmentsEntryId = (await dbAdmin.registerEntry.findFirstOrThrow({
+      where: { orgId: org.id, description: 'Workshop refreshments' },
+      select: { id: true },
+    })).id
+  })
+
+  it('voids and restores a manual row without deleting the financial evidence', async () => {
+    const beforeVoid = (await balance('INCOME')).remainingCents
+    await ok(() => voidManualRegisterEntry(
+      org.slug,
+      refreshmentsEntryId,
+      { error: null },
+      form({ reason: 'Duplicate card statement entry' })
+    ))
+
+    const voided = await dbAdmin.registerEntry.findUniqueOrThrow({ where: { id: refreshmentsEntryId } })
+    expect(voided).toMatchObject({
+      voidedById: treasurer.id,
+      voidReason: 'Duplicate card statement entry',
+    })
+    expect(voided.voidedAt).toBeInstanceOf(Date)
+    expect((await balance('INCOME')).remainingCents).toBe(beforeVoid + 12_525)
+    expect(await dbAdmin.auditLog.findFirst({
+      where: { targetId: refreshmentsEntryId, action: 'register.manual_void' },
+    })).not.toBeNull()
+
+    await expect(dbAs(treasurer.id, (tx) => tx.registerEntry.delete({ where: { id: refreshmentsEntryId } }))).rejects.toThrow()
+
+    await ok(() => restoreManualRegisterEntry(
+      org.slug,
+      refreshmentsEntryId,
+      { error: null },
+      form({ reason: 'Checked the bank statement; the purchase is genuine' })
+    ))
+    expect(await dbAdmin.registerEntry.findUniqueOrThrow({ where: { id: refreshmentsEntryId } })).toMatchObject({
+      voidedAt: null,
+      voidedById: null,
+      voidReason: null,
+    })
+    expect((await balance('INCOME')).remainingCents).toBe(beforeVoid)
+    expect(await dbAdmin.auditLog.findFirst({
+      where: { targetId: refreshmentsEntryId, action: 'register.manual_restore' },
+    })).not.toBeNull()
   })
 
   it('records each outside coach payment against its fund and reverses it with the month marker', async () => {
@@ -93,9 +141,22 @@ describe('manually recorded finance movements', () => {
     expect(recorded).toMatchObject({ section: 'SEED_FUND', expenseWithGstCents: 12_345, payeeName: 'Kai Smith' })
     expect((await balance('SEED')).remainingCents).toBe(before - 12_345)
 
-    await ok(() => markMonthPaidOutside(org.slug, period, false, form({})))
-    expect(await dbAdmin.registerEntry.count({ where: { orgId: org.id, sourceType: 'CoachPaymentOutside' } })).toBe(0)
+    await ok(() => markMonthPaidOutside(org.slug, period, false, form({ reversalReason: 'Payment was entered against the wrong month' })))
+    expect(await dbAdmin.registerEntry.count({ where: { orgId: org.id, sourceType: 'CoachPaymentOutside' } })).toBe(1)
+    expect(await dbAdmin.registerEntry.findFirstOrThrow({
+      where: { orgId: org.id, sourceType: 'CoachPaymentOutside' },
+    })).toMatchObject({ voidedById: treasurer.id, voidReason: 'Payment was entered against the wrong month' })
     expect((await balance('SEED')).remainingCents).toBe(before)
+
+    await ok(() => markMonthPaidOutside(org.slug, period, true, form({
+      paidOn,
+      reference: 'LEGACY-COACH-1',
+      [`amount_${coachId}`]: '123.45',
+      [`fund_${coachId}`]: 'SEED',
+    })))
+    expect(await dbAdmin.registerEntry.findFirstOrThrow({
+      where: { orgId: org.id, sourceType: 'CoachPaymentOutside' },
+    })).toMatchObject({ voidedAt: null, voidedById: null, voidReason: null })
   })
 
   it('copies the last term rates when starting the next term', async () => {

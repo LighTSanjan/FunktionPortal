@@ -57,6 +57,7 @@ model User {
   treasurerApprovals    PurchaseRequest[] @relation("TreasurerApprover")
   presidentApprovals    PurchaseRequest[] @relation("PresidentApprover")
   registerSyncsRequested RegisterSync[]
+  registerEntriesVoided RegisterEntry[] @relation("RegisterEntryVoidedBy")
   attendanceImports     AttendanceImport[]
   settledCoachMonths    CoachMonthSettlement[]
   feeArrangementsSet    FeeArrangement[]

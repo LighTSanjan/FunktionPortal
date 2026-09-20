@@ -6,6 +6,7 @@ import type { Prisma } from '@prisma/client'
 import { dbAs } from '@/core/db'
 import { getOrgContext, requirePermission, verifySession } from '@/core/auth/dal'
 import { writeAudit } from '@/core/audit'
+import { alert } from '@/core/alerts'
 import { allocateReference } from '@/modules/references'
 import { financialYearOf } from '@/modules/references/format'
 import { buildClaim, buildClaimContext, clubFundBalanceAfter, getMonthlyRun, localDateKey } from './monthly-run'
@@ -466,6 +467,12 @@ export async function voidMonth(
 
   if (problem) return { error: problem }
 
+  await alert(
+    'financial_document_voided',
+    { club: org.slug, document: invoiceId },
+    { eventId: `claim-void:${invoiceId}` }
+  )
+
   revalidatePath(`/${orgSlug}/monthly-run`)
   revalidatePath(`/${orgSlug}/monthly-run/${invoiceId}`)
   revalidatePath(`/${orgSlug}/dashboard`)
@@ -693,6 +700,9 @@ export async function markMonthPaidOutside(
 
   const reference = String(formData?.get('reference') ?? '').trim()
   if (reference.length > 80) return { error: 'Keep the payment reference under 80 characters.' }
+  const reversalReason = String(formData?.get('reversalReason') ?? '').trim()
+  if (!settled && reversalReason.length < 5) return { error: 'Say why the outside payment record is being reversed.' }
+  if (!settled && reversalReason.length > 500) return { error: 'Keep the reversal reason under 500 characters.' }
 
   const payments = entries.map((entry) => ({
     entry,
@@ -718,6 +728,7 @@ export async function markMonthPaidOutside(
       if (liveDocuments > 0) return 'This month already has documents raised in the portal.'
     }
 
+    const changedAt = new Date()
     const row = settled
       ? await tx.coachMonthSettlement.create({
           data: { orgId: org.id, periodYear, periodMonth, settledById: userId },
@@ -726,10 +737,9 @@ export async function markMonthPaidOutside(
       : await tx.coachMonthSettlement.delete({ where: key, select: { id: true } })
 
     if (settled && paidOn) {
-      await tx.registerEntry.createMany({
-        data: payments.map(({ entry, amount, fund }) => {
+      for (const { entry, amount, fund } of payments) {
           const cents = Math.round(amount * 100)
-          return {
+          const data = {
             orgId: org.id,
             financialYear: financialYearOf(fromDateColumn(paidOn)),
             section: fund === 'SEED' ? ('SEED_FUND' as const) : ('INCOME' as const),
@@ -742,11 +752,32 @@ export async function markMonthPaidOutside(
             expenseWithoutGstCents: cents,
             expenseWithGstCents: cents,
           }
-        }),
-      })
+          await tx.registerEntry.upsert({
+            where: {
+              orgId_sourceType_sourceId: {
+                orgId: org.id,
+                sourceType: 'CoachPaymentOutside',
+                sourceId: `${period}:${entry.instructorId}`,
+              },
+            },
+            create: data,
+            update: {
+              ...data,
+              voidedAt: null,
+              voidedById: null,
+              voidReason: null,
+            },
+          })
+      }
     } else if (!settled) {
-      await tx.registerEntry.deleteMany({
-        where: { orgId: org.id, sourceType: 'CoachPaymentOutside', sourceId: { startsWith: `${period}:` } },
+      await tx.registerEntry.updateMany({
+        where: {
+          orgId: org.id,
+          sourceType: 'CoachPaymentOutside',
+          sourceId: { startsWith: `${period}:` },
+          voidedAt: null,
+        },
+        data: { voidedAt: changedAt, voidedById: userId, voidReason: reversalReason },
       })
     }
 
@@ -757,9 +788,11 @@ export async function markMonthPaidOutside(
         action: settled ? 'claim.month_paid_outside' : 'claim.month_paid_outside_undone',
         targetType: 'CoachMonthSettlement',
         targetId: row.id,
+        before: settled ? { settled: false } : { settled: true },
         after: {
           period,
           settled,
+          ...(settled ? {} : { reason: reversalReason }),
           payments: settled ? payments.map(({ entry, amount, fund }) => ({ instructorId: entry.instructorId, amountCents: Math.round(amount * 100), fund })) : [],
         },
       },
@@ -769,6 +802,14 @@ export async function markMonthPaidOutside(
   })
 
   if (problem) return { error: problem }
+
+  if (!settled) {
+    await alert(
+      'financial_entry_voided',
+      { club: org.slug, entry: `outside-coach-payments:${period}` },
+      { eventId: `outside-payment-reversal:${org.id}:${period}:${new Date().toISOString()}` }
+    )
+  }
 
   revalidatePath(`/${orgSlug}/monthly-run`)
   revalidatePath(`/${orgSlug}/dashboard`)
