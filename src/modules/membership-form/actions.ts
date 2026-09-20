@@ -6,7 +6,6 @@ import type { Prisma } from '@prisma/client'
 import { dbAs } from '@/core/db'
 import { getOrgContext, requirePermission } from '@/core/auth/dal'
 import { writeAudit } from '@/core/audit'
-import { studentIdFromEmail } from '@/core/auth/roster-match'
 import { amountForTier, resolveFee, type ResolvedFee } from '@/modules/fees/tiers'
 import { lockTermFees, writeDeclaration } from '@/modules/fees/declaration'
 import { validateProof, putProof, discardProof, ProofRejected, MAX_PROOF_BYTES } from '@/modules/fees/proof'
@@ -15,7 +14,6 @@ import {
   needsOptions,
   parseOptions,
   readAnswers,
-  readBirthday,
   readStudentId,
   storedAnswers,
   type Question,
@@ -25,7 +23,7 @@ export interface FormActionState {
   error: string | null
   ok?: boolean
   message?: string
-  /** Keyed by field: `fullName`, `studentId`, `birthday`, `tier`, `payment`, or a question id. */
+  /** Keyed by field: `fullName`, `studentId`, `payment`, or a question id. */
   fieldErrors?: Record<string, string>
 }
 
@@ -387,8 +385,8 @@ const referenceSchema = z
  * picks their fee where the form lets them, and pays: their payment goes
  * straight to the exco to check, exactly as "I've paid" did.
  *
- * Somebody who is not linked tells the club who they are — name, student ID,
- * birthday — and can still pay in the same sitting. Their payment is held on
+ * Everybody confirms the pre-filled name and student ID, and can correct them
+ * before sending. Somebody not linked can still pay in the same sitting; the payment is held on
  * the response until an exco member matches them to a roster row or adds them
  * as new. They are never told whether their student ID is already on the
  * roster, because that would let anybody check who is in the club.
@@ -421,9 +419,6 @@ export async function submitMembershipForm(
           studentId: true,
           rosterLabel: true,
           isActive: true,
-          birthDay: true,
-          birthMonth: true,
-          birthYear: true,
         },
       }),
       tx.membershipResponse.findFirst({ where: { orgId: org.id, termId, userId } }),
@@ -458,31 +453,15 @@ export async function submitMembershipForm(
   const read = readAnswers(questions, formData)
   if (!read.ok) Object.assign(fieldErrors, read.errors)
 
-  // Who they are. From the roster when their account is linked to it.
-  let fullName = member?.fullName ?? ''
-  let studentId = member?.studentId ?? null
-  let birthday: { day: number; month: number; year: number | null } | null =
-    member?.birthDay && member.birthMonth
-      ? { day: member.birthDay, month: member.birthMonth, year: member.birthYear }
-      : null
+  // Signed-in identity is only a default. The response keeps what the person
+  // confirmed, so a stale roster spelling or student ID can be corrected and
+  // shown to the exco without silently rewriting the roster itself.
+  const fullName = String(formData.get('fullName') ?? '').trim().replace(/\s+/g, ' ')
+  if (fullName.length < 2) fieldErrors.fullName = 'Put in your full name, as on your student card.'
+  else if (fullName.length > 120) fieldErrors.fullName = 'That name is longer than we can keep.'
 
-  if (!member) {
-    fullName = String(formData.get('fullName') ?? '').trim().replace(/\s+/g, ' ')
-    if (fullName.length < 2) fieldErrors.fullName = 'Put in your full name, as on your student card.'
-    else if (fullName.length > 120) fieldErrors.fullName = 'That name is longer than we can keep.'
-
-    const fromEmail = studentIdFromEmail(user.email)
-    studentId = fromEmail ?? readStudentId(String(formData.get('studentId') ?? ''))
-    if (!studentId) fieldErrors.studentId = 'Your student ID is the seven digits on your student card.'
-
-    const typed = readBirthday(
-      String(formData.get('birthDay') ?? ''),
-      String(formData.get('birthMonth') ?? ''),
-      String(formData.get('birthYear') ?? '')
-    )
-    if (typeof typed === 'string') fieldErrors.birthday = typed
-    else birthday = typed
-  }
+  const studentId = readStudentId(String(formData.get('studentId') ?? ''))
+  if (!studentId) fieldErrors.studentId = 'Your student ID is the seven digits on your student card.'
 
   // The fee is never theirs to pick: the term's rate, or what the exco set
   // for this person. Somebody not on the roster yet is asked for a full term
@@ -594,9 +573,9 @@ export async function submitMembershipForm(
         email: user.email,
         fullName,
         studentId,
-        birthDay: birthday?.day ?? null,
-        birthMonth: birthday?.month ?? null,
-        birthYear: birthday?.year ?? null,
+        birthDay: null,
+        birthMonth: null,
+        birthYear: null,
         answers: answers as unknown as Prisma.InputJsonValue,
         ...held,
       }
@@ -677,7 +656,7 @@ export async function submitMembershipForm(
           action: response ? 'form.response_edit' : 'form.respond',
           targetType: 'MembershipResponse',
           targetId: saved.id,
-          // Never the birthday or the answers: the audit log is read more widely.
+          // Never the answers: the audit log is read more widely.
           after: { termId: term.id, onRoster: Boolean(member), paid: Boolean(proofPath) },
         },
         tx
@@ -772,9 +751,6 @@ export async function matchResponse(
           studentId: response.studentId,
           email: response.email,
           userId: response.userId,
-          birthDay: response.birthDay,
-          birthMonth: response.birthMonth,
-          birthYear: response.birthYear,
         },
         select: { id: true, fullName: true },
       })
@@ -794,7 +770,7 @@ export async function matchResponse(
     } else {
       const member = await tx.member.findFirst({
         where: { id: parsed.data.target, orgId: org.id },
-        select: { id: true, fullName: true, userId: true, birthDay: true, birthMonth: true, birthYear: true },
+        select: { id: true, fullName: true, userId: true },
       })
       if (!member) return { problem: 'That roster row no longer exists.' }
       if (member.userId && member.userId !== response.userId) {
@@ -815,13 +791,7 @@ export async function matchResponse(
       if (!member.userId) {
         await tx.member.update({
           where: { id: member.id },
-          data: {
-            userId: response.userId,
-            // A birthday the roster did not have, from the person themselves.
-            ...(!member.birthDay && response.birthDay
-              ? { birthDay: response.birthDay, birthMonth: response.birthMonth, birthYear: response.birthYear }
-              : {}),
-          },
+          data: { userId: response.userId },
         })
         await writeAudit(
           {

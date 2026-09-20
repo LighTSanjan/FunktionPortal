@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import * as React from 'react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 const localStorageMock = (() => {
   let store: Record<string, string> = {}
@@ -142,5 +143,49 @@ describe('CommandPalette', () => {
     fireEvent.change(input, { target: { value: 'coach' } })
     expect(screen.getByText('Coaches')).toBeInTheDocument()
     expect(screen.queryByText('Classes')).not.toBeInTheDocument()
+  })
+
+  it('keeps keyboard focus inside and returns it to the opener', async () => {
+    function Harness() {
+      const [open, setOpen] = React.useState(false)
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>Open search</button>
+          <CommandPalette
+            orgSlug="acme"
+            navEntries={mockNav}
+            open={open}
+            onClose={() => setOpen(false)}
+          />
+        </>
+      )
+    }
+
+    render(<Harness />)
+    const opener = screen.getByRole('button', { name: 'Open search' })
+    opener.focus()
+    fireEvent.click(opener)
+    const input = screen.getByPlaceholderText('Search pages...')
+    await waitFor(() => expect(input).toHaveFocus())
+
+    const close = screen.getByRole('button', { name: 'Close command palette' })
+    close.focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(input).toHaveFocus()
+
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
+    expect(close).toHaveFocus()
+
+    fireEvent.click(close)
+    expect(opener).toHaveFocus()
+  })
+
+  it('closes on Escape', () => {
+    const onClose = vi.fn()
+    render(
+      <CommandPalette orgSlug="acme" navEntries={mockNav} open onClose={onClose} />
+    )
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledOnce()
   })
 })

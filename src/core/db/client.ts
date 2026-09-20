@@ -1,6 +1,7 @@
 import { PrismaClient, Prisma } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { dbAdmin } from './admin'
+import { errorFields, logEvent } from '@/core/observability/logger'
 
 // Hosted Supabase blocks SET ROLE into custom roles, so production connects as
 // app_user directly. Local Postgres can use SET ROLE on the admin connection.
@@ -56,9 +57,25 @@ export async function dbAs<T>(
   userId: string,
   fn: (tx: Prisma.TransactionClient) => Promise<T>
 ): Promise<T> {
+  const queuedAt = Date.now()
   await acquire()
+  const queueMs = Date.now() - queuedAt
+  const startedAt = Date.now()
   try {
-    return await runScoped(userId, fn)
+    const result = await runScoped(userId, fn)
+    const durationMs = Date.now() - startedAt
+    if (queueMs >= 250 || durationMs >= 1_000) {
+      logEvent('warn', 'db.rls_transaction_slow', { queueMs, durationMs, activeTransactions: active })
+    }
+    return result
+  } catch (error) {
+    logEvent('error', 'db.rls_transaction_failed', {
+      queueMs,
+      durationMs: Date.now() - startedAt,
+      activeTransactions: active,
+      ...errorFields(error),
+    })
+    throw error
   } finally {
     release()
   }

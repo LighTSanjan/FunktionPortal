@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { RETURN_PATH_COOKIE, RETURN_PATH_MAX_AGE_SECONDS, readReturnPath } from '@/core/auth/return-path'
 
-const STATIC_PREFIXES = ['/_next/', '/favicon.ico', '/robots.txt', '/sitemap.xml']
+const STATIC_PREFIXES = ['/_next/', '/favicon.ico', '/robots.txt', '/sitemap.xml', '/api/email-assets/']
 
 const AUTH_PAGES = ['/sign-in', '/sign-up']
 

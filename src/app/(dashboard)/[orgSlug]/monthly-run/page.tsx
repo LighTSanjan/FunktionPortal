@@ -8,13 +8,14 @@ import { invoiceDateFor } from '@/modules/coach-claim/claim'
 import { financialYearOf } from '@/modules/references/format'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { addWorkingDays, OSL_SUBMISSION_WORKING_DAYS } from '@/modules/coach-claim/deadlines'
-import { longDate } from '@/modules/coach-claim/theme'
+import { isoDate, longDate } from '@/modules/coach-claim/theme'
 import { fundBalances } from '@/modules/funds/balance'
 import { coachPaymentsWorkflow } from '@/modules/workflow/coach-payments'
 import { WorkflowStrip } from '@/modules/workflow/ui'
 import { MonthNav } from '../sessions/_components/month-nav'
 import { RunCard } from './_components/run-card'
 import { PaidOutsideToggle } from './_components/paid-outside-toggle'
+import { singaporeDay } from '@/lib/date-only'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,14 +44,20 @@ export default async function MonthlyRunPage({
     month: monthIndex + 1,
   })
 
-  const settlement = await dbAs(userId, (tx) =>
-    tx.coachMonthSettlement.findUnique({
-      where: {
-        orgId_periodYear_periodMonth: { orgId: org.id, periodYear: year, periodMonth: monthIndex + 1 },
-      },
-      select: { settledAt: true, settledBy: { select: { name: true } } },
-    })
-  )
+  const { settlement, outsidePayments } = await dbAs(userId, async (tx) => {
+    const [settlement, outsidePayments] = await Promise.all([
+      tx.coachMonthSettlement.findUnique({
+        where: { orgId_periodYear_periodMonth: { orgId: org.id, periodYear: year, periodMonth: monthIndex + 1 } },
+        select: { settledAt: true, settledBy: { select: { name: true } } },
+      }),
+      tx.registerEntry.findMany({
+        where: { orgId: org.id, sourceType: 'CoachPaymentOutside', sourceId: { startsWith: `${year}-${String(monthIndex + 1).padStart(2, '0')}:` } },
+        orderBy: { payeeName: 'asc' },
+        select: { id: true, payeeName: true, section: true, expenseWithGstCents: true, documentDate: true },
+      }),
+    ])
+    return { settlement, outsidePayments }
+  })
 
   // The financial year the month's documents will be dated in — the same one
   // generateMonthlyDocuments allocates the reference against — and what each
@@ -127,6 +134,17 @@ export default async function MonthlyRunPage({
               })}
               . It counts as done, and nothing here needs raising for it.
             </p>
+            {outsidePayments.length > 0 && (
+              <ul className="space-y-1 text-[13px] text-text">
+                {outsidePayments.map((payment) => (
+                  <li key={payment.id}>
+                    <span className="font-medium">{payment.payeeName ?? 'Coach'}</span>{' '}
+                    <span className="tabular-nums">{formatSgd(payment.expenseWithGstCents ?? 0)}</span>{' '}
+                    <span className="text-text-muted">from {payment.section === 'SEED_FUND' ? 'OSL Seed Fund' : 'Income'}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
             <PaidOutsideToggle orgSlug={orgSlug} period={period} label={label} settled />
           </CardContent>
         </Card>
@@ -203,7 +221,14 @@ export default async function MonthlyRunPage({
                 are used.
               </p>
             </div>
-            <PaidOutsideToggle orgSlug={orgSlug} period={period} label={label} settled={false} />
+            <PaidOutsideToggle
+              orgSlug={orgSlug}
+              period={period}
+              label={label}
+              settled={false}
+              coaches={active.map((entry) => ({ id: entry.instructorId, name: entry.fullName, amountCents: entry.subtotalCents }))}
+              defaultPaidOn={isoDate(singaporeDay(new Date()))}
+            />
           </CardContent>
         </Card>
       )}

@@ -65,9 +65,6 @@ export interface OwnResponse {
   memberId: string | null
   fullName: string
   studentId: string | null
-  birthDay: number | null
-  birthMonth: number | null
-  birthYear: number | null
   answers: Answer[]
   /** A payment made before the response reached a roster row. */
   held: { reference: string | null; amountCents: number | null; at: Date | null } | null
@@ -89,9 +86,6 @@ export async function getOwnResponse(
     memberId: row.memberId,
     fullName: row.fullName,
     studentId: row.studentId,
-    birthDay: row.birthDay,
-    birthMonth: row.birthMonth,
-    birthYear: row.birthYear,
     answers: storedAnswers(row.answers),
     held: row.heldProofPath
       ? { reference: row.heldReference, amountCents: row.heldAmountCents, at: row.heldAt }
@@ -105,7 +99,7 @@ export interface RosterCandidate {
   id: string
   fullName: string
   studentId: string | null
-  /** Why it is suggested: the ID, the name, the birthday — each a hint. */
+  /** Why it is suggested: the account, student ID, or name — each a hint. */
   reasons: string[]
   /** Already linked to the account that sent the response. */
   sameAccount: boolean
@@ -119,7 +113,6 @@ export interface ResponseRow {
   memberName: string | null
   fullName: string
   studentId: string | null
-  birthday: string | null
   answers: Answer[]
   held: { reference: string | null; amountCents: number | null; hasProof: boolean } | null
   submittedAt: Date
@@ -132,13 +125,6 @@ export interface ResponseRow {
   candidates: RosterCandidate[]
   /** A roster row already has this student ID, linked to somebody else. */
   idTakenBy: string | null
-}
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-export function birthdayLabel(day: number | null, month: number | null, year: number | null): string | null {
-  if (!day || !month) return null
-  return `${day} ${MONTHS[month - 1]}${year ? ` ${year}` : ''}`
 }
 
 /**
@@ -165,8 +151,6 @@ export async function listResponses(userId: string, orgId: string, termId: strin
         fullName: true,
         studentId: true,
         userId: true,
-        birthDay: true,
-        birthMonth: true,
       },
     }),
   }))
@@ -183,18 +167,9 @@ export async function listResponses(userId: string, orgId: string, termId: strin
           if (sameAccount) reasons.push('signed in as them')
           if (row.studentId && member.studentId === row.studentId) reasons.push('same student ID')
           if (sameName(member.fullName, row.fullName)) reasons.push('same name')
-          if (
-            row.birthDay &&
-            row.birthMonth &&
-            member.birthDay === row.birthDay &&
-            member.birthMonth === row.birthMonth
-          ) {
-            reasons.push('same birthday')
-          }
           return { member, reasons, sameAccount }
         })
-        // A birthday alone is shared by one in 365; it only counts beside something else.
-        .filter(({ reasons }) => reasons.length > 0 && !(reasons.length === 1 && reasons[0] === 'same birthday'))
+        .filter(({ reasons }) => reasons.length > 0)
 
       for (const { member } of scored) {
         if (row.studentId && member.studentId === row.studentId && member.userId && member.userId !== row.userId) {
@@ -223,7 +198,6 @@ export async function listResponses(userId: string, orgId: string, termId: strin
       memberName: row.member?.fullName ?? null,
       fullName: row.fullName,
       studentId: row.studentId,
-      birthday: birthdayLabel(row.birthDay, row.birthMonth, row.birthYear),
       answers: storedAnswers(row.answers),
       held: row.heldProofPath || row.heldReference
         ? { reference: row.heldReference, amountCents: row.heldAmountCents, hasProof: Boolean(row.heldProofPath) }

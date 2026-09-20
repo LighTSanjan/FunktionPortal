@@ -5,6 +5,8 @@ import { dbAdmin } from '@/core/db/admin'
 import type { EmailProof } from './proof'
 import { isAllowedDomain, normaliseEmail, pendingInvitation } from './eligibility'
 import { linkAccountToRoster } from './roster-link'
+import { alert } from '@/core/alerts'
+import { logEvent } from '@/core/observability/logger'
 
 export interface ProvisionResult {
   /** The address is proven for this account, now or from an earlier sign-in. */
@@ -151,26 +153,48 @@ async function bootstrapFirstExco(userId: string, email: string): Promise<void> 
 
   if (!allowed.includes(email.toLowerCase())) return
 
-  const anyExco = await dbAdmin.organisationMembership.findFirst({
-    where: { role: 'EXCO', isActive: true },
-    select: { id: true },
-  })
-  if (anyExco) return
+  const promoted = await dbAdmin.$transaction(async (tx) => {
+    // Two first sign-ins must not both see an empty exco table and promote
+    // themselves. This lock exists only for the few milliseconds of bootstrap.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('funktion:first-exco-bootstrap'))`
 
-  const membership = await dbAdmin.organisationMembership.findFirst({
-    where: { userId, isActive: true },
-    select: { id: true },
-  })
-  if (!membership) return
+    const anyExco = await tx.organisationMembership.findFirst({
+      where: { role: 'EXCO', isActive: true },
+      select: { id: true },
+    })
+    if (anyExco) return null
 
-  await dbAdmin.organisationMembership.update({
-    where: { id: membership.id },
-    data: { role: 'EXCO', office: 'TREASURER' },
+    const membership = await tx.organisationMembership.findFirst({
+      where: { userId, isActive: true },
+      select: { id: true, orgId: true, organisation: { select: { slug: true } } },
+    })
+    if (!membership) return null
+
+    await tx.organisationMembership.update({
+      where: { id: membership.id },
+      data: { role: 'EXCO', office: 'TREASURER' },
+    })
+    await tx.auditLog.create({
+      data: {
+        orgId: membership.orgId,
+        actorId: userId,
+        action: 'access.bootstrap_exco',
+        targetType: 'OrganisationMembership',
+        targetId: membership.id,
+        before: { role: 'MEMBER', office: null },
+        after: { role: 'EXCO', office: 'TREASURER' },
+        metadata: { configuredAllowlist: true },
+      },
+    })
+    return { membershipId: membership.id, orgSlug: membership.organisation.slug }
   })
 
-  console.warn(
-    `[bootstrap] promoted ${email} to EXCO (treasurer) as the club's first. ` +
-      'Unset BOOTSTRAP_EXCO_EMAILS now.',
+  if (!promoted) return
+  logEvent('warn', 'access.first_exco_bootstrapped', { membershipId: promoted.membershipId })
+  await alert(
+    'exco_granted',
+    { club: promoted.orgSlug, office: 'TREASURER', what: 'first-exco bootstrap' },
+    { eventId: `first-exco:${promoted.membershipId}` }
   )
 }
 

@@ -30,8 +30,8 @@ those records. The detailed implementation history and remaining work are in
 | Coach payments | Live: sessions, attendance, self-practice dates, monthly claims, invoices, attendance sheets, signing, void/re-raise, and submission tracking |
 | Fee collection | Live: term collections, PayNow QR, member declarations, exco reconciliation, close-out, OSL Income Deposit Form workbook, and club summary document |
 | Access and settings | Live: email OTP, Google and Microsoft sign-in, invitations, revocation, promotion requests, organisation settings, profiles, and stored signatures |
-| Registers and attendance | Read-only register import plus CSV attendance review/apply; register writeback is not implemented |
-| Remaining roadmap | Reminders and Telegram delivery, instructor photos, procurement workflows, register writeback, and FY2027 handover |
+| Registers and attendance | Read-only register import, exceptional manual entries with reversible voids, and CSV attendance review/apply; register writeback is not implemented |
+| Remaining roadmap | Production-service configuration, instructor photos, procurement, budgeting/Insights, contract administration, register writeback, and FY2027 handover |
 
 The first real fee collection still needs to be run and checked with the treasurer before relying on
 it for a live term.
@@ -148,6 +148,10 @@ tests need the local Supabase stack and their required environment variables.
 4. Create the private documents bucket with `npx tsx scripts/create-storage-bucket.ts`.
 5. Apply the storage policies in `scripts/sql/storage-policies.sql` and verify RLS with
    `npm run db:verify-rls`.
+6. Configure private security alerts (`SECURITY_ALERT_EMAILS`, `SECURITY_ALERT_FROM`,
+   and a domain-restricted `RESEND_API_KEY`) and test both delivery and failure logging.
+7. Choose a database and object-storage backup policy, then complete a restore drill before
+   accepting live money records. See `docs/production-operations.md`.
 
 Migrations are not run by `npm run build`; apply them explicitly for each environment.
 
@@ -159,9 +163,11 @@ Migrations are not run by `npm run build`; apply them explicitly for each enviro
 | 01b — Access lifecycle | Complete for invitations, revocation, promotion requests, and independent approval |
 | 02 — Fee collection | Complete; first live collection pending |
 | 02b — Attendance import and signatures | Complete; instructor photos remain |
-| 03 — Reminders and Telegram delivery | Not started |
+| 03 — Stabilisation and treasurer acceptance | Production-safety pass complete; user acceptance pending |
 | 04 — Procurement | Schema exists; forms and approvals are not implemented |
-| 05 — Register sync | Read-only import is live; diff-and-approve writeback is not implemented |
-| 06 — FY2027 handover | Planned for February–March 2027 |
+| 05 — Budgeting, Insights, and contracts | Planned after acceptance of current workflows |
+| 06 — Production services | Recovery runbook complete; provider configuration and restore drill pending |
+| 07 — Register sync | Read-only import is live; diff-and-approve writeback is not implemented |
+| 08 — FY2027 handover | Planned for February–March 2027 |
 
 For open historical register discrepancies and implementation decisions, see the implementation plan.

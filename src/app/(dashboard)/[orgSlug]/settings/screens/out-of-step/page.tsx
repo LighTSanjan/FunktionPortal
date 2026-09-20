@@ -1,4 +1,6 @@
+import { notFound } from 'next/navigation'
 import { getOrgContext, requirePagePermission } from '@/core/auth/dal'
+import { screenPreviewsEnabled } from '@/core/screen-previews'
 import { ThrowStale } from './throw-stale'
 
 export const dynamic = 'force-dynamic'
@@ -11,6 +13,8 @@ export const dynamic = 'force-dynamic'
  * crash page here instead. See src/core/ui/stale-client.ts.
  */
 export default async function OutOfStepPreview({ params }: { params: Promise<{ orgSlug: string }> }) {
+  if (!screenPreviewsEnabled()) notFound()
+
   const { orgSlug } = await params
   const { org } = await getOrgContext(orgSlug)
   await requirePagePermission(org, 'org.manage_settings')

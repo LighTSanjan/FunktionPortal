@@ -79,7 +79,6 @@ describe('the membership form', () => {
     rows.ada = (await addRosterMember(org, { fullName: 'Ada Lee', studentId: '1000001', userId: ada.id })).id
     rows.remy = (await addRosterMember(org, { fullName: 'Remy Back', studentId: '1000002' })).id
     rows.tess = (await addRosterMember(org, { fullName: 'Tess Treasurer', studentId: '1000009', userId: treasurer.id })).id
-    await dbAdmin.member.update({ where: { id: rows.remy }, data: { birthDay: 4, birthMonth: 7 } })
 
     as(treasurer)
     await ok(() =>
@@ -176,7 +175,7 @@ describe('the membership form', () => {
     it('says what needs fixing, all at once', async () => {
       as(ada)
       const result = await submitMembershipForm(org.slug, blank, form({ termId }))
-      expect(Object.keys(result.fieldErrors ?? {}).sort()).toEqual([questionId, 'proof', 'reference'].sort())
+      expect(Object.keys(result.fieldErrors ?? {}).sort()).toEqual([questionId, 'fullName', 'proof', 'reference', 'studentId'].sort())
       expect(await responseOf(ada)).toBeNull()
     })
 
@@ -184,7 +183,7 @@ describe('the membership form', () => {
       as(ada)
       await ok(() =>
         submitMembershipForm(org.slug, blank, form({
-          termId, tier: 'HALF', [`q_${questionId}`]: '@ada', reference: 'PN-ADA-1', proof: pngFile(300, 600),
+          termId, fullName: 'Ada Lee', studentId: '1000001', tier: 'HALF', [`q_${questionId}`]: '@ada', reference: 'PN-ADA-1', proof: pngFile(300, 600),
         }))
       )
       const response = await responseOf(ada)
@@ -198,7 +197,7 @@ describe('the membership form', () => {
 
     it('lets them change their answers without paying again', async () => {
       as(ada)
-      await ok(() => submitMembershipForm(org.slug, blank, form({ termId, tier: 'FULL', [`q_${questionId}`]: '@ada_lee' })))
+      await ok(() => submitMembershipForm(org.slug, blank, form({ termId, fullName: 'Ada Lee', studentId: '1000001', tier: 'FULL', [`q_${questionId}`]: '@ada_lee' })))
       expect((await collectionRow('Ada Lee'))).toMatchObject({ status: 'DECLARED', amountCents: 7000 })
       expect(await dbAdmin.feePayment.count({ where: { termId } })).toBe(1)
     })
@@ -209,32 +208,32 @@ describe('the membership form', () => {
     await ok(() => saveQuestion(org.slug, blank, form({ termId, type: 'SHORT_TEXT', label: 'Shirt size', help: '', options: '' })))
     const shirt = await dbAdmin.membershipQuestion.findFirstOrThrow({ where: { label: 'Shirt size' } })
     as(ada)
-    await ok(() => submitMembershipForm(org.slug, blank, form({ termId, tier: 'FULL', [`q_${questionId}`]: '@ada_lee', [`q_${shirt.id}`]: 'M' })))
+    await ok(() => submitMembershipForm(org.slug, blank, form({ termId, fullName: 'Ada Lee', studentId: '1000001', tier: 'FULL', [`q_${questionId}`]: '@ada_lee', [`q_${shirt.id}`]: 'M' })))
     as(treasurer)
     await ok(() => deleteQuestion(org.slug, shirt.id))
     as(ada)
-    await ok(() => submitMembershipForm(org.slug, blank, form({ termId, tier: 'FULL', [`q_${questionId}`]: '@ada' })))
+    await ok(() => submitMembershipForm(org.slug, blank, form({ termId, fullName: 'Ada Lee', studentId: '1000001', tier: 'FULL', [`q_${questionId}`]: '@ada' })))
     const answers = (await responseOf(ada))?.answers as { label: string; value: string }[]
     expect(answers.map((a) => [a.label, a.value])).toEqual([['Telegram handle', '@ada'], ['Shirt size', 'M']])
   })
 
   describe('somebody not on the roster yet', () => {
-    it('gives their name, student ID and birthday, and pays', async () => {
+    it('gives their required name and student ID, and pays', async () => {
       as(newbie)
       const bad = await submitMembershipForm(org.slug, blank, form({
-        termId, fullName: 'N', studentId: '12', birthDay: '31', birthMonth: '2', tier: 'FULL', [`q_${questionId}`]: '@nina',
+        termId, fullName: 'N', studentId: '12', tier: 'FULL', [`q_${questionId}`]: '@nina',
       }))
-      expect(Object.keys(bad.fieldErrors ?? {}).sort()).toEqual(['birthday', 'fullName', 'proof', 'reference', 'studentId'])
+      expect(Object.keys(bad.fieldErrors ?? {}).sort()).toEqual(['fullName', 'proof', 'reference', 'studentId'])
 
       await ok(() =>
         submitMembershipForm(org.slug, blank, form({
-          termId, fullName: 'Nina  New', studentId: '100 5555', birthDay: '12', birthMonth: '3', birthYear: '',
+          termId, fullName: 'Nina  New', studentId: '100 5555',
           tier: 'FULL', [`q_${questionId}`]: '@nina', reference: 'PN-NINA', proof: pngFile(300, 600),
         }))
       )
       const response = await responseOf(newbie)
       expect(response).toMatchObject({
-        memberId: null, fullName: 'Nina New', studentId: '1005555', birthDay: 12, birthMonth: 3, birthYear: null,
+        memberId: null, fullName: 'Nina New', studentId: '1005555', birthDay: null, birthMonth: null, birthYear: null,
         heldReference: 'PN-NINA', heldAmountCents: 7000,
       })
       expect(response?.heldProofPath).toBeTruthy()
@@ -272,7 +271,7 @@ describe('the membership form', () => {
       expect(result.message).toMatch(/waiting to be checked/)
 
       const member = await dbAdmin.member.findFirstOrThrow({ where: { orgId: org.id, studentId: '1005555' } })
-      expect(member).toMatchObject({ fullName: 'Nina New', userId: newbie.id, email: newbie.email, birthDay: 12, birthMonth: 3 })
+      expect(member).toMatchObject({ fullName: 'Nina New', userId: newbie.id, email: newbie.email, birthDay: null, birthMonth: null })
       expect(await collectionRow('Nina New')).toMatchObject({ status: 'DECLARED', amountCents: 7000, declaredByUserId: newbie.id })
       expect(await responseOf(newbie)).toMatchObject({ memberId: member.id, matchedById: treasurer.id, heldProofPath: null })
     })
@@ -281,13 +280,13 @@ describe('the membership form', () => {
       as(returning)
       await ok(() =>
         submitMembershipForm(org.slug, blank, form({
-          termId, fullName: 'Remy Back', studentId: '1000002', birthDay: '4', birthMonth: '7',
+          termId, fullName: 'Remy Back', studentId: '1000002',
           tier: 'FULL', [`q_${questionId}`]: '@remy', reference: 'PN-REMY', proof: pngFile(300, 600),
         }))
       )
       as(treasurer)
       const [pending] = (await listResponses(treasurer.id, org.id, termId)).filter((r) => r.email === returning.email)
-      expect(pending.candidates[0]).toMatchObject({ id: rows.remy, reasons: ['same student ID', 'same name', 'same birthday'] })
+      expect(pending.candidates[0]).toMatchObject({ id: rows.remy, reasons: ['same student ID', 'same name'] })
 
       const refused = await matchResponse(org.slug, blank, form({ responseId: pending.id, target: 'NEW' }))
       expect(refused.error).toMatch(/already on the roster with student ID 1000002/)
@@ -304,7 +303,7 @@ describe('the membership form', () => {
       as(later)
       await ok(() =>
         submitMembershipForm(org.slug, blank, form({
-          termId, fullName: 'Lin Later', studentId: 'ignored, the email says', birthDay: '2', birthMonth: '2',
+          termId, fullName: 'Lin Later', studentId: '1006666',
           tier: 'FULL', [`q_${questionId}`]: '@lin', reference: 'PN-LIN', proof: pngFile(300, 600),
         }))
       )
@@ -312,7 +311,7 @@ describe('the membership form', () => {
       // Linked by signing in with the student-ID address, not by the exco.
       await dbAdmin.member.update({ where: { id: row.id }, data: { userId: later.id } })
 
-      await ok(() => submitMembershipForm(org.slug, blank, form({ termId, tier: 'FULL', [`q_${questionId}`]: '@lin_l' })))
+      await ok(() => submitMembershipForm(org.slug, blank, form({ termId, fullName: 'Lin Later', studentId: '1006666', tier: 'FULL', [`q_${questionId}`]: '@lin_l' })))
       expect(await collectionRow('Lin Later')).toMatchObject({ status: 'DECLARED', amountCents: 7000, paymentReference: 'PN-LIN' })
       expect(await responseOf(later)).toMatchObject({ memberId: row.id, heldProofPath: null })
 
@@ -333,7 +332,7 @@ describe('the membership form', () => {
       as(treasurer)
       await ok(() =>
         submitMembershipForm(org.slug, blank, form({
-          termId, tier: 'FULL', [`q_${questionId}`]: '@tess', reference: 'PN-TESS', proof: pngFile(300, 600),
+          termId, fullName: 'Tess Treasurer', studentId: '1000009', tier: 'FULL', [`q_${questionId}`]: '@tess', reference: 'PN-TESS', proof: pngFile(300, 600),
         }))
       )
       const tess = await collectionRow('Tess Treasurer')
@@ -355,7 +354,7 @@ describe('the membership form', () => {
       await join(late, org, 'MEMBER')
       as(late)
       const refused = await submitMembershipForm(org.slug, blank, form({
-        termId, fullName: 'Lou Late', studentId: '1007777', birthDay: '1', birthMonth: '1', tier: 'FULL', [`q_${questionId}`]: 'x',
+          termId, fullName: 'Lou Late', studentId: '1007777', tier: 'FULL', [`q_${questionId}`]: 'x',
       }))
       expect(refused.error).toMatch(/not taking responses/)
 
@@ -375,7 +374,7 @@ describe('the membership form', () => {
       as(extra)
       await ok(() =>
         submitMembershipForm(org.slug, blank, form({
-          termId, fullName: 'Xan Extra', studentId: '1008888', birthDay: '9', birthMonth: '9', tier: 'HALF',
+          termId, fullName: 'Xan Extra', studentId: '1008888', tier: 'HALF',
           [`q_${questionId}`]: '@xan', reference: 'PN-XAN', proof: pngFile(300, 600),
         }))
       )
@@ -399,7 +398,7 @@ describe('the membership form', () => {
       as(twice)
       await ok(() =>
         submitMembershipForm(org.slug, blank, form({
-          termId, fullName: 'Tom Twice', studentId: '1003333', birthDay: '3', birthMonth: '3',
+          termId, fullName: 'Tom Twice', studentId: '1003333',
           tier: 'FULL', [`q_${questionId}`]: '@tom', reference: 'PN-TOM', proof: pngFile(300, 600),
         }))
       )

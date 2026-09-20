@@ -85,7 +85,7 @@ export default async function FeesPage({
     getOwnResponse(userId, org.id, term.id),
     dbAs(userId, async (tx) => {
       const [user, member] = await Promise.all([
-        tx.user.findUnique({ where: { id: userId }, select: { email: true } }),
+        tx.user.findUnique({ where: { id: userId }, select: { email: true, name: true, claimedStudentId: true } }),
         tx.member.findFirst({
           where: { orgId: org.id, userId },
           select: { id: true, fullName: true, studentId: true, rosterLabel: true, isActive: true },
@@ -105,7 +105,15 @@ export default async function FeesPage({
             tx.feeArrangement.findUnique({ where: key, select: { tier: true, amountCents: true, note: true } }),
           ])
         : [null, null]
-      return { email: user?.email ?? '', member, payment, arrangement, charge }
+      return {
+        email: user?.email ?? '',
+        userName: user?.name ?? '',
+        claimedStudentId: user?.claimedStudentId ?? null,
+        member,
+        payment,
+        arrangement,
+        charge,
+      }
     }),
   ])
   const { member, payment, arrangement, charge } = context
@@ -153,8 +161,10 @@ export default async function FeesPage({
     termId: term.id,
     termName: term.name,
     questions: form.questions,
-    rosterName: asMember ? { fullName: asMember.fullName, studentId: asMember.studentId } : null,
-    lockedStudentId: asMember ? null : studentIdFromEmail(context.email),
+    identity: {
+      fullName: asMember?.fullName ?? context.userName,
+      studentId: asMember?.studentId ?? context.claimedStudentId ?? studentIdFromEmail(context.email),
+    },
     fee,
     payment: paymentState,
     hasQr: term.hasPaynowQr,

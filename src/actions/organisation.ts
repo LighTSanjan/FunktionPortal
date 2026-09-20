@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { getOrgContext, requirePermission } from '@/core/auth/dal'
 import { dbAs } from '@/core/db'
 import { writeAudit } from '@/core/audit'
+import { alert } from '@/core/alerts'
 import { LogoRejected, MAX_LOGO_BYTES, putLogo, validateLogo } from '@/modules/branding/logo'
 
 export interface OrgSettingsState {
@@ -91,6 +92,7 @@ export async function updateOrgSettings(
   // Stored as basis points: 9% is 900, and 8.5% is 850 rather than a float
   // that has to be trusted to come back out the same way.
   const gstBasisPoints = Math.round(gstPercent * 100)
+  let settingsChanged = false
 
   await dbAs(userId, async (tx) => {
     const [beforeOrg, beforeSettings] = await Promise.all([
@@ -107,6 +109,14 @@ export async function updateOrgSettings(
       update: { ...settings, gstBasisPoints },
       create: { orgId: org.id, ...settings, gstBasisPoints },
     })
+
+    settingsChanged =
+      beforeOrg?.name !== name ||
+      beforeSettings?.projectCode !== settings.projectCode ||
+      beforeSettings?.cluster !== settings.cluster ||
+      beforeSettings?.gstBasisPoints !== gstBasisPoints ||
+      beforeSettings?.submissionEmail !== settings.submissionEmail ||
+      beforeSettings?.oslContactName !== settings.oslContactName
 
     // Audited because every field here prints on a document that goes to the
     // Office of Finance, or decides the number one is filed under.
@@ -137,6 +147,10 @@ export async function updateOrgSettings(
       tx
     )
   })
+
+  if (settingsChanged) {
+    await alert('organisation_settings_changed', { club: org.slug })
+  }
 
   revalidatePath(`/${orgSlug}`, 'layout')
   return { error: null, ok: true }

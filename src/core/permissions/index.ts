@@ -16,6 +16,7 @@ const EXCO_PERMISSIONS = [
   'session.manage',
   'claim.generate',
   'references.view',
+  'references.manage',
   'fee.manage',
 ] as const
 

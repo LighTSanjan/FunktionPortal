@@ -5,22 +5,28 @@ import { createTerm, type FeeState } from '@/modules/fees/actions'
 import { Button } from '@/core/ui/button'
 import { Input } from '@/core/ui/input'
 import { FormField } from '@/core/ui/form-field'
+import { formatSgd } from '@/modules/coach-claim/money'
 
 /**
  * Open a term.
  *
- * Rates are asked for here rather than deferred: a term with no rates charges
- * nothing, and a collection that quietly collects nothing is worse than one
- * that was never opened. The two collection dates are not — those depend on
- * OSL, and a treasurer opening a term in week one may not know them yet.
+ * The first term asks for rates. Later terms inherit the preceding setup and
+ * need one confirmation; the collection screen remains where rates are edited.
  */
 export function NewTermForm({
   orgSlug,
   suggestion,
+  previousTerm,
 }: {
   orgSlug: string
   /** A plausible name and dates, so the common case is two clicks. */
   suggestion: { name: string; startDate: string; endDate: string }
+  previousTerm?: {
+    id: string
+    fullFeeCents: number
+    halfFeeCents: number
+    exchangeFeeCents: number | null
+  }
 }) {
   const [state, formAction, pending] = useActionState<FeeState, FormData>(
     createTerm.bind(null, orgSlug),
@@ -38,11 +44,35 @@ export function NewTermForm({
         </div>
       )}
 
-      <FormField label="What it is called" htmlFor="name" required hint="As members will see it">
+      {previousTerm ? (
+        <>
+          <input type="hidden" name="name" value={suggestion.name} />
+          <input type="hidden" name="startDate" value={suggestion.startDate} />
+          <input type="hidden" name="endDate" value={suggestion.endDate} />
+          <input type="hidden" name="copyFromTermId" value={previousTerm.id} />
+          <div className="rounded-[var(--radius-sm)] border border-border bg-paper p-4 text-[13px] leading-relaxed text-text">
+            <p className="font-semibold">Start {suggestion.name}?</p>
+            <p className="mt-1 text-text-muted">
+              {suggestion.startDate} to {suggestion.endDate}. It will start with the same rates: full term{' '}
+              <span className="font-medium tabular-nums text-text">{formatSgd(previousTerm.fullFeeCents)}</span>, half term{' '}
+              <span className="font-medium tabular-nums text-text">{formatSgd(previousTerm.halfFeeCents)}</span>
+              {previousTerm.exchangeFeeCents !== null && (
+                <> and exchange <span className="font-medium tabular-nums text-text">{formatSgd(previousTerm.exchangeFeeCents)}</span></>
+              )}.
+            </p>
+          </div>
+          <p className="max-w-[64ch] text-[12.5px] leading-relaxed text-text-subtle">
+            You can change the dates or rates after it starts, before opening its membership form.
+          </p>
+          <Button type="submit" loading={pending}>Start the new term</Button>
+        </>
+      ) : (
+        <>
+          <FormField label="What it is called" htmlFor="name" required hint="As members will see it">
         <Input id="name" name="name" defaultValue={suggestion.name} required maxLength={60} />
-      </FormField>
+          </FormField>
 
-      <div className="grid gap-5 sm:grid-cols-2">
+          <div className="grid gap-5 sm:grid-cols-2">
         <FormField label="Starts" htmlFor="startDate" required>
           <Input
             id="startDate"
@@ -61,9 +91,9 @@ export function NewTermForm({
             required
           />
         </FormField>
-      </div>
+          </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
+          <div className="grid gap-5 sm:grid-cols-2">
         <FormField
           label="Full term"
           htmlFor="fullFee"
@@ -93,16 +123,18 @@ export function NewTermForm({
             className="tabular-nums"
           />
         </FormField>
-      </div>
+          </div>
 
-      <p className="max-w-[64ch] text-[12.5px] leading-relaxed text-text-subtle">
-        The collection dates and the PayNow QR come next, on the collection screen. OSL need two
-        weeks&rsquo; notice before a collection opens, so there is no hurry to set them today.
-      </p>
+          <p className="max-w-[64ch] text-[12.5px] leading-relaxed text-text-subtle">
+            The collection dates and the PayNow QR come next, on the collection screen. OSL need two
+            weeks&rsquo; notice before a collection opens, so there is no hurry to set them today.
+          </p>
 
-      <Button type="submit" loading={pending}>
-        Open the term
-      </Button>
+          <Button type="submit" loading={pending}>
+            Open the term
+          </Button>
+        </>
+      )}
     </form>
   )
 }

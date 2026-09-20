@@ -17,7 +17,6 @@ export interface ResponseView {
   memberName: string | null
   fullName: string
   studentId: string | null
-  birthday: string | null
   answers: Answer[]
   held: { reference: string | null; amountCents: number | null; hasProof: boolean } | null
   /** Formatted on the server, in Singapore time, so the page renders the same twice. */
@@ -192,7 +191,6 @@ function ResponseDetail({
       <dl className="grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-[10rem_1fr]">
         <Row label="On the roster as" value={response.memberName ?? 'Nobody yet'} />
         {response.matchedByName && <Row label="Matched by" value={response.matchedByName} />}
-        <Row label="Birthday" value={response.birthday ?? '—'} />
         <Row label="Sent" value={`${response.sentLong}${response.edited ? ' · edited since' : ''}`} />
         {response.answers.map((answer) => (
           <Row key={answer.questionId} label={answer.label} value={answerText(answer.value) || '—'} />

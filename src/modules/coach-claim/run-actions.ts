@@ -6,9 +6,10 @@ import type { Prisma } from '@prisma/client'
 import { dbAs } from '@/core/db'
 import { getOrgContext, requirePermission, verifySession } from '@/core/auth/dal'
 import { writeAudit } from '@/core/audit'
+import { alert } from '@/core/alerts'
 import { allocateReference } from '@/modules/references'
 import { financialYearOf } from '@/modules/references/format'
-import { buildClaim, buildClaimContext, clubFundBalanceAfter, localDateKey } from './monthly-run'
+import { buildClaim, buildClaimContext, clubFundBalanceAfter, getMonthlyRun, localDateKey } from './monthly-run'
 import { captureSnapshot, snapshotForStorage } from './snapshot'
 import { toInvoiceData } from './claim'
 import { addWorkingDays, OSL_SUBMISSION_WORKING_DAYS } from './deadlines'
@@ -466,6 +467,12 @@ export async function voidMonth(
 
   if (problem) return { error: problem }
 
+  await alert(
+    'financial_document_voided',
+    { club: org.slug, document: invoiceId },
+    { eventId: `claim-void:${invoiceId}` }
+  )
+
   revalidatePath(`/${orgSlug}/monthly-run`)
   revalidatePath(`/${orgSlug}/monthly-run/${invoiceId}`)
   revalidatePath(`/${orgSlug}/dashboard`)
@@ -664,7 +671,8 @@ export async function markPaid(
 export async function markMonthPaidOutside(
   orgSlug: string,
   period: string,
-  settled: boolean
+  settled: boolean,
+  formData?: FormData
 ): Promise<ActionState> {
   const { org } = await getOrgContext(orgSlug)
   const { userId } = await requirePermission(org.id, 'claim.generate')
@@ -679,17 +687,99 @@ export async function markMonthPaidOutside(
     return { error: 'Only a month that has finished can have been paid.' }
   }
 
-  await dbAs(userId, async (tx) => {
+  const entries = settled
+    ? (await getMonthlyRun(userId, org.id, periodYear, periodMonth)).entries.filter(
+        (entry) => entry.status === 'READY' || entry.status === 'BLOCKED'
+      )
+    : []
+  if (settled && entries.length === 0) return { error: 'There are no unraised coach payments to record for that month.' }
+
+  const paidOnText = String(formData?.get('paidOn') ?? '')
+  const paidOn = /^\d{4}-\d{2}-\d{2}$/.test(paidOnText) ? new Date(`${paidOnText}T00:00:00Z`) : null
+  if (settled && (!paidOn || Number.isNaN(paidOn.getTime()))) return { error: 'Pick the date the coaches were paid.' }
+
+  const reference = String(formData?.get('reference') ?? '').trim()
+  if (reference.length > 80) return { error: 'Keep the payment reference under 80 characters.' }
+  const reversalReason = String(formData?.get('reversalReason') ?? '').trim()
+  if (!settled && reversalReason.length < 5) return { error: 'Say why the outside payment record is being reversed.' }
+  if (!settled && reversalReason.length > 500) return { error: 'Keep the reversal reason under 500 characters.' }
+
+  const payments = entries.map((entry) => ({
+    entry,
+    amount: Number(formData?.get(`amount_${entry.instructorId}`) ?? ''),
+    fund: String(formData?.get(`fund_${entry.instructorId}`) ?? ''),
+  }))
+  if (settled && payments.some((payment) => !Number.isFinite(payment.amount) || payment.amount <= 0)) {
+    return { error: 'Enter how much each coach was paid.' }
+  }
+  if (settled && payments.some((payment) => payment.fund !== 'SEED' && payment.fund !== 'INCOME')) {
+    return { error: 'Pick which fund paid each coach.' }
+  }
+
+  const problem = await dbAs(userId, async (tx) => {
     const key = { orgId_periodYear_periodMonth: { orgId: org.id, periodYear, periodMonth } }
     const existing = await tx.coachMonthSettlement.findUnique({ where: key, select: { id: true } })
-    if (settled === Boolean(existing)) return
+    if (settled === Boolean(existing)) return null
 
+    if (settled) {
+      const liveDocuments = await tx.invoice.count({
+        where: { orgId: org.id, periodYear, periodMonth, status: { not: 'VOID' } },
+      })
+      if (liveDocuments > 0) return 'This month already has documents raised in the portal.'
+    }
+
+    const changedAt = new Date()
     const row = settled
       ? await tx.coachMonthSettlement.create({
           data: { orgId: org.id, periodYear, periodMonth, settledById: userId },
           select: { id: true },
         })
       : await tx.coachMonthSettlement.delete({ where: key, select: { id: true } })
+
+    if (settled && paidOn) {
+      for (const { entry, amount, fund } of payments) {
+          const cents = Math.round(amount * 100)
+          const data = {
+            orgId: org.id,
+            financialYear: financialYearOf(fromDateColumn(paidOn)),
+            section: fund === 'SEED' ? ('SEED_FUND' as const) : ('INCOME' as const),
+            sourceType: 'CoachPaymentOutside',
+            sourceId: `${period}:${entry.instructorId}`,
+            referenceNumber: reference || null,
+            description: `${entry.danceStyle} Instructor Fee ${new Date(Date.UTC(periodYear, periodMonth - 1, 1)).toLocaleDateString('en-SG', { month: 'long', year: 'numeric', timeZone: 'UTC' })}`,
+            documentDate: paidOn,
+            payeeName: entry.fullName,
+            expenseWithoutGstCents: cents,
+            expenseWithGstCents: cents,
+          }
+          await tx.registerEntry.upsert({
+            where: {
+              orgId_sourceType_sourceId: {
+                orgId: org.id,
+                sourceType: 'CoachPaymentOutside',
+                sourceId: `${period}:${entry.instructorId}`,
+              },
+            },
+            create: data,
+            update: {
+              ...data,
+              voidedAt: null,
+              voidedById: null,
+              voidReason: null,
+            },
+          })
+      }
+    } else if (!settled) {
+      await tx.registerEntry.updateMany({
+        where: {
+          orgId: org.id,
+          sourceType: 'CoachPaymentOutside',
+          sourceId: { startsWith: `${period}:` },
+          voidedAt: null,
+        },
+        data: { voidedAt: changedAt, voidedById: userId, voidReason: reversalReason },
+      })
+    }
 
     await writeAudit(
       {
@@ -698,13 +788,31 @@ export async function markMonthPaidOutside(
         action: settled ? 'claim.month_paid_outside' : 'claim.month_paid_outside_undone',
         targetType: 'CoachMonthSettlement',
         targetId: row.id,
-        after: { period, settled },
+        before: settled ? { settled: false } : { settled: true },
+        after: {
+          period,
+          settled,
+          ...(settled ? {} : { reason: reversalReason }),
+          payments: settled ? payments.map(({ entry, amount, fund }) => ({ instructorId: entry.instructorId, amountCents: Math.round(amount * 100), fund })) : [],
+        },
       },
       tx
     )
+    return null
   })
+
+  if (problem) return { error: problem }
+
+  if (!settled) {
+    await alert(
+      'financial_entry_voided',
+      { club: org.slug, entry: `outside-coach-payments:${period}` },
+      { eventId: `outside-payment-reversal:${org.id}:${period}:${new Date().toISOString()}` }
+    )
+  }
 
   revalidatePath(`/${orgSlug}/monthly-run`)
   revalidatePath(`/${orgSlug}/dashboard`)
+  revalidatePath(`/${orgSlug}/register`)
   return { error: null, ok: true }
 }

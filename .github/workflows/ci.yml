@@ -30,6 +30,9 @@ jobs:
       - name: Unit tests
         run: npm run test:run
 
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=high
+
   db-grants:
     runs-on: ubuntu-latest
     services:
@@ -100,11 +103,17 @@ jobs:
       - name: Integration tests
         run: npm run test:integration
 
+      - name: Production build
+        run: npm run test:build
+
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
+      - name: Read-only browser smoke tests
+        run: npx playwright test --config playwright.config.ts
+
       - name: Browser journeys
-        run: npm run test:usability
+        run: npx playwright test --config playwright.usability.config.ts
 
       - name: Upload Playwright traces
         if: failure()

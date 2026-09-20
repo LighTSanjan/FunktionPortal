@@ -16,6 +16,14 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
   // The crash preview on Settings → All screens.
   if (error instanceof Error && error.message.startsWith('[preview]')) return
 
+  const { errorFields, logEvent } = await import('@/core/observability/logger')
+  logEvent('error', 'request.unhandled_error', {
+    route: context.routePath,
+    routeType: context.routeType,
+    method: request.method,
+    ...errorFields(error),
+  })
+
   await alert('server_error', {
     route: context.routePath,
     kind: context.routeType,

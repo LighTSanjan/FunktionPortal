@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
-import { writeAudit } from '@/core/audit'
 import { alert } from '@/core/alerts'
 import {
   REQUEST_TTL_DAYS,
@@ -62,7 +61,7 @@ export async function requestAccess(
   const expiresAt = new Date(Date.now() + REQUEST_TTL_DAYS * 24 * 60 * 60 * 1000)
 
   try {
-    const created = await createAccessRequest({
+    await createAccessRequest({
       orgId: org.id,
       userId,
       requestedOffice: parsed.data.requestedOffice,
@@ -70,14 +69,6 @@ export async function requestAccess(
       expiresAt,
     })
 
-    await writeAudit({
-      orgId: org.id,
-      actorId: userId,
-      action: 'access.request',
-      targetType: 'AccessRequest',
-      targetId: created.id,
-      after: { requestedRole: 'EXCO', requestedOffice: parsed.data.requestedOffice },
-    })
   } catch {
     // The partial unique index on (org, user) WHERE status = 'PENDING'.
     return { error: 'You already have a request waiting. Withdraw it before raising another.' }

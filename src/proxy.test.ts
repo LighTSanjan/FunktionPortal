@@ -90,7 +90,7 @@ describe('proxy', () => {
   })
 
   it('bypasses static asset prefixes without redirecting', async () => {
-    for (const path of ['/_next/static/chunk.js', '/favicon.ico', '/robots.txt']) {
+    for (const path of ['/_next/static/chunk.js', '/favicon.ico', '/robots.txt', '/api/email-assets/logo']) {
       const res = await proxy(makeRequest(path))
       expect(res.headers.get('location')).toBeNull()
     }

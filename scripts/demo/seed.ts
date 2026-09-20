@@ -29,7 +29,7 @@ async function main() {
     Member       ${MEMBER.email}      (invited)
     Codes        http://localhost:58025   ← every sign-in email lands HERE, not in your real inbox
 
-  Once signed in as the treasurer: Settings → All screens.
+  Once signed in as the treasurer: Settings → Screen previews.
 `)
   await dbAdmin.$disconnect()
 }

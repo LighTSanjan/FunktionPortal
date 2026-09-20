@@ -37,6 +37,11 @@ export interface LedgerEntry {
    * a coach invoice or a membership collection banked in.
    */
   fromPortal: boolean
+  /** Only exceptional rows entered by hand can be reversed from this screen. */
+  reversible: boolean
+  voidedAt: Date | null
+  voidedByName: string | null
+  voidReason: string | null
 }
 
 const MONTH_NAMES = [
@@ -58,7 +63,10 @@ function toAmount(row: {
 /** Imported register rows plus unmatched portal documents, loaded once per request. */
 export async function loadLedger(userId: string, orgId: string): Promise<LedgerEntry[]> {
   const { imported, invoices, deposits } = await dbAs(userId, async (tx) => ({
-    imported: await tx.registerEntry.findMany({ where: { orgId } }),
+    imported: await tx.registerEntry.findMany({
+      where: { orgId },
+      include: { voidedBy: { select: { name: true } } },
+    }),
     invoices: await tx.invoice.findMany({
       where: { orgId, status: { not: 'VOID' }, referenceNumber: { isNot: null } },
       select: {
@@ -95,7 +103,11 @@ export async function loadLedger(userId: string, orgId: string): Promise<LedgerE
     amountCents: toAmount(row),
     submittedToOslAt: row.submittedToOslAt,
     bankedInAt: row.bankedInAt,
-    fromPortal: false,
+    fromPortal: row.sourceType !== 'RegisterImport',
+    reversible: row.sourceType === 'Manual',
+    voidedAt: row.voidedAt,
+    voidedByName: row.voidedBy?.name ?? null,
+    voidReason: row.voidReason,
     sheetRowNumber: row.sheetRowNumber,
     sourceId: row.sourceId,
   }))
@@ -133,6 +145,10 @@ export async function loadLedger(userId: string, orgId: string): Promise<LedgerE
         submittedToOslAt: invoice.submittedToOslAt,
         bankedInAt: null,
         fromPortal: true,
+        reversible: false,
+        voidedAt: null,
+        voidedByName: null,
+        voidReason: null,
         sheetRowNumber: null,
         sourceId: invoice.id,
       })
@@ -161,6 +177,10 @@ export async function loadLedger(userId: string, orgId: string): Promise<LedgerE
         submittedToOslAt: null,
         bankedInAt: deposit.finalCollectionAt,
         fromPortal: true,
+        reversible: false,
+        voidedAt: null,
+        voidedByName: null,
+        voidReason: null,
         sheetRowNumber: null,
         sourceId: deposit.id,
       })
@@ -189,6 +209,10 @@ export async function loadLedger(userId: string, orgId: string): Promise<LedgerE
     submittedToOslAt: row.submittedToOslAt,
     bankedInAt: row.bankedInAt,
     fromPortal: row.fromPortal,
+    reversible: row.reversible,
+    voidedAt: row.voidedAt,
+    voidedByName: row.voidedByName,
+    voidReason: row.voidReason,
   }))
 }
 
@@ -229,6 +253,7 @@ export function ledgerTotals(rows: LedgerEntry[], options: { financialYear?: num
     SECTION_ORDER.map((section) => [section, { section, inCents: 0, outCents: 0, rows: 0 }])
   )
   for (const row of filterLedger(rows, options)) {
+    if (row.voidedAt) continue
     const totals = bySection.get(row.section)!
     if (row.amountCents >= 0) totals.inCents += row.amountCents
     else totals.outCents += -row.amountCents

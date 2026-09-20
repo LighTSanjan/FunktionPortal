@@ -56,12 +56,21 @@ export async function fundBalances(
     },
   })
   const imported = await tx.registerEntry.findMany({
-    where: { orgId, financialYear, sourceType: 'RegisterImport', referenceNumber: { not: null } },
+    where: { orgId, financialYear, sourceType: 'RegisterImport', referenceNumber: { not: null }, voidedAt: null },
     select: {
       section: true,
       referenceNumber: true,
       documentDate: true,
       bankedInAt: true,
+      incomeCents: true,
+      expenseWithGstCents: true,
+      expenseWithoutGstCents: true,
+    },
+  })
+  const adjustments = await tx.registerEntry.findMany({
+    where: { orgId, financialYear, sourceType: { not: 'RegisterImport' }, voidedAt: null },
+    select: {
+      section: true,
       incomeCents: true,
       expenseWithGstCents: true,
       expenseWithoutGstCents: true,
@@ -78,7 +87,23 @@ export async function fundBalances(
       }))
 
   const committed = new Map<FundSource, number>()
+  const manualIncome = new Map<FundSource, number>()
   const add = (source: FundSource, cents: number) => committed.set(source, (committed.get(source) ?? 0) + cents)
+  const addIncome = (source: FundSource, cents: number) => manualIncome.set(source, (manualIncome.get(source) ?? 0) + cents)
+
+  const sourceForSection: Record<string, FundSource> = {
+    SEED_FUND: 'SEED',
+    INCOME: 'INCOME',
+    DONATION: 'DONATION',
+    UNOFFICIAL: 'UNOFFICIAL',
+  }
+  for (const row of adjustments) {
+    const source = sourceForSection[row.section]
+    const income = row.incomeCents ?? 0
+    const expense = row.expenseWithGstCents ?? row.expenseWithoutGstCents ?? 0
+    if (income > 0) addIncome(source, income)
+    if (expense > 0) add(source, expense)
+  }
 
   for (const source of ['SEED', 'INCOME'] as const) {
     const mine = invoices.filter((invoice) => invoice.fundSource === source)
@@ -114,7 +139,7 @@ export async function fundBalances(
   return accounts.map((account) => {
     const banked = account.source === 'INCOME' ? bankedCents : 0
     const committedCents = committed.get(account.source) ?? 0
-    const availableCents = account.openingBalanceCents + account.priorIncomeCents + banked
+    const availableCents = account.openingBalanceCents + account.priorIncomeCents + banked + (manualIncome.get(account.source) ?? 0)
     const spentCents = account.priorSpendCents + committedCents
     return {
       source: account.source,

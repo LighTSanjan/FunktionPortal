@@ -7,6 +7,10 @@ import { formatSgd } from '@/modules/coach-claim/money'
 import { loadLedger, filterLedger, ledgerTotals, ledgerYears, SECTION_LABEL, type LedgerEntry } from '@/core/register'
 import { FUND_INK } from '../dashboard/_components/spend-ring'
 import { SECTION_FUND } from '@/core/register'
+import { isoDate } from '@/modules/coach-claim/theme'
+import { singaporeDay } from '@/lib/date-only'
+import { ManualTransactionForm } from './_components/manual-transaction-form'
+import { EntryReversal } from './_components/entry-reversal'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +42,7 @@ export default async function RegisterPage({
   const years = ledgerYears(ledger)
   const shown = entries.reduce(
     (acc, entry) => {
+      if (entry.voidedAt) return acc
       if (entry.amountCents >= 0) acc.in += entry.amountCents
       else acc.out += -entry.amountCents
       return acc
@@ -52,6 +57,16 @@ export default async function RegisterPage({
         title="Transaction register"
         subtitle="Every movement of club money the exco have recorded — the OSL register, the unofficial one the committee keep themselves, and the invoices and bank-ins raised here that aren't on the spreadsheet yet."
       />
+
+      <details className="rounded-[var(--radius-md)] border border-border bg-surface p-5">
+        <summary className="cursor-pointer text-[14px] font-semibold text-text">Record a transaction manually</summary>
+        <p className="mt-2 max-w-[72ch] text-[12.5px] leading-relaxed text-text-muted">
+          Use this for money that did not come through a portal workflow. It appears in the register and updates the matching fund balance immediately.
+        </p>
+        <div className="mt-5">
+          <ManualTransactionForm orgSlug={orgSlug} today={isoDate(singaporeDay(new Date()))} />
+        </div>
+      </details>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {totals.map((total, i) => (
@@ -138,7 +153,7 @@ export default async function RegisterPage({
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] border-collapse text-left">
+              <table className="w-full min-w-[820px] border-collapse text-left">
                 <thead>
                   <tr className="border-b border-border text-[10.5px] uppercase tracking-[0.1em] text-text-subtle">
                     <th className="px-5 py-2.5 font-semibold">Date</th>
@@ -146,11 +161,12 @@ export default async function RegisterPage({
                     <th className="py-2.5 font-semibold">Payee</th>
                     <th className="py-2.5 font-semibold">Reference</th>
                     <th className="px-5 py-2.5 text-right font-semibold">Amount</th>
+                    <th className="px-5 py-2.5 font-semibold">Correction</th>
                   </tr>
                 </thead>
                 <tbody>
                   {entries.map((entry) => (
-                    <LedgerRow key={entry.id} entry={entry} />
+                    <LedgerRow key={entry.id} entry={entry} orgSlug={orgSlug} />
                   ))}
                 </tbody>
               </table>
@@ -197,11 +213,12 @@ function Filter({
   )
 }
 
-function LedgerRow({ entry }: { entry: LedgerEntry }) {
+function LedgerRow({ entry, orgSlug }: { entry: LedgerEntry; orgSlug: string }) {
   const isIncome = entry.amountCents >= 0
+  const voided = entry.voidedAt !== null
 
   return (
-    <tr className="border-b border-border last:border-0 transition-colors duration-[var(--dur-1)] hover:bg-surface-hover">
+    <tr className={`border-b border-border last:border-0 transition-colors duration-[var(--dur-1)] hover:bg-surface-hover ${voided ? 'bg-surface-hover/50' : ''}`}>
       <td className="whitespace-nowrap px-5 py-2.5 align-top text-[12.5px] tabular-nums text-text-muted">
         {entry.documentDate
           ? entry.documentDate.toLocaleDateString('en-SG', {
@@ -222,7 +239,20 @@ function LedgerRow({ entry }: { entry: LedgerEntry }) {
             className="mt-[6px] h-2 w-2 shrink-0 rounded-full"
             style={{ background: FUND_INK[SECTION_FUND[entry.section]] }}
           />
-          <span className="text-[13px] leading-snug text-text">{entry.description}</span>
+          <span className={`text-[13px] leading-snug ${voided ? 'text-text-muted line-through' : 'text-text'}`}>
+            {entry.description}
+            {voided && (
+              <span className="ml-2 rounded-full border border-danger/25 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wider text-danger no-underline">
+                Void
+              </span>
+            )}
+            {voided && entry.voidReason && (
+              <span className="mt-1 block text-[11.5px] leading-snug text-text-subtle no-underline">
+                {entry.voidReason}
+                {entry.voidedByName ? ` · ${entry.voidedByName}` : ''}
+              </span>
+            )}
+          </span>
         </span>
       </td>
       <td className="py-2.5 pr-4 align-top text-[12.5px] text-text-muted">
@@ -241,11 +271,23 @@ function LedgerRow({ entry }: { entry: LedgerEntry }) {
       </td>
       <td
         className={`whitespace-nowrap px-5 py-2.5 text-right align-top text-[13px] font-semibold tabular-nums ${
-          isIncome ? 'text-success' : 'text-text'
+          voided ? 'text-text-subtle line-through' : isIncome ? 'text-success' : 'text-text'
         }`}
       >
         {isIncome ? '+' : '−'}
         {formatSgd(Math.abs(entry.amountCents))}
+      </td>
+      <td className="px-5 py-2.5 align-top">
+        {entry.reversible ? (
+          <EntryReversal
+            key={`${entry.id}:${voided ? 'void' : 'active'}`}
+            orgSlug={orgSlug}
+            entryId={entry.id}
+            voided={voided}
+          />
+        ) : (
+          <span className="text-[11.5px] text-text-subtle">At source</span>
+        )}
       </td>
     </tr>
   )

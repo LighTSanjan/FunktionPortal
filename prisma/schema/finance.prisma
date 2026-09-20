@@ -910,15 +910,25 @@ model RegisterEntry {
   submittedToOslAt DateTime? @db.Date @map("submitted_to_osl_at")
   bankedInAt       DateTime? @db.Date @map("banked_in_at")
 
+  /// Financial rows are never corrected by deletion. A void leaves the
+  /// original fact visible, excludes it from balances, and records who took
+  /// it back and why. Restoring clears this current-state marker; every void
+  /// and restore remains permanently in AuditLog.
+  voidedAt   DateTime? @map("voided_at")
+  voidedById String?   @map("voided_by_id")
+  voidReason String?   @map("void_reason")
+
   sheetRowNumber Int?      @map("sheet_row_number")
   syncedAt       DateTime? @map("synced_at")
   syncId         String?   @map("sync_id")
 
   organisation Organisation  @relation(fields: [orgId], references: [id], onDelete: Cascade)
   sync         RegisterSync? @relation(fields: [syncId], references: [id])
+  voidedBy     User?         @relation("RegisterEntryVoidedBy", fields: [voidedById], references: [id], onDelete: Restrict)
 
   @@unique([orgId, sourceType, sourceId])
   @@index([orgId, financialYear, section])
+  @@index([orgId, voidedAt])
   @@map("register_entries")
 }
 

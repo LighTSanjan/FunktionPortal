@@ -14,7 +14,7 @@ import {
 import { splitGst, DEFAULT_GST_BASIS_POINTS } from '@/modules/fees/money'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { isoDate, longDate } from '@/modules/coach-claim/theme'
-import { singaporeDay } from '@/lib/date-only'
+import { fromDateColumn, singaporeDay } from '@/lib/date-only'
 import { getForm, listResponses } from '@/modules/membership-form/queries'
 import { TermForm } from './_components/term-form'
 import { QrForm } from './_components/qr-form'
@@ -124,6 +124,15 @@ export default async function CollectionPage({
   const paid = rows.filter((row) => row.status === 'CONFIRMED')
   const toCheck = rows.filter((row) => row.status === 'DECLARED')
   const unmatched = responses.filter((row) => !row.memberId)
+  const heldResponses = unmatched.filter((row) => row.held)
+  const closeBlockedReason =
+    toCheck.length > 0 && heldResponses.length > 0
+      ? `Check ${toCheck.length} pending payment${toCheck.length === 1 ? '' : 's'} and match ${heldResponses.length} held form response${heldResponses.length === 1 ? '' : 's'} first.`
+      : toCheck.length > 0
+        ? `Check ${toCheck.length} pending payment${toCheck.length === 1 ? '' : 's'} first.`
+        : heldResponses.length > 0
+          ? `Match ${heldResponses.length} held form response${heldResponses.length === 1 ? '' : 's'} to the roster first.`
+          : undefined
   // Nothing on the OSL route and nothing that could still land on it: the
   // collection closes with no money to bank and no deposit form.
   const nothingToBank =
@@ -293,7 +302,6 @@ export default async function CollectionPage({
                   memberName: row.memberName,
                   fullName: row.fullName,
                   studentId: row.studentId,
-                  birthday: row.birthday,
                   answers: row.answers,
                   held: row.held,
                   sentShort: row.submittedAt.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', timeZone: SGT }),
@@ -363,13 +371,13 @@ export default async function CollectionPage({
                 href={toCheck.length ? `${base}&tab=payments&show=check` : undefined}
               />
               <Check
-                ok={!unmatched.some((row) => row.held)}
+                ok={heldResponses.length === 0}
                 text={
-                  unmatched.some((row) => row.held)
+                  heldResponses.length > 0
                     ? 'Someone paid through the form and isn’t matched to the roster yet'
                     : 'Every payment sent through the form is on the roster'
                 }
-                href={unmatched.some((row) => row.held) ? `${base}&tab=responses` : undefined}
+                href={heldResponses.length > 0 ? `${base}&tab=responses` : undefined}
               />
               <Check
                 ok={totals.owedCents === 0}
@@ -409,6 +417,7 @@ export default async function CollectionPage({
                   termId={term.id}
                   bankable={formatSgd(totals.bankableCents)}
                   nothingToBank={nothingToBank}
+                  blockedReason={closeBlockedReason}
                 />
               </div>
             )}
@@ -545,7 +554,7 @@ function FormTab({
 
       <Panel title="Always on the form" description="These are part of every membership form, so they can’t be removed.">
         <ul className="grid gap-2 text-[13px] text-text sm:grid-cols-2">
-          <Fixed title="Who they are" detail="Already filled in for anyone linked to the roster. Anyone else gives their name, student ID and birthday." />
+          <Fixed title="Who they are" detail="Name and student ID are filled from the signed-in account or roster, and the member can correct them before sending." />
           <Fixed title="Their fee" detail="The term's full fee, or what you set for that person under Payments. Nobody picks their own." />
           <Fixed title="Paying" detail="The QR, the exact amount, the PayNow reference and a screenshot." />
           <Fixed title="What happens next" detail="Their payment comes to Payments for someone else in the exco to check." />
@@ -555,7 +564,16 @@ function FormTab({
       <details className="rounded-[var(--radius-md)] border border-border bg-surface p-5">
         <summary className="cursor-pointer text-[15px] font-semibold">Start a new term</summary>
         <div className="mt-4">
-          <NewTermForm orgSlug={orgSlug} suggestion={suggestTerm(singaporeDay(new Date()))} />
+          <NewTermForm
+            orgSlug={orgSlug}
+            suggestion={suggestNextTerm(term.endDate)}
+            previousTerm={{
+              id: term.id,
+              fullFeeCents: term.fullFeeCents,
+              halfFeeCents: term.halfFeeCents,
+              exchangeFeeCents: term.exchangeFeeCents,
+            }}
+          />
         </div>
       </details>
     </div>
@@ -684,6 +702,19 @@ function suggestTerm(now: Date): { name: string; startDate: string; endDate: str
     startDate: iso(start),
     endDate: iso(end),
   }
+}
+
+/** The first standard trimester that begins after the current term ends. */
+function suggestNextTerm(currentEnd: Date): { name: string; startDate: string; endDate: string } {
+  const end = fromDateColumn(currentEnd)
+  const cursor = new Date(end.getFullYear(), end.getMonth(), 1)
+  for (let i = 0; i < 15; i++) {
+    cursor.setMonth(cursor.getMonth() + 1)
+    const suggestion = suggestTerm(cursor)
+    const [year, month, day] = suggestion.startDate.split('-').map(Number)
+    if (new Date(year, month - 1, day) > end) return suggestion
+  }
+  throw new Error('Could not suggest the next term')
 }
 
 function iso(value: Date): string {

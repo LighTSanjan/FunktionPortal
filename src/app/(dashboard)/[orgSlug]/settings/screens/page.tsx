@@ -1,6 +1,8 @@
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import { getOrgContext, requirePagePermission, verifySession } from '@/core/auth/dal'
 import { dbAs } from '@/core/db'
+import { screenPreviewsEnabled } from '@/core/screen-previews'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
 
@@ -21,6 +23,8 @@ interface Screen {
  * looking. Pages that need a record link to the most recent one.
  */
 export default async function ScreensPage({ params }: { params: Promise<{ orgSlug: string }> }) {
+  if (!screenPreviewsEnabled()) notFound()
+
   const { orgSlug } = await params
   const { org } = await getOrgContext(orgSlug)
   await requirePagePermission(org, 'org.manage_settings')
