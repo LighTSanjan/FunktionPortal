@@ -141,10 +141,7 @@ function AppHeader({
               aria-label="Notifications"
             >
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <div>
-                  <p className="text-[13px] font-semibold text-text">Notifications</p>
-                  <p className="text-[11.5px] text-text-subtle">Live work that still needs attention</p>
-                </div>
+                <p className="text-[13px] font-semibold text-text">Notifications</p>
                 {notifications.length > 0 && (
                   <span className="rounded-full bg-accent-50 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-accent-700">
                     {notifications.length}
