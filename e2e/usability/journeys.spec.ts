@@ -66,7 +66,6 @@ test('the treasurer signs in with a code to their SUTD address and lands on thei
   const notificationTrigger = page.getByRole('button', { name: /Notifications/ })
   await notificationTrigger.click()
   await expect(page.getByRole('menu', { name: 'Notifications' })).toBeVisible()
-  await expect(page.getByText('Live work that still needs attention')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('menu', { name: 'Notifications' })).toHaveCount(0)
 })

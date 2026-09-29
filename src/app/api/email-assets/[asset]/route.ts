@@ -23,7 +23,9 @@ export async function GET(
   const selected = ASSETS[asset as keyof typeof ASSETS]
   if (!selected) return new Response('Not found', { status: 404 })
 
-  const bytes = await readFile(selected.path)
+  // Both paths are fixed above; without the ignore, Turbopack cannot tell and
+  // traces the whole project into the server bundle.
+  const bytes = await readFile(/*turbopackIgnore: true*/ selected.path)
   return new Response(bytes, {
     headers: {
       'Content-Type': selected.type,

@@ -380,7 +380,9 @@ describe('the membership form', () => {
       )
       as(treasurer)
       const response = await responseOf(extra)
-      await ok(() => removeResponse(org.slug, response!.id))
+      expect((await removeResponse(org.slug, response!.id)).error).toMatch(/holds a payment/)
+      expect(await responseOf(extra)).not.toBeNull()
+      await ok(() => removeResponse(org.slug, response!.id, 'Refunded on 20 Sep'))
       expect(await responseOf(extra)).toBeNull()
     })
 
