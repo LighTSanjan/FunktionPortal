@@ -40,6 +40,18 @@ test('tour', async ({ browser }) => {
     await exco.screenshot({ path: `${OUT}/exco-month.png`, fullPage: true })
   }
 
+  // The welcome, walked through as exco in preview: nothing is saved.
+  await exco.goto('/test-club/welcome?preview', { waitUntil: 'networkidle' })
+  await exco.getByRole('button', { name: /^Start/ }).click()
+  await exco.getByRole('button', { name: /First time/ }).click()
+  await exco.getByLabel('Full name').fill('Ada Lee')
+  await exco.getByRole('button', { name: /Continue/ }).click()
+  await exco.getByRole('heading', { name: /Nearly there/ }).waitFor()
+  await exco.waitForTimeout(650)
+  await exco.screenshot({ path: `${OUT}/welcome-preview-confetti.png` })
+  await exco.waitForTimeout(3500)
+  await exco.screenshot({ path: `${OUT}/welcome-preview-done.png` })
+
   await exco.goto('/this-page-does-not-exist', { waitUntil: 'networkidle' })
   await exco.waitForTimeout(800)
   await exco.screenshot({ path: `${OUT}/error-404.png`, fullPage: true })
@@ -65,13 +77,22 @@ test('tour', async ({ browser }) => {
   await member.goto('/test-club/welcome', { waitUntil: 'networkidle' })
   await member.waitForTimeout(1800)
   await member.screenshot({ path: `${OUT}/member-welcome-mobile.png`, fullPage: true })
-  await member.getByRole('button', { name: /Let’s go/ }).click()
+  await member.getByRole('button', { name: /^Start/ }).click()
   await member.waitForTimeout(900)
   await member.screenshot({ path: `${OUT}/member-welcome-who-mobile.png`, fullPage: true })
-  await member.getByRole('button', { name: /I’m new here/ }).click()
+  await member.getByRole('button', { name: /First time/ }).click()
   await member.getByLabel('Full name').waitFor()
   await member.waitForTimeout(900)
   await member.screenshot({ path: `${OUT}/member-welcome-details-mobile.png`, fullPage: true })
+
+  const wide = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+  await signInWithCode(wide, MEMBER.email)
+  await wide.goto('/test-club/welcome', { waitUntil: 'networkidle' })
+  await wide.waitForTimeout(1800)
+  await wide.screenshot({ path: `${OUT}/member-welcome-desktop.png`, fullPage: true })
+  await wide.getByRole('button', { name: /^Start/ }).click()
+  await wide.waitForTimeout(1200)
+  await wide.screenshot({ path: `${OUT}/member-welcome-who-desktop.png`, fullPage: true })
 
   for (const [name, path] of [
     ['member-home-mobile', 'dashboard'],

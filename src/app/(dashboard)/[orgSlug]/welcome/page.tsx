@@ -14,14 +14,22 @@ export const dynamic = 'force-dynamic'
  *
  * They say whether they are new or coming back, and who they are; then they
  * go on to join and pay. Somebody already on the roster — or exco — has no
- * business here and goes home.
+ * business here and goes home, unless they ask for `?preview`: then they walk
+ * through it from the start and nothing they type is saved.
  */
-export default async function WelcomePage({ params }: { params: Promise<{ orgSlug: string }> }) {
+export default async function WelcomePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ orgSlug: string }>
+  searchParams: Promise<{ preview?: string }>
+}) {
   const { orgSlug } = await params
   const { org } = await getOrgContext(orgSlug)
   const { userId } = await verifySession()
   const standing = await getStanding(orgSlug)
-  if (standing === 'FULL') redirect(`/${orgSlug}/dashboard`)
+  const preview = standing === 'FULL' && (await searchParams).preview !== undefined
+  if (standing === 'FULL' && !preview) redirect(`/${orgSlug}/dashboard`)
 
   const [user, term] = await Promise.all([
     dbAs(userId, (tx) =>
@@ -48,8 +56,8 @@ export default async function WelcomePage({ params }: { params: Promise<{ orgSlu
   return (
     <WelcomeFlow
       orgSlug={orgSlug}
-      clubName={org.name}
       done={standing === 'JOINING'}
+      preview={preview}
       initial={{
         joiningAs: user?.joiningAs ?? null,
         fullName: placeholder ? '' : (user?.name ?? ''),

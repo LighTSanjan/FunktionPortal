@@ -1,10 +1,11 @@
 'use client'
 
 import * as React from 'react'
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ArrowRight, Check, RotateCcw, Sparkles } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Eye, ImagePlus, PartyPopper, RotateCcw } from 'lucide-react'
 import { saveWelcome, type WelcomeState } from '@/actions/welcome'
 import { Button } from '@/core/ui/button'
 import { Input } from '@/core/ui/input'
@@ -12,6 +13,9 @@ import { Select } from '@/core/ui/select'
 import { FormField } from '@/core/ui/form-field'
 import { buttonVariants } from '@/core/ui/button-variants'
 import { cn } from '@/lib/utils'
+import { PHOTOS, type PhotoSlot } from './photos'
+import { hand } from './fonts'
+import { Confetti } from './confetti'
 
 type JoiningAs = 'NEW' | 'RETURNING'
 type Step = 'hello' | 'who' | 'details' | 'done'
@@ -27,11 +31,12 @@ interface Details {
 
 export interface WelcomeFlowProps {
   orgSlug: string
-  clubName: string
   /** They've been through it before and are waiting to be matched. */
   done: boolean
   initial: Details
   term: { name: string; open: boolean } | null
+  /** Somebody already on the roster walking through it: nothing is saved. */
+  preview?: boolean
 }
 
 const MONTHS = [
@@ -39,29 +44,33 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
 
-/** The four inks, front to back — the order is the logo's and never changes. */
-const INKS = ['var(--brand-vermilion)', 'var(--brand-marigold)', 'var(--brand-sky)', 'var(--brand-indigo)']
+const delay = (ms: number) => ({ '--delay': `${ms}ms` }) as React.CSSProperties
 
-export function WelcomeFlow({ orgSlug, clubName, done, initial, term }: WelcomeFlowProps) {
+export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: WelcomeFlowProps) {
   const router = useRouter()
   const [step, setStep] = useState<Step>(done ? 'done' : 'hello')
-  const [direction, setDirection] = useState<'forward' | 'back'>('forward')
   const [details, setDetails] = useState<Details>(initial)
-  // Confetti is for the moment they finish, not for every visit afterwards.
-  const [celebrate, setCelebrate] = useState(false)
+  // Bumped to fire the confetti: when somebody finishes, not on every visit.
+  const [shot, setShot] = useState(0)
+  const top = useRef<HTMLDivElement>(null)
 
-  const go = (next: Step, dir: 'forward' | 'back' = 'forward') => {
-    setDirection(dir)
-    setStep(next)
-  }
+  const go = (next: Step) => setStep(next)
+
+  // The page scrolls inside the shell's <main>, not the window. On a phone
+  // the next step's heading is otherwise somewhere above you.
+  useEffect(() => {
+    top.current?.closest('main')?.scrollTo({ top: 0 })
+  }, [step])
 
   const [state, act, pending] = useActionState<WelcomeState, FormData>(async (previous, formData) => {
-    const result = await saveWelcome(orgSlug, previous, formData)
+    const result = preview
+      ? await new Promise<WelcomeState>((resolve) => window.setTimeout(() => resolve({ error: null, ok: true }), 450))
+      : await saveWelcome(orgSlug, previous, formData)
     if (result.ok) {
-      setCelebrate(true)
       go('done')
+      setShot((n) => n + 1)
       // The sidebar and the fees page read where they stand; bring them along.
-      router.refresh()
+      if (!preview) router.refresh()
     }
     return result
   }, { error: null })
@@ -71,184 +80,242 @@ export function WelcomeFlow({ orgSlug, clubName, done, initial, term }: WelcomeF
 
   const pick = (joiningAs: JoiningAs) => {
     setDetails((current) => ({ ...current, joiningAs }))
-    // A beat to see the card take the choice before the screen moves on.
-    window.setTimeout(() => go('details'), 260)
+    // Long enough to see the other card step back before the screen moves on.
+    window.setTimeout(() => go('details'), 380)
   }
 
   const errors = state.fieldErrors ?? {}
   const returning = details.joiningAs === 'RETURNING'
+  const firstName = details.fullName.trim().split(/\s+/)[0] ?? ''
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-10rem)] w-full max-w-xl flex-col justify-center py-6">
-      <Progress step={step} />
-
-      <div
-        key={step}
-        className={cn(
-          'relative mt-5 rounded-[var(--radius-lg)] border-2 border-brand-ink bg-paper p-6 lapis-plate sm:p-8',
-          direction === 'forward' ? 'wizard-enter-from-right' : 'wizard-enter-from-left'
-        )}
-      >
+    <>
+      <Confetti shot={shot} />
+      <div ref={top} key={step} className="mx-auto flex min-h-[calc(100dvh-10rem)] w-full max-w-5xl flex-col justify-center py-6 sm:py-10">
         {step === 'hello' && (
-          <div className="text-center">
-            <LapisCake />
-            <h1 className="rise-in mt-8 text-[28px] font-extrabold leading-tight tracking-tight text-text sm:text-[32px]" style={{ '--delay': '520ms' } as React.CSSProperties}>
-              Welcome to {clubName}
-            </h1>
-            <p className="rise-in mt-2 text-[14px] font-semibold text-accent-500" style={{ '--delay': '600ms' } as React.CSSProperties}>
-              FUNKtion - SUTD&rsquo;s Ultimate Popping &amp; Locking Dance Club!
-            </p>
-            <p className="rise-in mx-auto mt-4 max-w-sm text-[14px] leading-relaxed text-text-muted" style={{ '--delay': '680ms' } as React.CSSProperties}>
-              Two quick questions and you&rsquo;re on the floor. It takes about a minute.
-            </p>
-            <div className="rise-in mt-7" style={{ '--delay': '760ms' } as React.CSSProperties}>
-              <Button type="button" size="lg" onClick={() => go('who')}>
-                Let&rsquo;s go <ArrowRight className="h-4 w-4" aria-hidden />
-              </Button>
+          <section className="grid items-center gap-8 md:grid-cols-[1fr_1.05fr] md:gap-16">
+            <div className="relative mx-auto w-full max-w-[250px] pb-14 pr-10 sm:max-w-[360px] sm:pb-20 sm:pr-16">
+              <Polaroid slot={PHOTOS.crew} aspect="4 / 5" tilt={-2.5} swing={-7} wait={60} tape drift priority sizes="(min-width: 768px) 320px, 75vw" />
+              <Polaroid
+                slot={PHOTOS.candid}
+                aspect="1 / 1"
+                tilt={6}
+                swing={12}
+                wait={420}
+                compact
+                className="absolute bottom-0 right-0 w-[48%]"
+                sizes="170px"
+              />
             </div>
-          </div>
+
+            <div>
+              <p className="rise-in text-[12.5px] font-semibold text-accent-500" style={delay(120)}>
+                FUNKtion - SUTD&rsquo;s Ultimate Popping &amp; Locking Dance Club!
+              </p>
+              <h1 className="mt-3 text-[44px] font-extrabold leading-[0.98] tracking-[-0.04em] text-text sm:text-[56px]">
+                <Line wait={220}>Hey, you </Line>
+                <Line wait={320}>found us.</Line>
+              </h1>
+              <p className="rise-in mt-5 max-w-[40ch] text-[15px] leading-relaxed text-text-muted" style={delay(560)}>
+                Before you pay for the term, tell us who you are so we can get you on the roster. It takes about a
+                minute.
+              </p>
+              <p className={cn(hand.className, 'rise-in mt-2 text-[24px] leading-none text-text')} style={delay(680)}>
+                &mdash; the exco
+              </p>
+              <div className="rise-in mt-8" style={delay(780)}>
+                <Button type="button" size="lg" onClick={() => go('who')}>
+                  Start <ArrowRight className="h-4 w-4" aria-hidden />
+                </Button>
+              </div>
+            </div>
+          </section>
         )}
 
         {step === 'who' && (
-          <div>
-            <h1 className="text-[24px] font-extrabold leading-tight tracking-tight text-text">
-              Have you danced with us before?
+          <section className="mx-auto w-full max-w-3xl">
+            <StepCount n={1} />
+            <h1 className="mt-2 text-[34px] font-extrabold leading-[1.02] tracking-[-0.035em] text-text sm:text-[42px]">
+              <Line wait={60}>Danced with us before?</Line>
             </h1>
-            <p className="mt-1.5 text-[14px] text-text-muted">This decides how we set you up. Nothing is final.</p>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <Choice
+            <div className="mt-8 grid gap-6 sm:grid-cols-2 sm:gap-7">
+              <PathCard
+                slot={PHOTOS.newcomer}
+                title="First time"
+                detail="New to FUNKtion. Welcome in."
+                tilt={-1.2}
+                wait={160}
                 selected={details.joiningAs === 'NEW'}
+                dimmed={details.joiningAs === 'RETURNING'}
                 onSelect={() => pick('NEW')}
-                icon={<Sparkles className="h-5 w-5" aria-hidden />}
-                ink={INKS[0]}
-                title="I’m new here"
-                detail="First time joining FUNKtion. Welcome to the crew!"
-                delay={80}
               />
-              <Choice
+              <PathCard
+                slot={PHOTOS.returning}
+                title="I’ve danced with you before"
+                detail="You were on the roster in an earlier term."
+                tilt={1.2}
+                wait={260}
                 selected={details.joiningAs === 'RETURNING'}
+                dimmed={details.joiningAs === 'NEW'}
                 onSelect={() => pick('RETURNING')}
-                icon={<RotateCcw className="h-5 w-5" aria-hidden />}
-                ink={INKS[2]}
-                title="I’ve been a member"
-                detail="You were on the roster before — last term, or a while back."
-                delay={160}
               />
             </div>
-            <div className="mt-6">
-              <Button type="button" variant="ghost" onClick={() => go('hello', 'back')}>
+            <div className="mt-8">
+              <Button type="button" variant="ghost" onClick={() => go('hello')}>
                 <ArrowLeft className="h-4 w-4" aria-hidden /> Back
               </Button>
             </div>
-          </div>
+          </section>
         )}
 
         {step === 'details' && (
-          <form action={act} noValidate>
-            <input type="hidden" name="joiningAs" value={details.joiningAs ?? ''} />
-            <h1 className="text-[24px] font-extrabold leading-tight tracking-tight text-text">
-              {returning ? 'Welcome back! Who are you?' : 'Tell us who you are'}
-            </h1>
-            <p className="mt-1.5 text-[14px] leading-relaxed text-text-muted">
-              {returning
-                ? 'The exco check this against the roster, then link your account to your record.'
-                : 'This goes on the club roster once the exco add you.'}
-            </p>
+          <section className="mx-auto w-full max-w-xl">
+            <StepCount n={2} />
+            <div className="mt-2 flex items-start gap-4">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-[32px] font-extrabold leading-[1.02] tracking-[-0.035em] text-text sm:text-[38px]">
+                  {returning ? (
+                    <>
+                      <Line wait={60}>Welcome back. </Line>
+                      <Line wait={140}>Remind us who you are.</Line>
+                    </>
+                  ) : (
+                    <Line wait={60}>Who are you?</Line>
+                  )}
+                </h1>
+                <p className="rise-in mt-3 text-[14px] leading-relaxed text-text-muted" style={delay(260)}>
+                  {returning ? 'We’ll find your old record and link you to it.' : 'This is what goes on the club roster.'}
+                </p>
+              </div>
+              <Polaroid
+                slot={returning ? PHOTOS.returning : PHOTOS.newcomer}
+                aspect="1 / 1"
+                tilt={5}
+                swing={10}
+                wait={120}
+                thumb
+                className="w-[76px] shrink-0 sm:w-[92px]"
+                sizes="92px"
+              />
+            </div>
 
-            <div className="mt-6 space-y-4">
-              <div className="rise-in" style={{ '--delay': '40ms' } as React.CSSProperties}>
-                <FormField label="Full name" htmlFor="welcome-name" hint="As on your student card." error={errors.fullName} required>
-                  <Input id="welcome-name" name="fullName" autoComplete="name" value={details.fullName} onChange={set('fullName')} />
-                </FormField>
-              </div>
-              <div className="rise-in" style={{ '--delay': '100ms' } as React.CSSProperties}>
-                <FormField label="Student ID" htmlFor="welcome-id" hint="The seven digits on your student card." error={errors.studentId} required>
-                  <Input
-                    id="welcome-id"
-                    name="studentId"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    maxLength={40}
-                    value={details.studentId}
-                    onChange={set('studentId')}
-                    className="tabular-nums"
-                  />
-                </FormField>
-              </div>
-              <fieldset className="rise-in space-y-1.5" style={{ '--delay': '160ms' } as React.CSSProperties} aria-describedby={errors.birthday ? 'welcome-birthday-error' : 'welcome-birthday-hint'}>
-                <legend className="text-[13px] font-medium text-text">
-                  Birthday<span className="ml-0.5 text-danger" aria-hidden="true">*</span>
-                </legend>
-                <div className="grid grid-cols-[5rem_1fr_6rem] gap-2">
-                  <Input
-                    aria-label="Day"
-                    name="birthDay"
-                    inputMode="numeric"
-                    placeholder="Day"
-                    maxLength={2}
-                    value={details.birthDay}
-                    onChange={set('birthDay')}
-                    aria-invalid={errors.birthday ? true : undefined}
-                  />
-                  <Select aria-label="Month" name="birthMonth" value={details.birthMonth} onChange={set('birthMonth')} aria-invalid={errors.birthday ? true : undefined}>
-                    <option value="">Month</option>
-                    {MONTHS.map((month, index) => (
-                      <option key={month} value={String(index + 1)}>
-                        {month}
-                      </option>
-                    ))}
-                  </Select>
-                  <Input
-                    aria-label="Year (optional)"
-                    name="birthYear"
-                    inputMode="numeric"
-                    placeholder="Year"
-                    maxLength={4}
-                    value={details.birthYear}
-                    onChange={set('birthYear')}
-                  />
+            <form action={act} noValidate className="mt-8">
+              <input type="hidden" name="joiningAs" value={details.joiningAs ?? ''} />
+              <div className="space-y-5">
+                <div className="rise-in" style={delay(320)}>
+                  <FormField label="Full name" htmlFor="welcome-name" hint="As on your student card." error={errors.fullName} required>
+                    <Input id="welcome-name" name="fullName" autoComplete="name" value={details.fullName} onChange={set('fullName')} />
+                  </FormField>
                 </div>
-                {errors.birthday ? (
-                  <p id="welcome-birthday-error" className="text-[12.5px] text-danger" role="alert">{errors.birthday}</p>
-                ) : (
-                  <p id="welcome-birthday-hint" className="text-[12px] text-text-subtle">
-                    So the crew can wish you a happy birthday. The year is optional.
-                  </p>
-                )}
-              </fieldset>
-            </div>
+                <div className="rise-in" style={delay(390)}>
+                  <FormField label="Student ID" htmlFor="welcome-id" hint="The seven digits on your student card." error={errors.studentId} required>
+                    <Input
+                      id="welcome-id"
+                      name="studentId"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={40}
+                      value={details.studentId}
+                      onChange={set('studentId')}
+                      className="tabular-nums"
+                    />
+                  </FormField>
+                </div>
+                <fieldset
+                  className="rise-in space-y-1.5"
+                  style={delay(460)}
+                  aria-describedby={errors.birthday ? 'welcome-birthday-error' : 'welcome-birthday-hint'}
+                >
+                  <legend className="text-[13px] font-medium text-text">
+                    Birthday<span className="ml-0.5 text-danger" aria-hidden="true">*</span>
+                  </legend>
+                  <div className="grid grid-cols-[5rem_1fr_6rem] gap-2">
+                    <Input
+                      aria-label="Day"
+                      name="birthDay"
+                      inputMode="numeric"
+                      placeholder="Day"
+                      maxLength={2}
+                      value={details.birthDay}
+                      onChange={set('birthDay')}
+                      aria-invalid={errors.birthday ? true : undefined}
+                    />
+                    <Select aria-label="Month" name="birthMonth" value={details.birthMonth} onChange={set('birthMonth')} aria-invalid={errors.birthday ? true : undefined}>
+                      <option value="">Month</option>
+                      {MONTHS.map((month, index) => (
+                        <option key={month} value={String(index + 1)}>
+                          {month}
+                        </option>
+                      ))}
+                    </Select>
+                    <Input
+                      aria-label="Year (optional)"
+                      name="birthYear"
+                      inputMode="numeric"
+                      placeholder="Year"
+                      maxLength={4}
+                      value={details.birthYear}
+                      onChange={set('birthYear')}
+                    />
+                  </div>
+                  {errors.birthday ? (
+                    <p id="welcome-birthday-error" className="text-[12.5px] text-danger" role="alert">{errors.birthday}</p>
+                  ) : (
+                    <p id="welcome-birthday-hint" className="text-[12px] text-text-subtle">
+                      So we can make a fuss on the day. The year is up to you.
+                    </p>
+                  )}
+                </fieldset>
+              </div>
 
-            {state.error && !state.fieldErrors && (
-              <p className="mt-4 text-[13px] text-danger" role="alert">{state.error}</p>
-            )}
-            {errors.joiningAs && <p className="mt-4 text-[13px] text-danger" role="alert">{errors.joiningAs}</p>}
+              {state.error && !state.fieldErrors && (
+                <p className="mt-4 text-[13px] text-danger" role="alert">{state.error}</p>
+              )}
+              {errors.joiningAs && <p className="mt-4 text-[13px] text-danger" role="alert">{errors.joiningAs}</p>}
 
-            <div className="mt-7 flex items-center justify-between gap-3">
-              <Button type="button" variant="ghost" onClick={() => go('who', 'back')}>
-                <ArrowLeft className="h-4 w-4" aria-hidden /> Back
-              </Button>
-              <Button type="submit" size="lg" loading={pending}>
-                Continue <ArrowRight className="h-4 w-4" aria-hidden />
-              </Button>
-            </div>
-          </form>
+              <div className="rise-in mt-8 flex items-center justify-between gap-3" style={delay(520)}>
+                <Button type="button" variant="ghost" onClick={() => go('who')}>
+                  <ArrowLeft className="h-4 w-4" aria-hidden /> Back
+                </Button>
+                <Button type="submit" size="lg" loading={pending}>
+                  Continue <ArrowRight className="h-4 w-4" aria-hidden />
+                </Button>
+              </div>
+            </form>
+          </section>
         )}
 
         {step === 'done' && (
-          <div className="relative text-center">
-            {celebrate && <Confetti />}
-            <div className="lapis-drop mx-auto flex h-16 w-16 items-center justify-center rounded-full border-2 border-brand-ink bg-accent-500 text-white lapis-plate-sm">
-              <Check className="h-8 w-8" strokeWidth={3} aria-hidden />
-            </div>
-            <h1 className="rise-in mt-6 text-[26px] font-extrabold leading-tight tracking-tight text-text" style={{ '--delay': '160ms' } as React.CSSProperties}>
-              {returning ? 'Welcome back!' : 'You’re almost in!'}
+          <section className="mx-auto w-full max-w-md text-center">
+            <Polaroid
+              slot={PHOTOS.done}
+              aspect="1 / 1"
+              tilt={-3}
+              swing={-10}
+              wait={0}
+              tape
+              develop
+              centred
+              caption={firstName ? `${firstName}, ${returning ? 'back again' : 'day one'}` : returning ? 'back again' : 'day one'}
+              className="mx-auto w-[230px]"
+              sizes="230px"
+            />
+            <h1 className="mt-10 text-[34px] font-extrabold leading-[1.02] tracking-[-0.035em] text-text sm:text-[40px]">
+              {returning ? (
+                <>
+                  <Line wait={500}>Good to have </Line>
+                  <Line wait={580}>you back.</Line>
+                </>
+              ) : (
+                <Line wait={500}>Nearly there.</Line>
+              )}
             </h1>
-            <p className="rise-in mx-auto mt-3 max-w-sm text-[14px] leading-relaxed text-text-muted" style={{ '--delay': '240ms' } as React.CSSProperties}>
+            <p className="rise-in mx-auto mt-4 max-w-[38ch] text-[14.5px] leading-relaxed text-text-muted" style={delay(720)}>
               {returning
-                ? 'The exco will link your account to your roster record. You don’t need to wait for that to pay.'
-                : 'Last step: join for the term and pay your fee. The exco add you to the roster once they’ve checked it.'}
+                ? 'We’ll link you to your old record. You don’t need to wait for that to pay.'
+                : 'Last bit: join for the term and pay the fee. We’ll put you on the roster once we’ve checked it.'}
             </p>
-            <div className="rise-in mt-7 flex flex-col items-center gap-3" style={{ '--delay': '320ms' } as React.CSSProperties}>
+            <div className="rise-in mt-8 flex flex-col items-center gap-3" style={delay(820)}>
               {term ? (
                 <>
                   <Link href={`/${orgSlug}/fees`} className={buttonVariants({ size: 'lg' })}>
@@ -257,86 +324,177 @@ export function WelcomeFlow({ orgSlug, clubName, done, initial, term }: WelcomeF
                   </Link>
                   {!term.open && (
                     <p className="text-[12.5px] text-text-subtle">
-                      It isn&rsquo;t open yet. The exco post in the Telegram group when it is.
+                      It isn&rsquo;t open yet. We&rsquo;ll post in the Telegram group when it is.
                     </p>
                   )}
                 </>
               ) : (
                 <p className="text-[13px] text-text-muted">There&rsquo;s no term to join right now. Check back soon.</p>
               )}
-              <Button type="button" variant="ghost" size="sm" onClick={() => go('details', 'back')}>
+              <Button type="button" variant="ghost" size="sm" onClick={() => go('details')}>
                 Change my details
               </Button>
             </div>
-          </div>
+          </section>
         )}
       </div>
-    </div>
+
+      {preview && (
+        <div className="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
+          <div className="flex items-center gap-1 rounded-full border border-brand-ink bg-surface py-1 pl-4 pr-1 shadow-lg">
+            <Eye className="h-4 w-4 text-text-subtle" aria-hidden />
+            <span className="mr-2 text-[12.5px] font-medium text-text"><span className="sm:hidden">Preview</span><span className="hidden sm:inline">Preview, nothing is saved</span></span>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setShot((n) => n + 1)}>
+              <PartyPopper className="h-4 w-4" aria-hidden /> Confetti
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setDetails(initial)
+                go('hello')
+              }}
+            >
+              <RotateCcw className="h-4 w-4" aria-hidden /> Restart
+            </Button>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
-/** Three steps after the hello, one segment each, filled in the logo's inks. */
-function Progress({ step }: { step: Step }) {
-  const reached = { hello: 0, who: 1, details: 2, done: 3 }[step]
+function StepCount({ n }: { n: 1 | 2 }) {
   return (
-    <div className="flex items-center gap-1.5" aria-label={`Step ${Math.max(reached, 1)} of 3`} role="img">
-      {[1, 2, 3].map((segment) => (
-        <div key={segment} className="h-1.5 flex-1 overflow-hidden rounded-full bg-paper-line">
-          <div
-            className="h-full rounded-full transition-[width] duration-[var(--dur-3)] ease-[var(--ease-soft)]"
-            style={{ width: reached >= segment ? '100%' : '0%', background: INKS[segment - 1] }}
-          />
-        </div>
-      ))}
-    </div>
+    <p className="rise-in text-[11px] font-semibold uppercase tracking-[0.16em] text-text-subtle">
+      {n} of 2
+    </p>
+  )
+}
+
+/** One line of a headline, rising from behind its own baseline. */
+function Line({ wait, children }: { wait: number; children: React.ReactNode }) {
+  return (
+    <span className="line-reveal">
+      <span style={delay(wait)}>{children}</span>
+    </span>
   )
 }
 
 /**
- * The kueh lapis, building itself: four layers dropping in from above, each
- * a step down and to the right of the last, the way the logo stacks.
+ * A photograph as an instant print: white border, deeper at the bottom for
+ * the caption, set down on the page at a slight angle. Polaroids are white
+ * whatever the theme, so the colours here are fixed rather than tokens.
  */
-function LapisCake() {
+function Polaroid({
+  slot,
+  aspect,
+  tilt,
+  swing,
+  wait,
+  caption = slot.caption,
+  className,
+  sizes,
+  priority,
+  tape,
+  drift,
+  develop,
+  compact,
+  thumb,
+  centred,
+}: {
+  slot: PhotoSlot
+  aspect: string
+  tilt: number
+  swing: number
+  wait: number
+  caption?: string
+  className?: string
+  sizes: string
+  priority?: boolean
+  tape?: boolean
+  drift?: boolean
+  develop?: boolean
+  /** Too small to say what belongs in it; just the file name. */
+  compact?: boolean
+  /** A stamp-sized print: no caption, nothing written in the empty frame. */
+  thumb?: boolean
+  centred?: boolean
+}) {
   return (
-    <div className="groove mx-auto w-fit" style={{ '--delay': '1000ms' } as React.CSSProperties} aria-hidden>
-      <div className="relative h-[124px] w-[216px]">
-        {[3, 2, 1, 0].map((layer) => (
-          <div
-            key={layer}
-            className="lapis-drop absolute h-[26px] w-[180px] rounded-[8px] border-2 border-brand-ink"
-            style={
-              {
-                // The step to the right is position, not transform: the drop
-                // animation owns transform and lets go of it once it lands.
-                left: layer * 9,
-                top: layer * 28 + 6,
-                background: INKS[layer],
-                '--delay': `${(3 - layer) * 110}ms`,
-              } as React.CSSProperties
-            }
-          />
-        ))}
+    <figure
+      className={cn(
+        'photo-place relative bg-[#FDFCF9] shadow-[0_1px_2px_rgba(20,16,10,.10),0_18px_36px_-16px_rgba(20,16,10,.45)]',
+        thumb ? 'p-1.5 pb-4' : 'p-2.5 pb-0',
+        className
+      )}
+      style={{ '--tilt': `${tilt}deg`, '--swing': `${swing}deg`, '--delay': `${wait}ms` } as React.CSSProperties}
+    >
+      {tape && (
+        <span
+          aria-hidden
+          className="absolute -top-3 left-1/2 z-10 h-6 w-20 -translate-x-1/2 -rotate-3 bg-[#FBAE3A]/55 mix-blend-multiply"
+        />
+      )}
+      <div className="relative overflow-hidden bg-[#ECE6DB]" style={{ aspectRatio: aspect }}>
+        <div className={cn('absolute inset-0', drift && 'photo-drift', develop && 'develop')} style={develop ? delay(250) : undefined}>
+          {slot.ready ? (
+            <Image
+              src={`/welcome/${slot.file}`}
+              alt={thumb ? '' : slot.alt}
+              fill
+              sizes={sizes}
+              priority={priority}
+              className="object-cover"
+              style={{ objectPosition: slot.focus }}
+            />
+          ) : (
+            <EmptyFrame slot={slot} detail={!compact && !thumb} bare={thumb} />
+          )}
+        </div>
       </div>
+      {!thumb && (
+        <figcaption className={cn(hand.className, 'flex h-11 items-center px-3 text-[22px] leading-none text-[#2A2622]', centred ? 'justify-center' : 'justify-start')}>
+          {caption}
+        </figcaption>
+      )}
+    </figure>
+  )
+}
+
+/** Where a photo will go, saying which one. */
+function EmptyFrame({ slot, detail, bare }: { slot: PhotoSlot; detail: boolean; bare?: boolean }) {
+  return (
+    <div
+      className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-3 text-center"
+      style={{ backgroundImage: 'repeating-linear-gradient(135deg, transparent 0 10px, rgba(20,16,10,.05) 10px 11px)' }}
+    >
+      <ImagePlus className="h-5 w-5 text-[#8A8175]" aria-hidden />
+      {!bare && <p className="break-all font-mono text-[10.5px] text-[#6E665B]">welcome/{slot.file}</p>}
+      {detail && <p className="max-w-[26ch] text-[11.5px] leading-snug text-[#8A8175]">{slot.want}</p>}
     </div>
   )
 }
 
-function Choice({
-  selected,
-  onSelect,
-  icon,
-  ink,
+function PathCard({
+  slot,
   title,
   detail,
-  delay,
+  tilt,
+  wait,
+  selected,
+  dimmed,
+  onSelect,
 }: {
-  selected: boolean
-  onSelect: () => void
-  icon: React.ReactNode
-  ink: string
+  slot: PhotoSlot
   title: string
   detail: string
-  delay: number
+  tilt: number
+  wait: number
+  selected: boolean
+  dimmed: boolean
+  onSelect: () => void
 }) {
   return (
     <button
@@ -344,57 +502,40 @@ function Choice({
       onClick={onSelect}
       aria-pressed={selected}
       className={cn(
-        'rise-in lapis-lift group flex flex-col items-start gap-3 rounded-[var(--radius-md)] border-2 bg-surface p-5 text-left',
-        selected ? 'module-card-pop border-brand-ink' : 'border-border hover:border-brand-ink'
+        'photo-place group block w-full rounded-[var(--radius-md)] border-2 bg-surface p-2 text-left',
+        'transition-[opacity,border-color,box-shadow,scale] duration-300 ease-[var(--ease-soft)]',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2',
+        selected ? 'border-brand-ink lapis-plate-sm' : 'border-border hover:border-brand-ink',
+        dimmed && 'scale-[0.97] opacity-40'
       )}
-      style={{ '--delay': `${delay}ms` } as React.CSSProperties}
+      style={{ '--tilt': `${tilt}deg`, '--swing': `${tilt * 5}deg`, '--delay': `${wait}ms` } as React.CSSProperties}
     >
-      <span
-        className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-brand-ink text-brand-ink"
-        style={{ background: ink }}
-      >
-        {icon}
-      </span>
-      <span>
-        <span className="block text-[16px] font-bold text-text">{title}</span>
-        <span className="mt-1 block text-[13px] leading-relaxed text-text-muted">{detail}</span>
-      </span>
-    </button>
-  )
-}
-
-/** Deterministic, so the same pieces fly the same way every time. */
-const PIECES = Array.from({ length: 22 }, (_, index) => {
-  const angle = (index / 22) * Math.PI * 2 + (index % 3) * 0.3
-  const reach = 110 + ((index * 37) % 70)
-  return {
-    dx: Math.round(Math.cos(angle) * reach),
-    dy: Math.round(Math.sin(angle) * reach * 0.8 - 40),
-    spin: ((index * 83) % 540) - 270,
-    ink: INKS[index % 4],
-    delay: (index % 5) * 30,
-    round: index % 3 === 0,
-  }
-})
-
-function Confetti() {
-  return (
-    <div className="pointer-events-none absolute left-1/2 top-8 h-0 w-0" aria-hidden>
-      {PIECES.map((piece, index) => (
-        <span
-          key={index}
-          className={cn('confetti-piece absolute h-2.5 w-2.5 border border-brand-ink', piece.round ? 'rounded-full' : 'rounded-[2px]')}
-          style={
-            {
-              background: piece.ink,
-              '--dx': `${piece.dx}px`,
-              '--dy': `${piece.dy}px`,
-              '--spin': `${piece.spin}deg`,
-              '--delay': `${piece.delay}ms`,
-            } as React.CSSProperties
-          }
+      <div className="relative aspect-[16/10] overflow-hidden rounded-[calc(var(--radius-md)-4px)] bg-[#ECE6DB]">
+        <div className="absolute inset-0 transition-transform duration-700 ease-[var(--ease-soft)] group-hover:scale-[1.05]">
+          {slot.ready ? (
+            <Image
+              src={`/welcome/${slot.file}`}
+              alt=""
+              fill
+              sizes="(min-width: 640px) 360px, 90vw"
+              className="object-cover"
+              style={{ objectPosition: slot.focus }}
+            />
+          ) : (
+            <EmptyFrame slot={slot} detail />
+          )}
+        </div>
+      </div>
+      <div className="flex items-end justify-between gap-3 px-2 pb-2 pt-3.5">
+        <span>
+          <span className="block text-[18px] font-bold tracking-[-0.01em] text-text">{title}</span>
+          <span className="mt-0.5 block text-[13px] leading-relaxed text-text-muted">{detail}</span>
+        </span>
+        <ArrowRight
+          className="mb-1 h-5 w-5 shrink-0 text-text-subtle transition-[translate,color] duration-300 group-hover:translate-x-1 group-hover:text-text"
+          aria-hidden
         />
-      ))}
-    </div>
+      </div>
+    </button>
   )
 }

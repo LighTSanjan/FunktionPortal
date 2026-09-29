@@ -247,14 +247,14 @@ test('the invited member, not on the roster yet, fills in the form and pays', as
   await signInWithCode(page, MEMBER.email)
   // Not on the roster yet: the welcome screen comes first, whatever they opened.
   await page.waitForURL(new RegExp(`/${ORG}/welcome$`))
-  await page.getByRole('button', { name: /Let’s go/ }).click()
-  await page.getByRole('button', { name: /I’ve been a member/ }).click()
+  await page.getByRole('button', { name: /^Start/ }).click()
+  await page.getByRole('button', { name: /I’ve danced with you before/ }).click()
   await page.getByLabel('Full name').fill('Ada Lee')
   await page.getByLabel('Student ID').fill(MEMBER.studentId)
   await page.getByLabel('Day').fill('14')
   await page.getByLabel('Month').selectOption('2')
   await page.getByRole('button', { name: /Continue/ }).click()
-  await expect(page.getByRole('heading', { name: 'Welcome back!' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Good to have\s*you back/ })).toBeVisible()
   await page.getByRole('link', { name: 'Join and pay for Trimester 1' }).click()
   await page.waitForURL(new RegExp(`/${ORG}/fees$`))
 

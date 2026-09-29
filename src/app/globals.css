@@ -393,52 +393,70 @@ body {
 }
 
 /* ─── Welcome ─────────────────────────────────────────────────────
-   The kueh lapis builds itself: each layer drops in from above, back to
-   front, and lands with the spring curve — then the stack keeps a slow
-   groove, the way a crew bobs on the beat before a set. */
-@keyframes lapis-drop {
+   Photographs put down on a table: each one arrives from a little lower,
+   a little more crooked, and settles at its own tilt (--tilt). Uses the
+   individual `translate`/`rotate` properties so the resting tilt set in
+   `rotate` is the animation's end state, not something it fights. */
+@keyframes photo-place {
   from {
     opacity: 0;
-    transform: translateY(-46px) rotate(-4deg);
+    translate: 0 28px;
+    rotate: calc(var(--tilt, 0deg) + var(--swing, -5deg));
+    scale: 1.04;
   }
   to {
     opacity: 1;
-    transform: translateY(0) rotate(0deg);
+    translate: 0 0;
+    rotate: var(--tilt, 0deg);
+    scale: 1;
   }
 }
 
-.lapis-drop {
-  animation: lapis-drop var(--dur-4) var(--ease-spring) backwards;
+.photo-place {
+  rotate: var(--tilt, 0deg);
+  animation: photo-place 820ms var(--ease-soft) backwards;
   animation-delay: var(--delay, 0ms);
 }
 
-@keyframes groove {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  25% { transform: translateY(-3px) rotate(-1.2deg); }
-  75% { transform: translateY(-1px) rotate(1.2deg); }
+/* A headline line coming up from behind its own baseline. The parent
+   clips; the child moves. */
+.line-reveal {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.08em;
 }
 
-.groove {
-  animation: groove 2.4s var(--ease-soft) infinite;
-  animation-delay: var(--delay, 900ms);
-}
-
-/* Confetti in the four inks, thrown from the centre when somebody finishes.
-   Each piece is given its own --dx/--dy/--spin inline. */
-@keyframes confetti-burst {
-  0% {
-    opacity: 1;
-    transform: translate(0, 0) rotate(0deg) scale(0.6);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(var(--dx), var(--dy)) rotate(var(--spin)) scale(1);
-  }
-}
-
-.confetti-piece {
-  animation: confetti-burst 1100ms var(--ease-soft) forwards;
+.line-reveal > span {
+  display: block;
+  animation: line-reveal 760ms var(--ease-soft) backwards;
   animation-delay: var(--delay, 0ms);
+}
+
+@keyframes line-reveal {
+  from { transform: translateY(105%); }
+  to { transform: translateY(0); }
+}
+
+/* The slow drift of a photograph you're looking at for a while. */
+@keyframes photo-drift {
+  from { transform: scale(1.02) translate3d(0, 0, 0); }
+  to { transform: scale(1.08) translate3d(-1.5%, -1%, 0); }
+}
+
+.photo-drift {
+  animation: photo-drift 22s var(--ease-soft) infinite alternate;
+}
+
+/* An instant photo coming up out of the grey. */
+@keyframes develop {
+  0% { filter: grayscale(1) brightness(1.7) contrast(0.45) blur(3px); }
+  45% { filter: grayscale(0.7) brightness(1.25) contrast(0.75) blur(1px); }
+  100% { filter: none; }
+}
+
+.develop {
+  animation: develop 2600ms ease-out backwards;
+  animation-delay: var(--delay, 300ms);
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -464,14 +482,11 @@ body {
   .fade-in,
   .bar-fill,
   .ring-grow,
-  .lapis-drop,
-  .groove {
+  .photo-place,
+  .line-reveal > span,
+  .photo-drift,
+  .develop {
     animation: none;
-  }
-
-  /* Confetti is only movement; with none of it, there is nothing to show. */
-  .confetti-piece {
-    display: none;
   }
 }
 
