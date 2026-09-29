@@ -9,6 +9,7 @@ import { mayJoin, normaliseEmail } from '@/core/auth/eligibility'
 import { takeAttempt } from '@/core/auth/throttle'
 import { logAuthEvent } from '@/core/audit/auth-events'
 import { alert } from '@/core/alerts'
+import { isDemo, isDemoDatabase, isDemoPersona, settleDemoPersona, signInDemoPersona } from '@/core/auth/demo'
 
 /**
  * Signing in, without passwords.
@@ -44,6 +45,8 @@ async function clientIp(): Promise<string> {
 }
 
 export async function requestEmailCode(_prev: CodeState, formData: FormData): Promise<CodeState> {
+  // The demo sends no email: its addresses are made up.
+  if (isDemo()) return { error: 'This is the demo. Pick somebody to sign in as instead.' }
   const email = normaliseEmail(String(formData.get('email') ?? ''))
   if (!EMAIL.test(email)) return { error: 'That does not look like an email address.' }
 
@@ -124,7 +127,7 @@ function appUrl(): string {
 
 export async function signInWithProvider(formData: FormData): Promise<never> {
   const provider = String(formData.get('provider')) as Provider
-  if (!(provider in PROVIDERS)) redirect('/sign-in')
+  if (!(provider in PROVIDERS) || isDemo()) redirect('/sign-in')
 
   const supabase = await createSupabaseServer()
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -145,6 +148,22 @@ export async function signInWithProvider(formData: FormData): Promise<never> {
   }
 
   redirect(data.url)
+}
+
+/** One click into the hosted demo as somebody made up. See core/auth/demo.ts. */
+export async function signInAsDemo(formData: FormData): Promise<never> {
+  const persona = formData.get('persona')
+  if (!isDemo() || !isDemoPersona(persona) || !(await isDemoDatabase())) redirect('/sign-in')
+
+  // Every newcomer is a new account; this keeps a script from making thousands.
+  const allowed = await takeAttempt([{ key: `demo:ip:${await clientIp()}`, max: 40, windowSeconds: 3600 }])
+  if (!allowed) redirect('/sign-in?error=demo_busy')
+
+  const supabase = await createSupabaseServer()
+  const user = await signInDemoPersona(supabase, persona)
+  await afterSignIn(supabase, user, { method: 'demo' })
+  await settleDemoPersona(user.id, persona)
+  redirect('/')
 }
 
 export async function signOut(): Promise<void> {

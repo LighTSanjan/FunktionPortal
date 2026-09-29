@@ -30,7 +30,8 @@
     "test:tour": "npm run test:tour:general && npm run test:tour:fees",
     "test:tour:general": "npm run test:stack && npm run test:build && PLAYWRIGHT_USABILITY_SUITE=tour-general TOUR=1 playwright test --config playwright.usability.config.ts",
     "test:tour:fees": "npm run test:stack && npm run test:build && PLAYWRIGHT_USABILITY_SUITE=tour-fees TOUR=1 playwright test --config playwright.usability.config.ts",
-    "test:tour:audit": "npm run test:stack && npm run test:build && PLAYWRIGHT_USABILITY_SUITE=tour-audit TOUR=1 playwright test --config playwright.usability.config.ts"
+    "test:tour:audit": "npm run test:stack && npm run test:build && PLAYWRIGHT_USABILITY_SUITE=tour-audit TOUR=1 playwright test --config playwright.usability.config.ts",
+    "demo:seed": "set -a && . ./.env.demo && set +a && npx tsx scripts/demo/seed-hosted.ts"
   },
   "dependencies": {
     "@47ng/cloak": "^1.2.0",
