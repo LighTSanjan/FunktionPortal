@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FUNKtion Portal Handbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a sticky contents rail beside one reading column; diagrams and
+   tables break out to the column's full width. The portal's own tokens. */
+:root {
+  --ink: #111114;
+  --paper: #FFFFFF;
+  --paper-2: #FAFAFB;
+  --line: #E8E8EC;
+  --line-strong: #D5D5DC;
+  --muted: #61616B;
+  --subtle: #8A8A96;
+  --vermilion: #F05B23;
+  --marigold: #FBAE3A;
+  --sky: #5BC5EF;
+  --indigo: #344D90;
+  --accent: #D8410E;
+  --accent-wash: #FEF2EC;
+  --ok: #16A34A;
+  --warn: #B45309;
+  --code-bg: #F5F5F7;
+  --font-body: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #EDEDF0; --paper: #111114; --paper-2: #17171B; --line: #26262C; --line-strong: #34343C;
+    --muted: #A1A1AB; --subtle: #7C7C88; --accent: #F47A4C; --accent-wash: #2A160E;
+    --indigo: #7D93D6; --ok: #4ADE80; --warn: #FBBF24; --code-bg: #1C1C21; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ink: #EDEDF0; --paper: #111114; --paper-2: #17171B; --line: #26262C; --line-strong: #34343C;
+  --muted: #A1A1AB; --subtle: #7C7C88; --accent: #F47A4C; --accent-wash: #2A160E;
+  --indigo: #7D93D6; --ok: #4ADE80; --warn: #FBBF24; --code-bg: #1C1C21; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font: 16px/1.65 var(--font-body); -webkit-font-smoothing: antialiased;
+}
+.band { display: flex; height: 6px; }
+.band span { flex: 1; }
+.band span:nth-child(1) { background: var(--vermilion); }
+.band span:nth-child(2) { background: var(--marigold); }
+.band span:nth-child(3) { background: var(--sky); }
+.band span:nth-child(4) { background: #344D90; }
+
+.shell {
+  display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 56px;
+  max-width: 1180px; margin: 0 auto; padding-inline: 24px; padding-block: 40px 96px;
+}
+@media (max-width: 900px) { .shell { grid-template-columns: minmax(0, 1fr); gap: 24px; padding-inline: 16px; padding-block: 24px 64px; } }
+
+nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; font-size: 14px; }
+nav.toc .label { font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--subtle); margin: 0 0 10px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; counter-reset: toc; }
+nav.toc a { display: flex; gap: 10px; padding: 5px 8px; border-radius: 6px; color: var(--muted); text-decoration: none; }
+nav.toc a::before { counter-increment: toc; content: counter(toc, decimal-leading-zero); font: 500 12px/1.9 var(--font-mono); color: var(--subtle); }
+nav.toc a:hover, nav.toc a:focus-visible { background: var(--paper-2); color: var(--ink); outline: none; }
+nav.toc details summary { display: none; }
+@media (max-width: 900px) {
+  nav.toc { position: static; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  nav.toc details summary { display: block; cursor: pointer; font-weight: 600; }
+  nav.toc details:not([open]) ol, nav.toc details:not([open]) .label { display: none; }
+  nav.toc details[open] summary { margin-bottom: 10px; }
+}
+
+main { min-width: 0; max-width: 780px; }
+header.hero { margin-bottom: 56px; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }
+h1 {
+  font-size: clamp(34px, 6vw, 52px); line-height: 1.05; letter-spacing: -.035em; font-weight: 800;
+  margin: 0 0 18px; text-wrap: balance;
+}
+h1 .stack { display: inline-block; padding: 2px 12px 4px; margin-left: -4px; background: var(--paper); border: 2px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--vermilion), 6px 6px 0 var(--marigold), 9px 9px 0 var(--sky), 12px 12px 0 #344D90; }
+.lede { font-size: 19px; line-height: 1.6; color: var(--muted); max-width: 62ch; margin: 0; }
+.facts { display: flex; flex-wrap: wrap; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 36px; }
+.facts div { flex: 1 1 150px; background: var(--paper); padding: 14px 16px; min-width: 0; }
+.facts dt { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--subtle); }
+.facts dd { margin: 4px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+section { padding-top: 24px; margin-top: 40px; border-top: 1px solid var(--line); scroll-margin-top: 16px; }
+h2 { font-size: 28px; line-height: 1.2; letter-spacing: -.02em; font-weight: 700; margin: 0 0 14px; text-wrap: balance; }
+h2 .n { font: 500 14px var(--font-mono); color: var(--accent); display: block; margin-bottom: 6px; letter-spacing: 0; }
+h3 { font-size: 19px; line-height: 1.3; letter-spacing: -.01em; font-weight: 650; margin: 32px 0 8px; text-wrap: balance; }
+p, li { max-width: 68ch; }
+p { margin: 0 0 14px; }
+ul, ol { padding-left: 22px; margin: 0 0 16px; }
+li { margin: 4px 0; }
+a { color: var(--accent); text-underline-offset: 3px; }
+strong { font-weight: 650; }
+code { font: 0.86em var(--font-mono); background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+pre { font: 13.5px/1.6 var(--font-mono); background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto; margin: 0 0 16px; }
+pre code { background: none; padding: 0; font-size: inherit; }
+
+.note { border-left: 3px solid var(--accent); background: var(--accent-wash); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 18px 0; }
+.note p:last-child { margin-bottom: 0; }
+.note .k { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); display: block; margin-bottom: 4px; }
+
+.table-wrap { overflow-x: auto; margin: 8px 0 20px; border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+th { font-size: 11.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--subtle); background: var(--paper-2); white-space: nowrap; }
+td code { white-space: nowrap; }
+td.num { font-variant-numeric: tabular-nums; }
+
+.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line-strong); white-space: nowrap; }
+.pill.live { color: var(--ok); border-color: currentColor; }
+.pill.todo { color: var(--warn); border-color: currentColor; }
+.pill.schema { color: var(--subtle); }
+
+figure { margin: 22px 0 26px; }
+.diagram { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--paper-2); padding: 12px; }
+.diagram svg { display: block; min-width: 640px; width: 100%; height: auto; }
+figcaption { font-size: 13.5px; color: var(--muted); margin-top: 8px; max-width: 68ch; }
+svg .box { fill: var(--paper); stroke: var(--line-strong); stroke-width: 1.2; }
+svg .box.hot { stroke: var(--accent); stroke-width: 1.6; }
+svg .zone { fill: none; stroke: var(--line-strong); stroke-dasharray: 5 5; }
+svg .t { fill: var(--ink); font: 600 13px var(--font-body); }
+svg .s { fill: var(--muted); font: 400 11.5px var(--font-body); }
+svg .z { fill: var(--subtle); font: 600 10.5px var(--font-body); letter-spacing: .12em; }
+svg .m { fill: var(--muted); font: 400 11px var(--font-mono); }
+svg .edge { stroke: var(--muted); stroke-width: 1.3; fill: none; }
+svg .edge.hot { stroke: var(--accent); }
+svg .arrowhead { fill: var(--muted); }
+svg .arrowhead.hot { fill: var(--accent); }
+svg .ink-v { fill: var(--vermilion); } svg .ink-m { fill: var(--marigold); } svg .ink-s { fill: var(--sky); } svg .ink-i { fill: #344D90; }
+
+ol.flow { list-style: none; padding: 0; margin: 10px 0 22px; counter-reset: step; display: grid; gap: 0; }
+ol.flow > li { counter-increment: step; position: relative; padding: 0 0 16px 46px; max-width: none; }
+ol.flow > li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--ink); display: grid; place-items: center; font: 600 13px var(--font-mono); background: var(--paper); }
+ol.flow > li::after { content: ''; position: absolute; left: 14px; top: 30px; bottom: 2px; width: 1.5px; background: var(--line-strong); }
+ol.flow > li:last-child::after { display: none; }
+ol.flow .who { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--indigo); margin-right: 6px; }
+ol.flow p { margin: 2px 0 0; }
+
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 10px 0 20px; }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.card h4 { margin: 0 0 6px; font-size: 15px; }
+.card p, .card ul { font-size: 14.5px; margin: 0; color: var(--muted); }
+.card ul { padding-left: 18px; }
+
+footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--subtle); font-size: 13.5px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="band" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+
+<div class="shell">
+<nav class="toc" aria-label="Contents">
+  <details open>
+    <summary>Contents</summary>
+    <p class="label">Contents</p>
+    <ol>
+      <li><a href="#what">What it does</a></li>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#code">Where the code lives</a></li>
+      <li><a href="#identity">Signing in and access</a></li>
+      <li><a href="#model">Data model</a></li>
+      <li><a href="#security">Security model</a></li>
+      <li><a href="#fees">Membership fees</a></li>
+      <li><a href="#coaches">Coach payments</a></li>
+      <li><a href="#attendance">Attendance import</a></li>
+      <li><a href="#money">Money and references</a></li>
+      <li><a href="#documents">Documents</a></li>
+      <li><a href="#environments">Environments</a></li>
+      <li><a href="#development">Development and tests</a></li>
+      <li><a href="#operations">Operations</a></li>
+      <li><a href="#open">Open work</a></li>
+    </ol>
+  </details>
+</nav>
+
+<main>
+<header class="hero">
+  <p class="eyebrow">FUNKtion · Treasury portal · Handbook</p>
+  <h1>How the <span class="stack">portal</span> works</h1>
+  <p class="lede">The authoritative description of the FUNKtion portal: what it does, how a request moves through it, what every table holds, and how to run, test, deploy and recover it. When this page and the code disagree, the code is right and this page needs fixing.</p>
+  <dl class="facts">
+    <div><dt>Stack</dt><dd>Next.js 16 · React 19</dd></div>
+    <div><dt>Data</dt><dd>Postgres on Supabase · Prisma 7</dd></div>
+    <div><dt>Hosting</dt><dd>Vercel, Singapore</dd></div>
+    <div><dt>Tables</dt><dd>38 models, RLS on all</dd></div>
+    <div><dt>Tests</dt><dd>393 unit · 202 integration</dd></div>
+  </dl>
+</header>
+
+<section id="what">
+  <h2><span class="n">01</span>What the portal does</h2>
+  <p>The treasurer's month used to be mostly transcription: the same few facts (which classes ran, who came, what each coach is owed, who paid for the term) typed by hand into invoices, attendance sheets, registers and spreadsheets. The portal holds each of those facts once and derives every document and total from them.</p>
+  <div class="cols">
+    <div class="card"><h4>Coach payments</h4><p>Classes and attendance become each coach's monthly invoice and attendance sheet, with a reference number, the treasurer's signature and a record of when it went to OSL and when it was paid.</p></div>
+    <div class="card"><h4>Membership fees</h4><p>A term's join-and-pay form, a PayNow QR, members declaring payment with a screenshot, the exco confirming, and the OSL Income Deposit Form at the end.</p></div>
+    <div class="card"><h4>Records</h4><p>The roster, classes, coaches and their rates, both transaction registers (OSL and unofficial), and an append-only audit log.</p></div>
+    <div class="card"><h4>Access</h4><p>Sign-in by emailed code, Google or Microsoft; invitations, access requests, exco roles and offices; a welcome flow for people not yet on the roster.</p></div>
+  </div>
+  <h3>Who sees what</h3>
+  <p>Everyone who signs in is in one of three standings, worked out on every request (<code>src/core/auth/standing.ts</code>):</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Standing</th><th>Who</th><th>What they see</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Full</strong></td><td>Exco, or a member whose account is linked to their roster row</td><td>Exco: everything. Member: home, their own fee and records, their profile.</td></tr>
+      <tr><td><strong>Welcome</strong></td><td>Signed in, not on the roster, hasn't said who they are</td><td>The welcome screens, then the join-and-pay form</td></tr>
+      <tr><td><strong>Joining</strong></td><td>Has said who they are and waits for the exco to match them</td><td>The join-and-pay form only</td></tr>
+    </tbody>
+  </table></div>
+  <p>A typed student ID never moves anybody to Full and never grants a role. Student IDs are printed on every attendance sheet and run in sequence, so they are treated as a claim for an exco member to confirm.</p>
+</section>
+
+<section id="architecture">
+  <h2><span class="n">02</span>Architecture</h2>
+  <p>One Next.js application on Vercel, talking to one Supabase project. Pages are server components; every write is a server action. The browser never talks to the database directly, and never posts a money figure.</p>
+  <figure>
+    <div class="diagram">
+      <svg viewBox="0 0 760 360" role="img" aria-labelledby="arch-t">
+        <title id="arch-t">Browser to Vercel to Supabase, with optional outside services</title>
+        <defs>
+          <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M0,0 L10,5 L0,10 z"/></marker>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead hot" d="M0,0 L10,5 L0,10 z"/></marker>
+        </defs>
+        <rect class="box" x="16" y="140" width="120" height="70" rx="8"/>
+        <text class="t" x="30" y="168">Browser</text>
+        <text class="s" x="30" y="186">member or exco</text>
+
+        <rect class="zone" x="170" y="20" width="270" height="320" rx="12"/>
+        <text class="z" x="186" y="42">VERCEL · SIN1</text>
+        <rect class="box hot" x="190" y="58" width="230" height="58" rx="8"/>
+        <text class="t" x="204" y="82">proxy.ts</text>
+        <text class="s" x="204" y="100">session refresh, sign-in gate, CSP nonce</text>
+        <rect class="box" x="190" y="134" width="230" height="58" rx="8"/>
+        <text class="t" x="204" y="158">Pages (server components)</text>
+        <text class="s" x="204" y="176">read through dbAs(userId)</text>
+        <rect class="box" x="190" y="210" width="230" height="58" rx="8"/>
+        <text class="t" x="204" y="234">Server actions</text>
+        <text class="s" x="204" y="252">check permission, write, audit</text>
+        <rect class="box" x="190" y="286" width="230" height="42" rx="8"/>
+        <text class="t" x="204" y="312">Route handlers · files</text>
+
+        <rect class="zone" x="480" y="20" width="264" height="232" rx="12"/>
+        <text class="z" x="496" y="42">SUPABASE · AP-SOUTHEAST-1</text>
+        <rect class="box" x="500" y="58" width="224" height="46" rx="8"/>
+        <text class="t" x="514" y="86">Auth (GoTrue)</text>
+        <rect class="box hot" x="500" y="116" width="224" height="62" rx="8"/>
+        <text class="t" x="514" y="140">Postgres</text>
+        <text class="s" x="514" y="158">RLS on every table, app_user role</text>
+        <rect class="box" x="500" y="190" width="224" height="46" rx="8"/>
+        <text class="t" x="514" y="211">Storage</text>
+        <text class="s" x="514" y="227">private-documents bucket</text>
+
+        <rect class="box" x="500" y="274" width="224" height="62" rx="8"/>
+        <text class="t" x="514" y="298">Outside (optional)</text>
+        <text class="s" x="514" y="316">Telegram · Resend · Google Sheets</text>
+
+        <path class="edge hot" d="M136 175 H186" marker-end="url(#ah)"/>
+        <path class="edge" d="M305 116 V130" marker-end="url(#a)"/>
+        <path class="edge" d="M420 87 H496" marker-end="url(#a)"/>
+        <path class="edge hot" d="M420 163 H496" marker-end="url(#ah)"/>
+        <path class="edge hot" d="M420 239 C460 239 460 170 496 160" marker-end="url(#ah)"/>
+        <path class="edge" d="M420 307 C455 307 460 226 496 218" marker-end="url(#a)"/>
+        <path class="edge" d="M420 250 C450 262 470 300 496 304" marker-end="url(#a)"/>
+      </svg>
+    </div>
+    <figcaption>Every request passes the proxy first. Reads and writes to Postgres go through <code>dbAs</code>, which connects as the least-privileged <code>app_user</code> role so row-level security applies. Private files are reached by the server with the service key, after the portal has checked who is asking.</figcaption>
+  </figure>
+  <h3>A request, start to finish</h3>
+  <ol class="flow">
+    <li><span class="who">Proxy</span><p><code>src/proxy.ts</code> refreshes the Supabase session cookie, sends anyone signed out to <code>/sign-in</code> (remembering where they were going), and sets a per-request nonce for the Content Security Policy. A button pressed on a signed-out tab gets a redirect the router understands, not an HTML page.</p></li>
+    <li><span class="who">Layout</span><p><code>[orgSlug]/layout.tsx</code> verifies the session, loads the organisation and membership (<code>core/auth/dal.ts</code>), works out the standing, and builds the navigation for it.</p></li>
+    <li><span class="who">Page</span><p>The page checks its own permission again (a layout is kept across client navigation, so a check there alone is not enough), then reads through <code>dbAs(userId, tx =&gt; …)</code>.</p></li>
+    <li><span class="who">Action</span><p>A form posts a server action. It calls <code>requirePermission(orgId, key)</code>, validates the form with zod, writes inside a transaction, writes an audit row, and revalidates the paths that show the data.</p></li>
+  </ol>
+</section>
+
+<section id="code">
+  <h2><span class="n">03</span>Where the code lives</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Path</th><th>Holds</th></tr></thead>
+    <tbody>
+      <tr><td><code>src/proxy.ts</code></td><td>Session refresh, sign-in gate, security headers</td></tr>
+      <tr><td><code>src/app/(auth)</code></td><td>Sign-in, email proof, the "not on the list" page</td></tr>
+      <tr><td><code>src/app/(dashboard)/[orgSlug]</code></td><td>Every signed-in screen, one folder per area: <code>dashboard</code>, <code>fees</code>, <code>monthly-run</code>, <code>sessions</code>, <code>instructors</code>, <code>register</code>, <code>welcome</code>, <code>settings</code>, <code>access</code></td></tr>
+      <tr><td><code>src/app/auth</code>, <code>src/app/api</code></td><td>OAuth callback, email-link confirm, sign-out, email images</td></tr>
+      <tr><td><code>src/actions</code></td><td>Server actions that belong to no module: sign-in, access, invitations, profile, organisation settings, welcome</td></tr>
+      <tr><td><code>src/core/auth</code></td><td>Sessions, email proof, provisioning, standing, roster linking, throttling, the demo sign-in</td></tr>
+      <tr><td><code>src/core/db</code></td><td><code>dbAs</code> (RLS-scoped, for everything) and <code>dbAdmin</code> (bypasses RLS, core code only)</td></tr>
+      <tr><td><code>src/core/…</code></td><td><code>audit</code>, <code>alerts</code>, <code>crypto</code> (field encryption), <code>storage</code>, <code>permissions</code>, <code>register</code>, <code>ui</code> (components and the app shell)</td></tr>
+      <tr><td><code>src/modules/fees</code></td><td>Fee rules and money: <code>payment-actions</code>, <code>collection-actions</code>, <code>member-actions</code>, tiers, GST, proofs, QR, the deposit form, the term summary</td></tr>
+      <tr><td><code>src/modules/membership-form</code></td><td>A term's join-and-pay form: questions, responses, matching responses to roster rows</td></tr>
+      <tr><td><code>src/modules/coach-claim</code></td><td>Classes, rates, the monthly run, invoices and attendance sheets (.docx, preview, print), snapshots</td></tr>
+      <tr><td><code>src/modules/attendance</code></td><td>Reading the trimester CSV, matching members, mapping dates, applying</td></tr>
+      <tr><td><code>src/modules/…</code></td><td><code>references</code> (numbering), <code>funds</code>, <code>register</code>, <code>signatures</code>, <code>workflow</code> (the job cards on the home screen), <code>branding</code></td></tr>
+      <tr><td><code>prisma/schema</code></td><td>The schema, split by domain: <code>identity</code>, <code>organisation</code>, <code>finance</code>, <code>audit</code></td></tr>
+      <tr><td><code>prisma/migrations</code></td><td>SQL migrations, including every RLS policy, grant and trigger</td></tr>
+      <tr><td><code>scripts/</code></td><td>Database setup, imports, the demo, the local test stack</td></tr>
+      <tr><td><code>e2e/</code></td><td>Playwright: sign-in smoke test, browser journeys, screenshot tours</td></tr>
+      <tr><td><code>templates/official</code></td><td>OSL's own forms, kept to reproduce their layouts</td></tr>
+    </tbody>
+  </table></div>
+  <p>Server actions live in files that start with <code>'use server'</code>, and those files export only async functions. Shared types and helpers go in a plain module beside them, like <code>fees/action-state.ts</code>.</p>
+</section>
+
+<section id="identity">
+  <h2><span class="n">04</span>Signing in and access</h2>
+  <p>There are no passwords. A password proves nothing about the address it was set against, so the portal offers three ways in, all of which prove the person holds the address:</p>
+  <ul>
+    <li><strong>A code by email.</strong> Codes, not links: Outlook's Safe Links opens every link in an email before the person does, which spends a one-time link.</li>
+    <li><strong>Google</strong>, when Google says the address is verified.</li>
+    <li><strong>Microsoft</strong>, when the token carries <code>xms_edov</code> or comes from a tenant listed in <code>MICROSOFT_TENANT_IDS</code>.</li>
+  </ul>
+  <h3>What happens on sign-in</h3>
+  <ol class="flow">
+    <li><span class="who">Proof</span><p>The route that just signed the person in decides whether the address is proven (<code>core/auth/proof.ts</code>). Supabase's own <code>email_confirmed_at</code> is not trusted, because a password sign-up stamps it for any address.</p></li>
+    <li><span class="who">Secure</span><p>The first time an address is proven, any password and every other session on the account are replaced, in case somebody signed up as that address earlier (<code>core/auth/secure.ts</code>).</p></li>
+    <li><span class="who">Provision</span><p><code>provisionUser</code> mirrors the account into <code>users</code>. A proven address joins the club if it has a pending invitation, or is on an allowed domain (<code>ALLOWED_EMAIL_DOMAINS</code>, default SUTD student, SUTD alumni and Gmail).</p></li>
+    <li><span class="who">Link</span><p>The account is linked to its roster row only on something proven: the row's email is this address, or a student address whose local part is the row's student ID. Anything ambiguous links nobody.</p></li>
+    <li><span class="who">Bootstrap</span><p>On an empty database, an address in <code>BOOTSTRAP_EXCO_EMAILS</code> becomes the first exco. This stops working as soon as any active exco exists.</p></li>
+    <li><span class="who">Route</span><p>The person lands on the dashboard, the welcome screens, or "you're not on the list yet", depending on their membership and standing.</p></li>
+  </ol>
+  <h3>The welcome flow</h3>
+  <p>Somebody signed in but not on the roster sees the welcome screens (<code>[orgSlug]/welcome</code>). They say whether they have danced with the club before, then give their name, student ID and birthday, and first-timers give their graduation year. <code>saveWelcome</code> stores all of it as a claim: the student ID goes beside the roster row it names for an exco member to confirm, and nothing is linked or granted. An exco member can walk through the screens without saving anything at <code>/welcome?preview</code>.</p>
+  <h3>Roles, offices and permissions</h3>
+  <p>There are two roles. <strong>Exco</strong> can do everything; <strong>member</strong> can declare their own fee and ask for access. An exco member also holds an <em>office</em> (president, treasurer and so on), which grants nothing: it decides who is told about what, and whose title prints under a signature. Keeping offices out of access means a mid-year reshuffle is a dropdown, not a security decision.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Permission</th><th>Member</th><th>Exco</th></tr></thead>
+    <tbody>
+      <tr><td><code>fee.declare</code>, <code>access.request</code></td><td>Yes</td><td>Yes</td></tr>
+      <tr><td><code>fee.manage</code>: confirm, reject, record, set fees, close</td><td>—</td><td>Yes</td></tr>
+      <tr><td><code>session.*</code>, <code>instructor.*</code>, <code>claim.generate</code></td><td>—</td><td>Yes</td></tr>
+      <tr><td><code>references.*</code>, <code>audit.view</code></td><td>—</td><td>Yes</td></tr>
+      <tr><td><code>org.manage_members</code>, <code>org.manage_settings</code></td><td>—</td><td>Yes</td></tr>
+    </tbody>
+  </table></div>
+  <p>People get in by <strong>invitation</strong> (an exco member names an address) or by <strong>request</strong> (somebody signs in and asks). A request can never be approved by the person who made it, and requests to become exco are a separate queue that says what it grants.</p>
+  <h3>The demo sign-in</h3>
+  <p>The hosted demo replaces the sign-in page with four made-up people: the treasurer, the president, a member on the roster, and a newcomer who gets a fresh account every time. It runs only when <code>DEMO_MODE=true</code> <em>and</em> the database holds exactly one club with the slug <code>demo</code>, so a stray setting on the real deployment does nothing (<code>core/auth/demo.ts</code>, tested in <code>demo.int.test.ts</code>).</p>
+</section>
+
+<section id="model">
+  <h2><span class="n">05</span>Data model</h2>
+  <p>Every table carries <code>org_id</code>, and every row-level policy is written against it. Money is integer cents. Calendar dates are stored as dates, not timestamps, and read in Singapore time (<code>lib/date-only.ts</code>). Nothing financial is deleted: it is voided with a reason, and the audit log keeps before and after.</p>
+  <figure>
+    <div class="diagram">
+      <svg viewBox="0 0 770 440" role="img" aria-labelledby="erd-t">
+        <title id="erd-t">The main tables and how they connect</title>
+        <defs><marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="arrowhead" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+
+        <text class="z" x="28" y="24">PEOPLE</text>
+        <rect class="box" x="28" y="34" width="150" height="40" rx="7"/><text class="t" x="40" y="59">User</text>
+        <rect class="box" x="28" y="90" width="150" height="40" rx="7"/><text class="t" x="40" y="115">OrgMembership</text>
+        <rect class="box hot" x="28" y="146" width="150" height="54" rx="7"/><text class="t" x="40" y="168">Member</text><text class="s" x="40" y="186">a roster row</text>
+        <rect class="box" x="28" y="216" width="150" height="40" rx="7"/><text class="t" x="40" y="241">Organisation</text>
+
+        <text class="z" x="214" y="24">CLASSES</text>
+        <rect class="box" x="214" y="34" width="150" height="40" rx="7"/><text class="t" x="226" y="59">Instructor</text>
+        <rect class="box" x="214" y="90" width="150" height="40" rx="7"/><text class="t" x="226" y="115">InstructorRate</text>
+        <rect class="box hot" x="214" y="146" width="150" height="54" rx="7"/><text class="t" x="226" y="168">ClassSession</text><text class="s" x="226" y="186">coach optional</text>
+        <rect class="box" x="214" y="216" width="150" height="40" rx="7"/><text class="t" x="226" y="241">SessionAttendance</text>
+
+        <text class="z" x="400" y="24">COACH PAYMENTS</text>
+        <rect class="box hot" x="400" y="34" width="160" height="54" rx="7"/><text class="t" x="412" y="56">Invoice</text><text class="s" x="412" y="74">status, snapshot</text>
+        <rect class="box" x="400" y="104" width="160" height="40" rx="7"/><text class="t" x="412" y="129">InvoiceLine</text>
+        <rect class="box" x="400" y="160" width="160" height="40" rx="7"/><text class="t" x="412" y="185">AttendanceSheet</text>
+        <rect class="box" x="400" y="216" width="160" height="40" rx="7"/><text class="t" x="412" y="241">ReferenceNumber</text>
+
+        <text class="z" x="596" y="24">FEES</text>
+        <rect class="box hot" x="596" y="34" width="144" height="40" rx="7"/><text class="t" x="608" y="59">Term</text>
+        <rect class="box" x="596" y="90" width="144" height="40" rx="7"/><text class="t" x="608" y="115">MembershipForm</text>
+        <rect class="box" x="596" y="146" width="144" height="54" rx="7"/><text class="t" x="608" y="168">MembershipResponse</text><text class="s" x="608" y="186">claims, held pay</text>
+        <rect class="box hot" x="596" y="216" width="144" height="54" rx="7"/><text class="t" x="608" y="238">FeePayment</text><text class="s" x="608" y="256">declared → confirmed</text>
+        <rect class="box" x="596" y="286" width="144" height="40" rx="7"/><text class="t" x="608" y="311">IncomeDeposit</text>
+
+        <text class="z" x="28" y="316">RECORDS</text>
+        <rect class="box" x="28" y="326" width="150" height="40" rx="7"/><text class="t" x="40" y="351">FundAccount</text>
+        <rect class="box" x="28" y="382" width="150" height="40" rx="7"/><text class="t" x="40" y="407">RegisterEntry</text>
+        <rect class="box" x="214" y="326" width="150" height="40" rx="7"/><text class="t" x="226" y="351">ReferenceCounter</text>
+        <rect class="box" x="214" y="382" width="150" height="40" rx="7"/><text class="t" x="226" y="407">AuditLog</text>
+        <rect class="box" x="400" y="326" width="160" height="40" rx="7"/><text class="t" x="412" y="351">AttendanceImport</text>
+
+        <path class="edge" d="M103 74 V86" marker-end="url(#b)"/>
+        <path class="edge" d="M28 54 C10 54 10 173 24 173" marker-end="url(#b)"/>
+        <path class="edge" d="M289 74 V86" marker-end="url(#b)"/>
+        <path class="edge" d="M364 54 H396" marker-end="url(#b)"/>
+        <path class="edge" d="M289 200 V212" marker-end="url(#b)"/>
+        <path class="edge" d="M178 180 C196 180 196 236 210 236" marker-end="url(#b)"/>
+        <path class="edge" d="M364 173 C382 173 382 124 396 124" marker-end="url(#b)"/>
+        <path class="edge" d="M480 88 V100" marker-end="url(#b)"/>
+        <path class="edge" d="M560 70 C580 70 580 180 564 180" marker-end="url(#b)"/>
+        <path class="edge" d="M740 54 H756 V306"/>
+        <path class="edge" d="M756 110 H744" marker-end="url(#b)"/>
+        <path class="edge" d="M756 173 H744" marker-end="url(#b)"/>
+        <path class="edge" d="M756 243 H744" marker-end="url(#b)"/>
+        <path class="edge" d="M756 306 H744" marker-end="url(#b)"/>
+        <path class="edge" d="M178 190 C380 300 500 290 592 250" marker-end="url(#b)"/>
+      </svg>
+    </div>
+    <figcaption>Arrows run from the one side to the many side. A user may be linked to one roster row; a term owns its form, responses, payments and deposit; a member has a payment per term. Every table also belongs to an organisation. The full definitions, with a comment on every model and most fields, are in <code>prisma/schema/*.prisma</code>.</figcaption>
+  </figure>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>Area</th><th>Model</th><th>Holds</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="5">Identity</td><td><code>User</code></td><td>One per account, mirrored from Supabase Auth: name, email, when and how the email was proven, welcome answers, stored signature</td></tr>
+      <tr><td><code>OrganisationMembership</code></td><td>Role (<code>EXCO</code>/<code>MEMBER</code>), office, active flag</td></tr>
+      <tr><td><code>Invitation</code></td><td>An address the exco let in, until it signs in</td></tr>
+      <tr><td><code>AccessRequest</code></td><td>Somebody asking to join or to be exco, and who decided</td></tr>
+      <tr><td><code>RateLimit</code></td><td>Hashed counters for sign-in throttling</td></tr>
+      <tr><td rowspan="2">Club</td><td><code>Organisation</code></td><td>The club and its slug</td></tr>
+      <tr><td><code>OrganisationSettings</code></td><td>Everything a document says about the club: name, billing address, project code, cluster, GST rate, logo, colours</td></tr>
+      <tr><td rowspan="6">Roster and classes</td><td><code>Member</code></td><td>A roster row: name, student ID, email, label ("Confirmed", "1/2 term"), birthday in parts, graduation year, linked account</td></tr>
+      <tr><td><code>Instructor</code></td><td>A coach: contact details, bank account (encrypted), contract reference, guest flag</td></tr>
+      <tr><td><code>InstructorRate</code></td><td>Hourly rate with the date it takes effect, so back pay uses the right rate</td></tr>
+      <tr><td><code>ClassSession</code></td><td>One class: date, length, coach. No coach means self-practice.</td></tr>
+      <tr><td><code>SessionAttendance</code></td><td>Present or absent, per member per class</td></tr>
+      <tr><td><code>AttendanceImport</code></td><td>An uploaded trimester sheet, its parse, and what was applied</td></tr>
+      <tr><td rowspan="4">Coach payments</td><td><code>Invoice</code></td><td>A coach's month: reference, total, GST, fund, status (<code>GENERATED</code> → <code>SIGNED</code> → <code>SUBMITTED</code> → <code>PAID</code>, or <code>VOID</code>), frozen snapshot</td></tr>
+      <tr><td><code>InvoiceLine</code></td><td>One billed class, pointing at the session it bills</td></tr>
+      <tr><td><code>AttendanceSheet</code></td><td>The month's sheet and its verification: who signed, in which office, with which specimen</td></tr>
+      <tr><td><code>CoachMonthSettlement</code></td><td>A month paid outside the portal, with the real amount and fund</td></tr>
+      <tr><td rowspan="9">Fees</td><td><code>Term</code></td><td>Dates, full/half/exchange rates, PayNow QR, collection dates, when it closed</td></tr>
+      <tr><td><code>MembershipForm</code></td><td>The term's join-and-pay form: state, intro, audience</td></tr>
+      <tr><td><code>MembershipQuestion</code>, <code>…Recipient</code></td><td>The club's own questions; who the form is for when not everyone</td></tr>
+      <tr><td><code>MembershipResponse</code></td><td>One person's answers. A payment from somebody not yet matched to a roster row is held here.</td></tr>
+      <tr><td><code>FeePayment</code></td><td>One member's fee for one term: tier, amount, reference, screenshot, <code>DECLARED</code>/<code>CONFIRMED</code>/<code>REJECTED</code></td></tr>
+      <tr><td><code>FeeArrangement</code></td><td>An exco decision about one member's fee (half, waived, custom)</td></tr>
+      <tr><td><code>TermCloseCharge</code></td><td>Who was charged what when the collection closed</td></tr>
+      <tr><td><code>IncomeDeposit</code></td><td>The deposit to OSL: reference, gross, net, GST, when it was sent</td></tr>
+      <tr><td><code>FundAccount</code></td><td>Per financial year and fund: WBS element, opening balance, prior movement</td></tr>
+      <tr><td rowspan="4">Records</td><td><code>ReferenceCounter</code></td><td>Next number per series per financial year</td></tr>
+      <tr><td><code>ReferenceNumber</code></td><td>Every number ever issued, including voided ones</td></tr>
+      <tr><td><code>RegisterEntry</code>, <code>RegisterSync</code></td><td>The OSL and unofficial registers as imported, plus manual entries with reversible voids</td></tr>
+      <tr><td><code>AuditLog</code></td><td>Append-only: actor, action, target, before, after, time</td></tr>
+      <tr><td rowspan="2">Not in use</td><td><code>PurchaseRequest</code>, <code>Quotation</code></td><td><span class="pill schema">Schema only</span> Procurement is planned; no screen reads these yet.</td></tr>
+      <tr><td><code>Notification</code>, <code>DashboardLayout</code>, <code>OrganisationModule</code>, <code>OrgSetupProgress</code></td><td><span class="pill schema">Unused</span> Left over from the starter kit. Nothing reads or writes them; they can be dropped in a migration.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="security">
+  <h2><span class="n">06</span>Security model</h2>
+  <p>The portal assumes the publishable key is public and that any signed-in person may try to call Supabase directly. Each control below holds on its own.</p>
+  <h3>Row-level security, enforced by the connection</h3>
+  <p><code>dbAs(userId, fn)</code> opens a transaction as <code>app_user</code>, installs the user's claims, and refuses to run if the connection is not actually <code>app_user</code>, because running as the table owner would silently bypass RLS. Hosted Supabase doesn't allow <code>SET ROLE</code> into custom roles, so production connects as <code>app_user</code> directly through <code>APP_USER_DATABASE_URL</code>. It allows at most ten scoped transactions at once, to stay under the pooler's connection limit.</p>
+  <p><code>dbAdmin</code> bypasses RLS and is used only inside <code>src/core</code>: provisioning, throttling, audit, roster linking.</p>
+  <h3>Controls in the database itself</h3>
+  <ul>
+    <li><strong>Separation of duties on fees.</strong> A trigger allows a payment to become <code>CONFIRMED</code> (or <code>REJECTED</code>) only by an active exco member of the same club who is not the person who declared it. A payment cannot be inserted already confirmed.</li>
+    <li><strong>Closed terms are frozen.</strong> Once a collection closes, its payments, fee decisions and close-out charges can't be changed, and a void invoice can't be brought back to life.</li>
+    <li><strong>Forms follow their state.</strong> Guards on the membership form, its questions, recipients and responses stop edits that the form's state doesn't allow.</li>
+    <li><strong>Grants are split.</strong> <code>app_user</code> holds table grants that <code>authenticated</code> (the role PostgREST runs as) does not. CI checks the split on every push.</li>
+  </ul>
+  <h3>Everything else</h3>
+  <ul>
+    <li><strong>Files.</strong> Screenshots, signatures and QR codes sit in the private <code>private-documents</code> bucket, with no storage policies for signed-in users. The server checks who is asking, derives the object key itself, and streams the bytes. It never hands out a reusable link.</li>
+    <li><strong>Raised months.</strong> The app refuses to create, edit or delete a class, or change attendance, in a month that has a live invoice. The attendance import skips those months and lists them.</li>
+    <li><strong>Amounts.</strong> The browser never posts a dollar figure. Fees come from the term's rates or an exco decision; claims come from classes × the effective rate.</li>
+    <li><strong>Sensitive fields.</strong> Coach bank account numbers are encrypted by the app before they reach the database (<code>core/crypto/fields.ts</code>, keys in <code>FIELD_ENCRYPTION_KEYS</code>).</li>
+    <li><strong>Throttling.</strong> Code requests and code checks are limited per address and per IP (<code>core/auth/throttle.ts</code>).</li>
+    <li><strong>Headers.</strong> A nonce-based Content Security Policy on every page; no inline script runs without the nonce.</li>
+    <li><strong>Audit and alerts.</strong> Every mutation writes an audit row. Access changes, bank or signature changes, financial voids and server errors can also alert by Telegram and email.</li>
+  </ul>
+</section>
+
+<section id="fees">
+  <h2><span class="n">07</span>Membership fees</h2>
+  <p>The member side lives at <code>/:org/fees</code>; the exco side at <code>/:org/fees/collection</code>. The one control the whole flow rests on is that the person who says they paid is never the person who confirms it.</p>
+  <ol class="flow">
+    <li><span class="who">Exco</span><p>Create the term with its dates and rates (full, half, exchange). Tell OSL at least two weeks before collection opens so they can set up the DBS Max wallet.</p></li>
+    <li><span class="who">Exco</span><p>Set up the membership form (intro, audience, any extra questions), upload this collection's PayNow QR, and open the form.</p></li>
+    <li><span class="who">Member</span><p>Fill in the form, scan the QR, pay, then declare: the bank's reference plus a screenshot. The amount is worked out by the server. The payment is now <code>DECLARED</code>.</p></li>
+    <li><span class="who">Portal</span><p>If the person is not matched to a roster row yet, the payment is <em>held</em> on their response. When an exco member matches the response to a row, it moves to a <code>FeePayment</code>.</p></li>
+    <li><span class="who">Exco</span><p>Check each declaration against the bank statement and confirm or reject it with a reason. Cash or late payments can be recorded directly, and marked unofficial with a reason if they never went through OSL.</p></li>
+    <li><span class="who">Exco</span><p>Close the collection. The portal writes down who was charged what, allocates an <code>INC</code> reference, and fills in OSL's own Income Deposit Form workbook, due one working day after the final collection.</p></li>
+    <li><span class="who">Exco</span><p>Mark the form as sent to OSL. Closing, sending and the money landing are three separate facts, and each is recorded separately.</p></li>
+  </ol>
+  <h3>How a fee is worked out</h3>
+  <p>Without an exco decision, the fee is read off the roster label, which is free text ("Confirmed", "1/2 term", "Confirmed; Exchange", "Graduated"). The reader is generous and says how sure it is; uncertain labels are flagged on the collection screen before anybody is charged. An exco decision (<code>FeeArrangement</code>) overrides the label: half, waived, or a custom figure. See <code>modules/fees/tiers.ts</code>.</p>
+</section>
+
+<section id="coaches">
+  <h2><span class="n">08</span>Coach payments</h2>
+  <p>Coaches issue the invoice to SUTD; the club countersigns it and forwards it to OSL with the attendance sheet, by the 15th of the following month. The run lives at <code>/:org/monthly-run</code>, and the home screen shows it as a job card with the next step.</p>
+  <ol class="flow">
+    <li><span class="who">Classes</span><p>Record each class and mark the whole roster, at <code>/:org/sessions</code>, or import the trimester sheet. A date with no coach is self-practice: it appears on the attendance sheet and on no invoice.</p></li>
+    <li><span class="who">Raise</span><p>One action per coach per month: check the coach can be invoiced (payee name, bank account), allocate the next <code>IV</code> number in the same transaction, price every class at the rate in effect on its date, and freeze a snapshot of everything the documents say.</p></li>
+    <li><span class="who">Read</span><p>Read both documents on screen. The preview is tested to say exactly what the .docx says.</p></li>
+    <li><span class="who">Sign</span><p>One button verifies the attendance sheet and countersigns the invoice. The signer's name and office are captured at that moment, and their stored signature is stamped if they have one. A coach's signature is never stamped by the club.</p></li>
+    <li><span class="who">Send</span><p>Download the pack (or print it to one PDF), and the portal opens an email to OSL with the reference, amount and fund filled in. Mark it sent.</p></li>
+    <li><span class="who">Paid</span><p>Mark it paid when the money reaches the coach. A mistake after raising is fixed by voiding the month, which keeps the old number void, and raising it again with a new one.</p></li>
+  </ol>
+</section>
+
+<section id="attendance">
+  <h2><span class="n">09</span>Attendance import</h2>
+  <p>The club keeps attendance in one Google Sheet per trimester. The treasurer exports it as CSV and uploads it at <b>Settings → Attendance</b>; the portal never holds standing access to the club's Drive.</p>
+  <ol class="flow">
+    <li><span class="who">Parse</span><p>Read the roster block and the date grid. Dates have no year, so they are resolved inside the chosen term; a date outside it is an error, not a guess. The class-length legend is read from the sheet.</p></li>
+    <li><span class="who">Match</span><p>Match rows to roster members by student ID, then email, then an exact unique name. Everything unmatched is shown before anything is written.</p></li>
+    <li><span class="who">Map dates</span><p>The sheet's instructor rows say who taught each date. The treasurer confirms each one as a coach's class, self-practice, or left out.</p></li>
+    <li><span class="who">Apply</span><p>Write classes and marks. Months that already have a raised invoice are left alone and listed.</p></li>
+  </ol>
+  <p>Every import keeps the sheet it read, so <code>scripts/db/reapply-import.ts</code> can re-run a stored parse under new rules without the original file.</p>
+</section>
+
+<section id="money">
+  <h2><span class="n">10</span>Money and references</h2>
+  <h3>Reference numbers</h3>
+  <p>Four series, each numbered independently and reset to 0001 every financial year (April to March). The hyphens are part of the format.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Series</th><th>Document</th><th>Example</th></tr></thead>
+    <tbody>
+      <tr><td><code>IV</code></td><td>Coach invoice</td><td><code>IV26-097-0010</code></td></tr>
+      <tr><td><code>INC</code></td><td>Income Deposit Form</td><td><code>INC26-097-0001</code></td></tr>
+      <tr><td><code>SCF</code></td><td>Student expense claim</td><td><code>SCF26-097-0001</code></td></tr>
+      <tr><td><code>PO</code></td><td>Purchase order</td><td><code>PO26-097-0001</code></td></tr>
+    </tbody>
+  </table></div>
+  <p>A number is allocated by one atomic <code>UPDATE … RETURNING</code> inside the transaction that writes the document, so two people can never get the same one. Issued numbers are never deleted: voiding marks the number void with a reason, so every gap in a series can be explained. FY2026's <code>IV</code> counter opens at 10, because 0001 to 0009 were issued before the portal.</p>
+  <h3>GST</h3>
+  <p>GST is derived, never typed. From a gross amount: net = gross × 10000 / (10000 + rate), and GST is the remainder, so net + GST always equals gross to the cent. The rate is a setting in basis points (900 for 9%).</p>
+  <h3>Funds</h3>
+  <p>Each fund is three facts per financial year: what it opened at, what came in, and what went out. Coach invoices draw on the OSL <b>Seed</b> fund (does not roll over) or the <b>Income</b> fund. The <b>Unofficial</b> fund is money the exco hold outside OSL; it shows on the dashboard but no invoice can draw on it.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Fund</th><th>WBS element</th><th>Used on</th></tr></thead>
+    <tbody>
+      <tr><td>OSL Seed</td><td><code>PC-00097-A3006-A3006-000</code></td><td>Invoices drawing on seed</td></tr>
+      <tr><td>Income, expense side</td><td><code>PN-00097-A3006-A3006-000</code></td><td>Invoices, CONCUR claims</td></tr>
+      <tr><td>Income, revenue side</td><td><code>PN-00097-A3006-A3006-R00</code></td><td>Income Deposit Forms</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="documents">
+  <h2><span class="n">11</span>Documents</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Document</th><th>Format</th><th>Built by</th></tr></thead>
+    <tbody>
+      <tr><td>Coach invoice</td><td>.docx, screen, print</td><td><code>coach-claim/invoice.ts</code></td></tr>
+      <tr><td>Monthly attendance sheet</td><td>.docx, screen, print</td><td><code>coach-claim/attendance-sheet.ts</code></td></tr>
+      <tr><td>Month pack (both, one file)</td><td>.docx</td><td><code>coach-claim/month-pack.ts</code></td></tr>
+      <tr><td>Income Deposit Form</td><td>OSL's own .xlsx, filled in; print view</td><td><code>fees/deposit-form</code></td></tr>
+      <tr><td>Term fee summary</td><td>.docx, screen</td><td><code>fees/summary-doc.ts</code></td></tr>
+      <tr><td>Form responses</td><td>CSV</td><td><code>membership-form/csv.ts</code></td></tr>
+    </tbody>
+  </table></div>
+  <p>Documents the club sends to OSL keep OSL's layout, because that is what OSL has accepted for years. Coach invoices carry the coach's name, not the club's letterhead, because the coach is the one billing the university. Every on-screen preview is compared with its file, reduced to text, by a test, so what you read before signing is what gets sent.</p>
+</section>
+
+<section id="environments">
+  <h2><span class="n">12</span>Environments</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Environment</th><th>Where</th><th>Data</th></tr></thead>
+    <tbody>
+      <tr><td>Production</td><td><code>funktion-portal</code> on Vercel · Supabase <code>FunktionPortal</code></td><td>The real club</td></tr>
+      <tr><td>Demo</td><td><code>funktion-portal-demo</code> on Vercel · Supabase <code>FunktionPortal Demo</code></td><td>A made-up club, reset with <code>npm run demo:seed</code></td></tr>
+      <tr><td>Local</td><td><code>localhost</code> · Docker test stack</td><td>Test data, reset by the test suites</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Settings</h3>
+  <p>All settings are environment variables, documented line by line in <code>.env.example</code>. The ones a deployment must have:</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Variable</th><th>What it is</th></tr></thead>
+    <tbody>
+      <tr><td><code>NEXT_PUBLIC_SUPABASE_URL</code>, <code>NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code></td><td>The Supabase project and its public key</td></tr>
+      <tr><td><code>SUPABASE_SECRET_KEY</code></td><td>Server-only. Private storage, and the demo's sign-in.</td></tr>
+      <tr><td><code>DATABASE_URL</code></td><td>Transaction pooler (port 6543), for the app</td></tr>
+      <tr><td><code>DIRECT_URL</code></td><td>Session pooler (port 5432), for migrations</td></tr>
+      <tr><td><code>APP_USER_DATABASE_URL</code></td><td>The <code>app_user</code> login that RLS runs as</td></tr>
+      <tr><td><code>FIELD_ENCRYPTION_KEYS</code></td><td>Encrypts coach bank details. Lose it and they are gone; keep a copy in the club's password manager.</td></tr>
+      <tr><td><code>NEXT_PUBLIC_APP_URL</code></td><td>The site's own address, for sign-in redirects</td></tr>
+    </tbody>
+  </table></div>
+  <p>Optional: <code>ALLOWED_EMAIL_DOMAINS</code>, <code>MICROSOFT_TENANT_IDS</code>, <code>BOOTSTRAP_EXCO_EMAILS</code>, <code>TELEGRAM_BOT_TOKEN</code> and <code>TELEGRAM_ALERT_CHAT_ID</code>, <code>RESEND_API_KEY</code> with <code>SECURITY_ALERT_FROM</code> and <code>SECURITY_ALERT_EMAILS</code>, <code>GOOGLE_SERVICE_ACCOUNT_JSON</code>, the <code>NEXT_PUBLIC_BRAND_*</code> overrides, and <code>DEMO_MODE</code> (demo only).</p>
+</section>
+
+<section id="development">
+  <h2><span class="n">13</span>Development and tests</h2>
+  <p>You need Node 24 and Docker. The test stack runs Postgres, GoTrue, PostgREST, Storage, Kong and a mail catcher in Docker, on ports that don't clash with anything else.</p>
+<pre><code>npm install
+npm run test:stack          # start the local Supabase stack and migrate it
+npm run demo                # the portal with a made-up club at http://localhost:3100</code></pre>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>npm run test:run</code></td><td>Unit tests (Vitest, jsdom): money, tiers, documents, parsing, permissions, UI</td></tr>
+      <tr><td><code>npm run test:integration</code></td><td>Server actions against the real local database, as real users, including attacks on PostgREST</td></tr>
+      <tr><td><code>npm run test:usability</code></td><td>Playwright browser journeys against a production build</td></tr>
+      <tr><td><code>npm run test:tour</code></td><td>Screenshot tours of every screen, desktop and phone</td></tr>
+      <tr><td><code>npm run lint</code>, <code>npx tsc --noEmit</code></td><td>Lint and typecheck</td></tr>
+      <tr><td><code>npm run db:migrate</code></td><td>Create a migration in development</td></tr>
+      <tr><td><code>npm run db:deploy</code></td><td>Apply migrations to the database in <code>.env</code></td></tr>
+      <tr><td><code>npm run db:verify-rls</code></td><td>Prove the deployed database enforces RLS</td></tr>
+      <tr><td><code>npm run demo:seed</code></td><td>Reset the hosted demo's database (reads <code>.env.demo</code>)</td></tr>
+    </tbody>
+  </table></div>
+  <p>CI (<code>.github/workflows/ci.yml</code>) runs on every push and pull request: typecheck, lint, unit tests and a dependency audit; every migration applied to a bare Postgres with the grant split checked; and the whole Docker stack with integration tests, a production build, and both Playwright suites.</p>
+  <div class="note"><span class="k">Next.js 16</span><p>This is not the Next.js most examples describe. Middleware is <code>proxy.ts</code>, request APIs such as <code>cookies()</code> are async, and the local docs in <code>node_modules/next/dist/docs/</code> are the reference.</p></div>
+</section>
+
+<section id="operations">
+  <h2><span class="n">14</span>Operations</h2>
+  <h3>Deploying</h3>
+  <ol class="flow">
+    <li><span class="who">Once</span><p>Create <code>app_user</code> with <code>scripts/db/create-app-user.sql</code> and give it a login with <code>scripts/db/set-app-user-password.sh</code>. Create the private bucket with <code>scripts/create-storage-bucket.ts</code>.</p></li>
+    <li><span class="who">Each release</span><p>Apply migrations first with <code>npm run db:deploy</code>. The build never runs them.</p></li>
+    <li><span class="who">Each release</span><p>Merge to <code>main</code>. Vercel builds and deploys production.</p></li>
+    <li><span class="who">After</span><p>Run <code>npm run db:verify-rls</code> and sign in once to check.</p></li>
+  </ol>
+  <h3>Backups and recovery</h3>
+  <p>The targets are a 24-hour recovery point and a four-hour recovery time. Supabase Pro keeps seven days of daily database backups; the Free plan keeps none and pauses idle projects, so it is fit for the demo, not for live money. A database backup does not include Storage objects, so the private bucket needs its own encrypted copy. Rehearse a restore into a separate project before launch and every quarter.</p>
+  <div class="cols">
+    <div class="card"><h4>Something wrong in one record</h4><p>Void it in the portal with a reason, and restore it the same way. Never edit history.</p></div>
+    <div class="card"><h4>A bulk mistake</h4><p>Restore the nearest backup beside production, find exactly what changed, and copy back only that, after a second person checks the plan.</p></div>
+    <div class="card"><h4>Everything is gone</h4><p>Stop writes, restore through Supabase, rotate secrets, run the checks below, then reopen.</p></div>
+  </div>
+  <p>After any restore, check that: sign-in works and members and exco are still separated; the audit log is intact on both sides of the incident; reference numbers have no duplicates; register totals match the spreadsheet and bank; private files open only for the right people; alerts deliver; and <code>db:verify-rls</code>, the integration tests and the browser smoke test pass. There is deliberately no "restore the portal" button in the app: one stolen exco session could use it to erase everyone else's work.</p>
+  <h3>Logs and alerts</h3>
+  <p>The audit log is the business record. Runtime logs are structured JSON and never contain screenshots, bank details, student IDs, tokens or full requests. Set <code>SECURITY_ALERT_EMAILS</code> to the treasurer, the president and the technical owner. Write down who may ask for a restore, who approves it, and who holds the database, Vercel, email and encryption keys.</p>
+</section>
+
+<section id="open">
+  <h2><span class="n">15</span>Open work</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Area</th><th>Status</th><th>What's left</th></tr></thead>
+    <tbody>
+      <tr><td>Coach payments</td><td><span class="pill live">Live</span></td><td>Coach photos</td></tr>
+      <tr><td>Membership fees</td><td><span class="pill live">Built</span></td><td>The first real collection, watched closely</td></tr>
+      <tr><td>Access and welcome</td><td><span class="pill live">Live</span></td><td>—</td></tr>
+      <tr><td>Registers</td><td><span class="pill live">Read-only</span></td><td>Writing back to the Drive register, behind a diff that a person approves</td></tr>
+      <tr><td>Reminders</td><td><span class="pill todo">Planned</span></td><td>Deadlines are computed and shown; nothing sends them yet</td></tr>
+      <tr><td>Procurement</td><td><span class="pill todo">Planned</span></td><td>PRF/PAF by amount, quotations, the approval chain</td></tr>
+      <tr><td>Budget and contracts</td><td><span class="pill todo">Planned</span></td><td>Insights, forecasts, contract hours and renewals</td></tr>
+      <tr><td>Production services</td><td><span class="pill todo">To set up</span></td><td>Supabase Pro, a transactional email sender, storage backups, a restore drill</td></tr>
+      <tr><td>Handover</td><td><span class="pill todo">Feb–Mar 2027</span></td><td>FY2027 counters, club-owned accounts, the handover pack</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Known discrepancies in the club's own records</h3>
+  <ul>
+    <li><code>IV24-097-0024</code> is missing from the FY2024 register; the series jumps from 0023 to 0025.</li>
+    <li>Four FY2026 coach payments (June and July) were never given reference numbers.</li>
+    <li>The FY2026 register's Seed cell reads $1,520.00; the real balance is $305.00, because four rows fill only the incl-GST column.</li>
+    <li>The register's INC references carry an extra hyphen (<code>INC-26-…</code>); the correct form is <code>INC26-…</code>.</li>
+  </ul>
+</section>
+
+<footer>
+  Written against the SUTD Student Organisations Finance Guidelines (September 2025) and the code on the <code>main</code> branch. Found something out of date? Fix it in <code>docs/handbook.html</code> in the same pull request as the code.
+</footer>
+</main>
+</div>
+</body>
+</html>

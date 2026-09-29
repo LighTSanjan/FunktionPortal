@@ -398,8 +398,8 @@ model AttendanceSheet {
 /// An invoice ISSUED BY the instructor and billed to Singapore University
 /// of Technology and Design (§3.1.2, §3.3). The club is not the issuer: it
 /// countersigns, records the reference number in the top right corner, and
-/// forwards to OSL. See docs/implementation-plan for why this constrains
-/// how the document may be branded.
+/// forwards to OSL — so the document carries the coach's name, never the
+/// club's letterhead.
 model Invoice {
   id                String        @id @default(cuid())
   orgId             String        @map("org_id")
