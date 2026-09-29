@@ -447,18 +447,6 @@ body {
   animation: photo-drift 22s var(--ease-soft) infinite alternate;
 }
 
-/* An instant photo coming up out of the grey. */
-@keyframes develop {
-  0% { filter: grayscale(1) brightness(1.7) contrast(0.45) blur(3px); }
-  45% { filter: grayscale(0.7) brightness(1.25) contrast(0.75) blur(1px); }
-  100% { filter: none; }
-}
-
-.develop {
-  animation: develop 2600ms ease-out backwards;
-  animation-delay: var(--delay, 300ms);
-}
-
 /* ══════════════════════════════════════════════════════════════════
    prefers-reduced-motion
    ══════════════════════════════════════════════════════════════════
@@ -484,8 +472,7 @@ body {
   .ring-grow,
   .photo-place,
   .line-reveal > span,
-  .photo-drift,
-  .develop {
+  .photo-drift {
     animation: none;
   }
 }

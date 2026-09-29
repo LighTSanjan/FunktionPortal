@@ -297,7 +297,6 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
               tilt={-2}
               swing={-8}
               wait={0}
-              develop
               className="mx-auto w-full max-w-[460px]"
               sizes="(min-width: 640px) 460px, 90vw"
             />
@@ -404,7 +403,6 @@ function Photo({
   sizes,
   priority,
   drift,
-  develop,
   compact,
 }: {
   slot: PhotoSlot
@@ -416,7 +414,6 @@ function Photo({
   sizes: string
   priority?: boolean
   drift?: boolean
-  develop?: boolean
   /** Too small to say what belongs in it; just the file name. */
   compact?: boolean
 }) {
@@ -429,7 +426,7 @@ function Photo({
       style={{ '--tilt': `${tilt}deg`, '--swing': `${swing}deg`, '--delay': `${wait}ms` } as React.CSSProperties}
     >
       <div className="relative overflow-hidden bg-[#ECE6DB]" style={{ aspectRatio: aspect }}>
-        <div className={cn('absolute inset-0', drift && 'photo-drift', develop && 'develop')} style={develop ? delay(250) : undefined}>
+        <div className={cn('absolute inset-0', drift && 'photo-drift')}>
           {slot.ready ? (
             <Image
               src={`/welcome/${slot.file}`}

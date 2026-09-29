@@ -46,7 +46,7 @@ export const PHOTOS = {
     alt: 'A FUNKtion member cheering, fists clenched',
     focus: '50% 40%',
   },
-  /** The last screen, a big print that develops as they finish. Landscape, 3:2. */
+  /** The last screen, the big print. Landscape, 3:2. */
   done: {
     file: 'done.jpg',
     ready: true,
