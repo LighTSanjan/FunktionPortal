@@ -16,39 +16,41 @@ export interface PhotoSlot {
 }
 
 export const PHOTOS = {
-  /** First screen, the big one. Portrait, roughly 4:5. */
+  /** First screen, the big one. Landscape, 4:3. */
   crew: {
     file: 'crew.jpg',
-    ready: false,
+    ready: true,
     want: 'Everyone in one frame. A group shot after a showcase or a jam.',
-    alt: 'The FUNKtion crew together after a performance',
+    alt: 'The FUNKtion crew together on stage after FRESH',
   },
   /** First screen, the small one tucked under the big one. Square. */
   candid: {
     file: 'candid.jpg',
-    ready: false,
+    ready: true,
     want: 'A candid mid-move. Popping or locking, not posing.',
-    alt: 'A FUNKtion dancer mid-move',
+    alt: 'A FUNKtion member on the stairs, pointing at the camera',
   },
-  /** On the "first time" card. Landscape, roughly 16:10. */
+  /** On the "first time" card. Landscape, 4:3. */
   newcomer: {
     file: 'newcomer.jpg',
-    ready: false,
+    ready: true,
     want: 'A beginner class or a freshie workshop, people learning.',
-    alt: 'A FUNKtion beginner class',
+    alt: 'A FUNKtion member watching, arms crossed',
+    focus: '50% 45%',
   },
-  /** On the "coming back" card. Landscape, roughly 16:10. */
+  /** On the "coming back" card. Landscape, 4:3. */
   returning: {
     file: 'returning.jpg',
-    ready: false,
+    ready: true,
     want: 'Last term: a battle, a showcase, the practice room at 11pm.',
-    alt: 'FUNKtion members at last term’s showcase',
+    alt: 'A FUNKtion member cheering, fists clenched',
+    focus: '50% 40%',
   },
-  /** The last screen, a print that develops as they finish. Square. */
+  /** The last screen, a big print that develops as they finish. Landscape, 3:2. */
   done: {
     file: 'done.jpg',
     ready: false,
-    want: 'The practice room, or the crew cheering somebody on.',
-    alt: 'The FUNKtion practice room',
+    want: 'The dance floor, everyone joining in.',
+    alt: 'FUNKtion members dancing together on the floor',
   },
 } satisfies Record<string, PhotoSlot>

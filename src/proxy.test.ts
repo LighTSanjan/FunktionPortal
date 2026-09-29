@@ -152,8 +152,15 @@ describe('public files', () => {
     }
   })
 
+  it('serves the welcome screens’ photos, which the image optimiser fetches without cookies', async () => {
+    for (const path of ['/welcome/crew.jpg', '/welcome/candid.webp']) {
+      const res = await proxy(makeRequest(path))
+      expect(res.headers.get('location'), `${path} should pass through`).toBeNull()
+    }
+  })
+
   it('does not let an extension smuggle a real page past the session check', async () => {
-    for (const path of ['/funktion/settings.svg', '/a/b.png', '/funktion/dashboard.js']) {
+    for (const path of ['/funktion/settings.svg', '/a/b.png', '/funktion/dashboard.js', '/welcome/dashboard', '/welcome/a/b.jpg', '/welcome/x.js']) {
       const res = await proxy(makeRequest(path))
       expect(res.status, `${path} must not bypass`).toBe(307)
       expect(res.headers.get('location'), `${path} must not bypass`).toContain('/sign-in')

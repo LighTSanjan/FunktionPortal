@@ -107,8 +107,8 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
       >
         {step === 'hello' && (
           <section className="grid items-center gap-10 md:grid-cols-[1fr_1.1fr] md:gap-16">
-            <div className="relative mx-auto w-full max-w-[240px] pb-12 pr-10 sm:max-w-[330px] sm:pb-16 sm:pr-14">
-              <Photo slot={PHOTOS.crew} aspect="4 / 5" tilt={-2} swing={-6} wait={60} drift priority sizes="(min-width: 768px) 300px, 70vw" />
+            <div className="relative mx-auto w-full max-w-[330px] pb-14 pr-8 sm:max-w-[440px] sm:pb-20 sm:pr-12">
+              <Photo slot={PHOTOS.crew} aspect="4 / 3" tilt={-2} swing={-6} wait={60} drift priority sizes="(min-width: 768px) 420px, 90vw" />
               <Photo
                 slot={PHOTOS.candid}
                 aspect="1 / 1"
@@ -116,7 +116,7 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
                 swing={11}
                 wait={400}
                 compact
-                className="absolute bottom-0 right-0 w-[48%]"
+                className="absolute bottom-0 right-0 w-[36%]"
                 sizes="160px"
               />
             </div>
@@ -290,16 +290,16 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
         )}
 
         {step === 'done' && (
-          <section className="mx-auto w-full max-w-md text-center">
+          <section className="mx-auto w-full max-w-xl text-center">
             <Photo
               slot={PHOTOS.done}
-              aspect="1 / 1"
-              tilt={-3}
-              swing={-10}
+              aspect="3 / 2"
+              tilt={-2}
+              swing={-8}
               wait={0}
               develop
-              className="mx-auto w-[210px]"
-              sizes="210px"
+              className="mx-auto w-full max-w-[460px]"
+              sizes="(min-width: 640px) 460px, 90vw"
             />
             <h1 className="mt-10 text-[28px] font-semibold leading-[1.1] tracking-[-0.03em] text-text sm:text-[34px]">
               <Line wait={500}>{returning ? 'Good to have you back' : 'Nearly there'}</Line>
@@ -495,7 +495,7 @@ function PathCard({
       )}
       style={{ '--tilt': `${tilt}deg`, '--swing': `${tilt * 5}deg`, '--delay': `${wait}ms` } as React.CSSProperties}
     >
-      <div className="relative aspect-[16/10] overflow-hidden rounded-[calc(var(--radius-md)-4px)] bg-[#ECE6DB]">
+      <div className="relative aspect-[4/3] overflow-hidden rounded-[calc(var(--radius-md)-4px)] bg-[#ECE6DB]">
         <div className="absolute inset-0 transition-transform duration-700 ease-[var(--ease-soft)] group-hover:scale-[1.05]">
           {slot.ready ? (
             <Image

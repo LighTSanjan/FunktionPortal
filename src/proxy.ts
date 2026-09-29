@@ -21,8 +21,16 @@ function matches(pathname: string, paths: string[]): boolean {
 // such as /funktion/settings.svg.
 const PUBLIC_FILE = /^\/[A-Za-z0-9._-]+\.(?:svg|png|jpe?g|webp|avif|gif|ico|txt|xml|webmanifest|woff2?)$/
 
+// The welcome screens' photos, in public/welcome/. Images only, one level
+// down: the image optimiser fetches them without the visitor's cookies.
+const WELCOME_PHOTO = /^\/welcome\/[A-Za-z0-9._-]+\.(?:png|jpe?g|webp|avif)$/
+
 function isStaticAsset(pathname: string): boolean {
-  return STATIC_PREFIXES.some((prefix) => pathname.startsWith(prefix)) || PUBLIC_FILE.test(pathname)
+  return (
+    STATIC_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
+    PUBLIC_FILE.test(pathname) ||
+    WELCOME_PHOTO.test(pathname)
+  )
 }
 
 /**
