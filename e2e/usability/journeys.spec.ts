@@ -62,6 +62,12 @@ test('the treasurer signs in with a code to their SUTD address and lands on thei
   await expect(page.getByPlaceholder('Search pages...')).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(searchTrigger).toBeFocused()
+
+  const notificationTrigger = page.getByRole('button', { name: /Notifications/ })
+  await notificationTrigger.click()
+  await expect(page.getByRole('menu', { name: 'Notifications' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('menu', { name: 'Notifications' })).toHaveCount(0)
 })
 
 test('every screen renders for the treasurer', async () => {
@@ -86,6 +92,17 @@ test('every screen renders for the treasurer', async () => {
   ]) {
     await visit(page, `/${ORG}/${path}`)
   }
+})
+
+test('the exceptional external-payment form stays out of the way until requested', async () => {
+  const page = await treasurer.newPage()
+  await visit(page, `/${ORG}/monthly-run`)
+
+  await expect(page.getByText('Were these coaches paid elsewhere?')).toBeVisible()
+  await expect(page.getByLabel('Actual amount').first()).toBeHidden()
+  await page.getByText('Were these coaches paid elsewhere?').click()
+  await expect(page.getByLabel('Actual amount').first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save external payment' })).toBeVisible()
 })
 
 test('the treasurer raises last month from the home screen, reads it and signs it', async () => {

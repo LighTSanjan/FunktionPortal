@@ -6,6 +6,7 @@ import { AppHeader } from './app-header'
 import { CommandPalette } from './command-palette'
 import { MobileNav } from './mobile-nav'
 import type { NavEntry, NavGroup } from '@/core/navigation'
+import type { PortalNotification } from '@/core/notifications/types'
 
 interface AppShellProps {
   orgSlug: string
@@ -15,6 +16,7 @@ interface AppShellProps {
   navGroups: NavGroup[]
   navEntries: NavEntry[]
   canManageSettings?: boolean
+  notifications?: PortalNotification[]
   children: React.ReactNode
 }
 
@@ -26,6 +28,7 @@ function AppShell({
   navGroups,
   navEntries,
   canManageSettings,
+  notifications = [],
   children,
 }: AppShellProps) {
   const [cmdOpen, setCmdOpen] = React.useState(false)
@@ -56,6 +59,7 @@ function AppShell({
             userEmail={userEmail}
             onSignOut={handleSignOut}
             onCommandPalette={() => setCmdOpen(true)}
+            notifications={notifications}
           />
         </div>
 

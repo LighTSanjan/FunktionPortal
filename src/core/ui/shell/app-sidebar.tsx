@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -93,14 +94,28 @@ export function AppSidebar({
             collapsed && 'justify-center px-0'
           )}
         >
-          {/* The club's own logo, not its name in type beside a letter in a
-              box. Collapsed, only the F fits. */}
+          {/* Use the club's actual artwork at both widths. The collapsed rail
+              still has enough room for the compact full wordmark. */}
           {collapsed ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={BRAND.assets.mark} alt={orgName} className="h-7 w-7" />
+            <Image
+              src={BRAND.assets.wordmark}
+              alt={orgName}
+              width={1000}
+              height={677}
+              unoptimized
+              loading="eager"
+              className="h-8 w-10 object-contain"
+            />
           ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={BRAND.assets.wordmark} alt={orgName} className="h-11 w-auto" />
+            <Image
+              src={BRAND.assets.wordmark}
+              alt={orgName}
+              width={1000}
+              height={677}
+              unoptimized
+              loading="eager"
+              className="h-11 w-auto"
+            />
           )}
         </Link>
       </div>

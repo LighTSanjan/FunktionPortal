@@ -44,6 +44,28 @@ export default async function seed() {
     data: { orgId: org.id, instructorId: coach.id, hourlyRateCents: 9000, effectiveFrom: new Date('2020-01-01T00:00:00Z') },
   })
 
+  // A second fully configured coach makes the demo useful for checking the
+  // two-coach roster and for assigning a new class without first doing setup.
+  // They deliberately have no class last month, so the existing guided
+  // payment journey remains focused on Kai while still showing both coaches.
+  const secondCoach = await dbAdmin.instructor.create({
+    data: {
+      orgId: org.id,
+      fullName: 'Mina Tan',
+      shortCode: 'MT',
+      danceStyle: 'Locking',
+      email: 'mina@coach.test',
+      addressLine1: '2 Rhythm Road',
+      postalCode: '000003',
+      bankName: 'OCBC',
+      bankAccountNo: '111-11111-1',
+    },
+  })
+
+  await dbAdmin.instructorRate.create({
+    data: { orgId: org.id, instructorId: secondCoach.id, hourlyRateCents: 9000, effectiveFrom: new Date('2020-01-01T00:00:00Z') },
+  })
+
   const ada = await addRosterMember(org, { fullName: 'Ada Lee', studentId: MEMBER.studentId, email: 'ada@uni.test' })
   const ben = await addRosterMember(org, { fullName: 'Ben Ong', studentId: '1000002' })
 

@@ -79,6 +79,16 @@ describe('AppSidebar', () => {
     expect(screen.getByLabelText('Collapse sidebar')).toBeInTheDocument()
   })
 
+  it('keeps the real club wordmark when collapsed', async () => {
+    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navGroups={mockGroups} />)
+    fireEvent.click(screen.getByLabelText('Collapse sidebar'))
+
+    await waitFor(() => {
+      expect(screen.getByAltText('Acme Inc')).toHaveAttribute('src', '/funktion-logo.svg')
+    })
+    expect(document.querySelector('img[src="/funktion-icon.png"]')).not.toBeInTheDocument()
+  })
+
   it('marks active nav item', () => {
     pathname = '/acme/sessions'
     render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navGroups={mockGroups} />)
@@ -108,6 +118,36 @@ describe('AppHeader', () => {
     fireEvent.click(screen.getByLabelText('Profile menu'))
     expect(screen.getByText('john@example.com')).toBeInTheDocument()
     expect(screen.getByText('Sign out')).toBeInTheDocument()
+  })
+
+  it('shows active work in the notification menu', () => {
+    render(
+      <AppHeader
+        {...defaultHeaderProps}
+        notifications={[
+          {
+            id: 'access-requests',
+            tone: 'urgent',
+            title: '2 access requests waiting',
+            detail: 'Another exco member must decide them.',
+            href: '/acme/settings/access',
+          },
+        ]}
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText('Notifications, 1 active'))
+    expect(screen.getByRole('menu', { name: 'Notifications' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /2 access requests waiting/i })).toHaveAttribute(
+      'href',
+      '/acme/settings/access'
+    )
+  })
+
+  it('explains an empty notification queue', () => {
+    render(<AppHeader {...defaultHeaderProps} />)
+    fireEvent.click(screen.getByLabelText('Notifications'))
+    expect(screen.getByText('Nothing needs attention')).toBeInTheDocument()
   })
 
 })

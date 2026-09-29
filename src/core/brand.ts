@@ -51,7 +51,7 @@ export const BRAND: Brand = {
   emailDomain: process.env.NEXT_PUBLIC_BRAND_EMAIL_DOMAIN ?? 'mymail.sutd.edu.sg',
   assets: {
     wordmark: process.env.NEXT_PUBLIC_BRAND_WORDMARK || '/funktion-logo.svg',
-    mark: process.env.NEXT_PUBLIC_BRAND_MARK || '/funktion-mark.svg',
+    mark: process.env.NEXT_PUBLIC_BRAND_MARK || '/funktion-icon.png',
   },
 }
 

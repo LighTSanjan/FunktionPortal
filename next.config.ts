@@ -2,6 +2,11 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['@prisma/adapter-pg', 'pg', 'playwright-core', '@sparticuz/chromium'],
+  // The email-assets route reads these from disk; its readFile is excluded
+  // from tracing so the whole project is not bundled, so name them here.
+  outputFileTracingIncludes: {
+    '/api/email-assets/*': ['./docs/assets/funktion-logo.png', './public/eu-gene-battle.jpg'],
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: '6mb',

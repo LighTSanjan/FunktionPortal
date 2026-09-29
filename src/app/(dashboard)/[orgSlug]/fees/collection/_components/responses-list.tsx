@@ -184,6 +184,8 @@ function ResponseDetail({
   onDone: (message: string | null) => void
 }) {
   const [removing, setRemoving] = useState(false)
+  const [removeReason, setRemoveReason] = useState('')
+  const [removeError, setRemoveError] = useState<string | null>(null)
   const [pending, start] = useTransition()
 
   return (
@@ -252,23 +254,48 @@ function ResponseDetail({
               <span className="text-[12.5px] text-text">
                 Remove {response.fullName}&rsquo;s response{response.held ? ' and the payment held on it' : ''}?
               </span>
+              {response.held && (
+                <Input
+                  aria-label="What happened to the money"
+                  value={removeReason}
+                  onChange={(event) => setRemoveReason(event.target.value)}
+                  maxLength={300}
+                  placeholder="What happened to the money, e.g. refunded on 20 Sep"
+                  className="min-w-[16rem] flex-1"
+                />
+              )}
               <Button
                 type="button"
                 size="sm"
                 variant="danger"
                 loading={pending}
+                disabled={Boolean(response.held) && removeReason.trim().length < 3}
                 onClick={() =>
                   start(async () => {
-                    const result = await removeResponse(orgSlug, response.id)
-                    onDone(result.error ?? 'Response removed.')
+                    const result = await removeResponse(orgSlug, response.id, removeReason)
+                    if (result.error) setRemoveError(result.error)
+                    else onDone('Response removed.')
                   })
                 }
               >
                 Remove
               </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setRemoving(false)}>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setRemoving(false)
+                  setRemoveError(null)
+                }}
+              >
                 Keep it
               </Button>
+              {removeError && (
+                <p className="w-full text-[12.5px] text-danger" role="alert">
+                  {removeError}
+                </p>
+              )}
             </>
           ) : (
             <Button type="button" size="sm" variant="ghost" onClick={() => setRemoving(true)}>

@@ -862,20 +862,32 @@ export async function matchResponse(
 
 /**
  * Remove a response — a duplicate, or somebody who is not joining after all.
- * A payment held on it goes with it, screenshot included. A payment already
- * on the roster stays where it is.
+ * A payment held on it goes with it, screenshot included, so that takes a
+ * reason — what happened to the money — exactly as clearing one does. A
+ * payment already on the roster stays where it is.
  */
-export async function removeResponse(orgSlug: string, responseId: string): Promise<FormActionState> {
+export async function removeResponse(orgSlug: string, responseId: string, reason = ''): Promise<FormActionState> {
   const { org } = await getOrgContext(orgSlug)
   const { userId } = await requirePermission(org.id, 'fee.manage')
+  const why = reason.trim()
+  if (why.length > 300) return { error: 'Keep it under 300 characters.' }
 
-  const proof = await dbAs(userId, async (tx) => {
+  const outcome = await dbAs(userId, async (tx) => {
+    const found = await tx.membershipResponse.findFirst({
+      where: { id: responseId, orgId: org.id },
+      select: { termId: true },
+    })
+    if (!found) return { problem: null, proof: null }
+    await lockTermFees(tx, found.termId)
+    // Read again under the lock: a payment may have landed on it meanwhile.
     const response = await tx.membershipResponse.findFirst({
       where: { id: responseId, orgId: org.id },
-      select: { id: true, termId: true, fullName: true, heldProofPath: true, memberId: true },
+      select: { id: true, fullName: true, memberId: true, heldProofPath: true, heldAmountCents: true, heldReference: true },
     })
-    if (!response) return null
-    await lockTermFees(tx, response.termId)
+    if (!response) return { problem: null, proof: null }
+    if (response.heldProofPath && why.length < 3) {
+      return { problem: 'It holds a payment. Say what happened to the money, e.g. refunded on 20 Sep.', proof: null }
+    }
     await tx.membershipResponse.delete({ where: { id: response.id } })
     await writeAudit(
       {
@@ -884,14 +896,21 @@ export async function removeResponse(orgSlug: string, responseId: string): Promi
         action: 'form.response_remove',
         targetType: 'MembershipResponse',
         targetId: response.id,
-        before: { fullName: response.fullName, memberId: response.memberId, heldPayment: Boolean(response.heldProofPath) },
+        before: {
+          fullName: response.fullName,
+          memberId: response.memberId,
+          heldPayment: Boolean(response.heldProofPath),
+          ...(response.heldProofPath ? { amountCents: response.heldAmountCents, reference: response.heldReference } : {}),
+        },
+        ...(why ? { after: { reason: why } } : {}),
       },
       tx
     )
-    return response.heldProofPath
+    return { problem: null, proof: response.heldProofPath }
   })
 
-  if (proof) await discardProof(proof)
+  if (outcome.problem) return { error: outcome.problem }
+  if (outcome.proof) await discardProof(outcome.proof)
   revalidateForm(orgSlug)
   return { error: null, ok: true }
 }
