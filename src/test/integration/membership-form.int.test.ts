@@ -5,7 +5,8 @@
  * reaches a roster row on its own, and the database holds that line as well.
  */
 import { beforeAll, describe, expect, it } from 'vitest'
-import { createTerm, updateTerm, uploadPaynowQr, confirmPayment, closeCollection, recordPayment } from '@/modules/fees/actions'
+import { createTerm, updateTerm, uploadPaynowQr, closeCollection } from '@/modules/fees/collection-actions'
+import { confirmPayment, recordPayment } from '@/modules/fees/payment-actions'
 import { listCollection } from '@/modules/fees/queries'
 import {
   clearHeldPayment,

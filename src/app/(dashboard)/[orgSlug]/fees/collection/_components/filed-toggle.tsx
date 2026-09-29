@@ -1,7 +1,8 @@
 'use client'
 
 import { useActionState } from 'react'
-import { markDepositSubmitted, type FeeState } from '@/modules/fees/actions'
+import { markDepositSubmitted } from '@/modules/fees/collection-actions'
+import { type FeeState } from '@/modules/fees/action-state'
 import { Button } from '@/core/ui/button'
 
 /**

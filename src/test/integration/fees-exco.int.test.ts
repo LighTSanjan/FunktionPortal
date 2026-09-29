@@ -7,16 +7,12 @@
  * holds that line as well as the action.
  */
 import { beforeAll, describe, expect, it } from 'vitest'
-import {
-  createTerm,
-  declarePayment,
-  recordPayment,
-  setMemberFees,
-  undoPayment,
-  updateTerm,
-} from '@/modules/fees/actions'
+import { createTerm, updateTerm } from '@/modules/fees/collection-actions'
+import { declarePayment, recordPayment, undoPayment } from '@/modules/fees/payment-actions'
+import { setMemberFees } from '@/modules/fees/member-actions'
 import { getOwnFee, listCollection } from '@/modules/fees/queries'
-import { closeCollection, rejectPayment } from '@/modules/fees/actions'
+import { closeCollection } from '@/modules/fees/collection-actions'
+import { rejectPayment } from '@/modules/fees/payment-actions'
 import { linkRosterToAccounts } from '@/core/auth/roster-link'
 import {
   addRosterMember,

@@ -1,7 +1,8 @@
 'use client'
 
 import { useActionState, useState } from 'react'
-import { declarePayment, type FeeState } from '@/modules/fees/actions'
+import { declarePayment } from '@/modules/fees/payment-actions'
+import { type FeeState } from '@/modules/fees/action-state'
 import { Button } from '@/core/ui/button'
 import { Input } from '@/core/ui/input'
 import { FormField } from '@/core/ui/form-field'

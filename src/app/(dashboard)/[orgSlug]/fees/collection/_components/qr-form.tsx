@@ -1,7 +1,8 @@
 'use client'
 
 import { useActionState, useRef, useState } from 'react'
-import { uploadPaynowQr, type FeeState } from '@/modules/fees/actions'
+import { uploadPaynowQr } from '@/modules/fees/collection-actions'
+import { type FeeState } from '@/modules/fees/action-state'
 import { Button } from '@/core/ui/button'
 
 /**

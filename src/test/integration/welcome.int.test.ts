@@ -9,7 +9,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { saveWelcome } from '@/actions/welcome'
 import { requestAccess } from '@/actions/access'
 import { getStanding, requireFullMember } from '@/core/auth/standing'
-import { createTerm, updateTerm, uploadPaynowQr } from '@/modules/fees/actions'
+import { createTerm, updateTerm, uploadPaynowQr } from '@/modules/fees/collection-actions'
 import { matchResponse, setFormState, submitMembershipForm } from '@/modules/membership-form/actions'
 import { listResponses } from '@/modules/membership-form/queries'
 import {
