@@ -1,6 +1,8 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { dbAs } from '@/core/db'
 import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
+import { getStanding } from '@/core/auth/standing'
 import { hasPermission } from '@/core/permissions'
 import { studentIdFromEmail } from '@/core/auth/roster-match'
 import { PageHeader } from '@/core/ui/page-header'
@@ -37,6 +39,9 @@ export default async function FeesPage({
   const { org, membership } = await getOrgContext(orgSlug)
   await requirePagePermission(org, 'fee.declare')
   const { userId } = await verifySession()
+  // Somebody not on the roster says who they are first; the form then opens
+  // with it filled in.
+  if ((await getStanding(orgSlug)) === 'WELCOME') redirect(`/${orgSlug}/welcome`)
   const canManage = hasPermission(membership.role, 'fee.manage')
   const preview = canManage && Boolean(query.preview)
 

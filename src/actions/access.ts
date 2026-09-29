@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
+import { getStanding } from '@/core/auth/standing'
 import { alert } from '@/core/alerts'
 import {
   REQUEST_TTL_DAYS,
@@ -43,6 +44,11 @@ export async function requestAccess(
 ): Promise<AccessActionState> {
   const { org } = await getOrgContext(orgSlug)
   const { userId } = await verifySession()
+  // Somebody the club has not matched to its roster yet is not somebody it
+  // knows; asking for exco access waits until it does.
+  if ((await getStanding(orgSlug)) !== 'FULL') {
+    return { error: 'Your account isn’t linked to the club roster yet. Once the exco match you, you can ask.' }
+  }
 
   const parsed = requestSchema.safeParse({
     requestedOffice: formData.get('requestedOffice') ?? '',

@@ -314,6 +314,7 @@ export default async function CollectionPage({
                   }),
                   edited: row.updatedAt.getTime() - row.submittedAt.getTime() > 60_000,
                   matchedByName: row.matchedByName,
+                  joiningAs: row.joiningAs,
                   candidates: row.candidates,
                   idTakenBy: row.idTakenBy,
                 })

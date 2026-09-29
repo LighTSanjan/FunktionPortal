@@ -24,6 +24,7 @@ export interface ResponseView {
   sentLong: string
   edited: boolean
   matchedByName: string | null
+  joiningAs: 'NEW' | 'RETURNING' | null
   candidates: { id: string; fullName: string; studentId: string | null; reasons: string[]; sameAccount: boolean }[]
   idTakenBy: string | null
 }
@@ -141,6 +142,9 @@ export function ResponsesList({
                       ) : (
                         <Badge variant="warning">Not on the roster yet</Badge>
                       )}
+                      {!response.memberId && response.joiningAs && (
+                        <Badge variant="default">{response.joiningAs === 'NEW' ? 'Says new' : 'Says returning'}</Badge>
+                      )}
                       {response.held && <Badge variant="info">Paid, held</Badge>}
                     </span>
                     <span className="w-20 text-right text-[11.5px] tabular-nums text-text-subtle">
@@ -192,6 +196,16 @@ function ResponseDetail({
     <div className="space-y-4 border-t border-dashed border-border px-4 py-4">
       <dl className="grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-[10rem_1fr]">
         <Row label="On the roster as" value={response.memberName ?? 'Nobody yet'} />
+        {!response.memberId && response.joiningAs && (
+          <Row
+            label="They said"
+            value={
+              response.joiningAs === 'NEW'
+                ? 'They’re new to the club'
+                : 'They’ve been a member before — look for their existing row'
+            }
+          />
+        )}
         {response.matchedByName && <Row label="Matched by" value={response.matchedByName} />}
         <Row label="Sent" value={`${response.sentLong}${response.edited ? ' · edited since' : ''}`} />
         {response.answers.map((answer) => (

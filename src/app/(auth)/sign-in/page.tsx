@@ -30,7 +30,7 @@ export default async function SignInPage({
   return (
     <AuthCardShell
       title="Welcome!"
-      subtitle="For SUTD students and alumni. Instructors and anyone else: ask the exco to invite your email first."
+      subtitle="For FUNKtion members, new and returning. Use Google, or a code sent to your SUTD address or Gmail. Codes to SUTD addresses can land in Outlook’s quarantine."
     >
       {returning && !error && (
         <p className="mb-5 rounded-[var(--radius-sm)] border border-border bg-surface px-3 py-2.5 text-[13px] leading-relaxed text-text-muted">

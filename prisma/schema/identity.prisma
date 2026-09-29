@@ -31,6 +31,19 @@ model User {
   claimedStudentId   String?   @map("claimed_student_id")
   claimedStudentIdAt DateTime? @map("claimed_student_id_at")
 
+  /// What somebody said about themselves on the welcome screen, before any
+  /// roster row is theirs: new to the club, or back after a break. A claim,
+  /// like the student ID above — it decides which way they are walked
+  /// through, and the exco read it when they match the account. Grants
+  /// nothing.
+  joiningAs   JoiningAs? @map("joining_as")
+  onboardedAt DateTime?  @map("onboarded_at")
+  /// Their birthday as they gave it. Copied onto the roster row only when an
+  /// exco member adds them as new; an existing row keeps the roster's.
+  birthDay   Int? @map("birth_day")
+  birthMonth Int? @map("birth_month")
+  birthYear  Int? @map("birth_year")
+
   /// When and how this account last proved it holds its email — an emailed
   /// code, or a provider that vouched for the address. Written only by the
   /// portal in the request that saw the proof; Supabase's email_confirmed_at
@@ -66,6 +79,11 @@ model User {
 
   @@index([claimedStudentId])
   @@map("users")
+}
+
+enum JoiningAs {
+  NEW
+  RETURNING
 }
 
 model OrganisationMembership {

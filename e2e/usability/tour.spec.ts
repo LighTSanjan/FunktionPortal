@@ -60,6 +60,19 @@ test('tour', async ({ browser }) => {
 
   const member = await browser.newPage({ viewport: { width: 390, height: 844 } })
   await signInWithCode(member, MEMBER.email)
+
+  // The welcome screen, step by step, as somebody not on the roster sees it.
+  await member.goto('/test-club/welcome', { waitUntil: 'networkidle' })
+  await member.waitForTimeout(1800)
+  await member.screenshot({ path: `${OUT}/member-welcome-mobile.png`, fullPage: true })
+  await member.getByRole('button', { name: /Let’s go/ }).click()
+  await member.waitForTimeout(900)
+  await member.screenshot({ path: `${OUT}/member-welcome-who-mobile.png`, fullPage: true })
+  await member.getByRole('button', { name: /I’m new here/ }).click()
+  await member.getByLabel('Full name').waitFor()
+  await member.waitForTimeout(900)
+  await member.screenshot({ path: `${OUT}/member-welcome-details-mobile.png`, fullPage: true })
+
   for (const [name, path] of [
     ['member-home-mobile', 'dashboard'],
     ['member-fees-mobile', 'fees'],

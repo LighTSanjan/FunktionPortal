@@ -245,12 +245,22 @@ test('the treasurer invites a member who has no SUTD address', async () => {
 test('the invited member, not on the roster yet, fills in the form and pays', async () => {
   const page = await member.newPage()
   await signInWithCode(page, MEMBER.email)
-  // From the home screen, not by knowing where the form lives.
-  await expect(page.getByText('The Trimester 1 membership form is open')).toBeVisible()
-  await page.getByRole('link', { name: 'Fill it in' }).click()
+  // Not on the roster yet: the welcome screen comes first, whatever they opened.
+  await page.waitForURL(new RegExp(`/${ORG}/welcome$`))
+  await page.getByRole('button', { name: /Let’s go/ }).click()
+  await page.getByRole('button', { name: /I’ve been a member/ }).click()
+  await page.getByLabel('Full name').fill('Ada Lee')
+  await page.getByLabel('Student ID').fill(MEMBER.studentId)
+  await page.getByLabel('Day').fill('14')
+  await page.getByLabel('Month').selectOption('2')
+  await page.getByRole('button', { name: /Continue/ }).click()
+  await expect(page.getByRole('heading', { name: 'Welcome back!' })).toBeVisible()
+  await page.getByRole('link', { name: 'Join and pay for Trimester 1' }).click()
   await page.waitForURL(new RegExp(`/${ORG}/fees$`))
 
-  await page.getByLabel('Full name').fill('Ada Lee')
+  // Filled in from the welcome screen.
+  await expect(page.getByLabel('Full name')).toHaveValue('Ada Lee')
+  await expect(page.getByLabel('Student ID')).toHaveValue(MEMBER.studentId)
   await page.getByLabel('Student ID').fill(MEMBER.studentId)
   await page.getByLabel(/Telegram handle/).fill('@ada')
   await page.getByRole('button', { name: /^Send/ }).click()
@@ -269,16 +279,26 @@ test('the invited member, not on the roster yet, fills in the form and pays', as
   await expect(page.getByText('An exco member will add you to the roster')).toBeVisible()
 })
 
-test('every screen a member can open renders, and exco screens refuse them politely', async () => {
+test('somebody not on the roster yet reaches nothing but joining, and exco screens refuse them politely', async () => {
   const page = await member.newPage()
-  for (const path of ['dashboard', 'fees', 'access', 'settings/profile']) {
+  for (const path of ['dashboard', 'access', 'settings/profile']) {
     await visit(page, `/${ORG}/${path}`)
+    expect(page.url(), `${path} should send somebody not on the roster to join and pay`).toMatch(new RegExp(`/${ORG}/fees$`))
   }
-  for (const path of ['monthly-run', 'fees/collection', 'instructors', 'register', 'settings/audit-log', 'settings/organisation', 'settings/invitations', 'sessions']) {
+  await visit(page, `/${ORG}/fees`)
+  await visit(page, `/${ORG}/welcome`)
+  for (const path of ['monthly-run', 'fees/collection', 'instructors', 'register', 'sessions']) {
     const { body } = await visit(page, `/${ORG}/${path}`)
     // Told plainly, with a way back — not a crash, and nothing of the exco's.
     expect(page.url(), `${path} should send a member to no-access`).toMatch(/\/no-access$/)
     expect(body).toContain('That screen is for the exco')
+    expect(body).not.toContain('Kai Smith')
+    expect(body).not.toContain('000-00000-0')
+  }
+  // Settings are closed to them as a whole, before any one tab is asked about.
+  for (const path of ['settings/audit-log', 'settings/organisation', 'settings/invitations']) {
+    const { body } = await visit(page, `/${ORG}/${path}`)
+    expect(page.url(), `${path} should send somebody not on the roster to join and pay`).toMatch(new RegExp(`/${ORG}/fees$`))
     expect(body).not.toContain('Kai Smith')
     expect(body).not.toContain('000-00000-0')
   }

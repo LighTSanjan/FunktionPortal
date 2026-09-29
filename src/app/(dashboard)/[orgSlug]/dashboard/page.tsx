@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { verifySession, getOrgContext } from '@/core/auth/dal'
+import { requireFullMember } from '@/core/auth/standing'
 import { hasPermission } from '@/core/permissions'
 import { dbAs } from '@/core/db'
 import { countPendingRequests, getMembership, OFFICE_LABELS } from '@/core/access'
@@ -34,6 +35,7 @@ export default async function DashboardPage({
   const { orgSlug } = await params
   const { org, membership } = await getOrgContext(orgSlug)
   const { userId, name } = await verifySession()
+  await requireFullMember(orgSlug)
 
   const isExco = membership.role === 'EXCO'
   const canSeeInstructors = hasPermission(membership.role, 'instructor.view')
