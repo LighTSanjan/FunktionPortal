@@ -43,6 +43,9 @@ model User {
   birthDay   Int? @map("birth_day")
   birthMonth Int? @map("birth_month")
   birthYear  Int? @map("birth_year")
+  /// The year they expect to graduate, asked of somebody new. Copied onto the
+  /// roster row with the birthday.
+  graduationYear Int? @map("graduation_year")
 
   /// When and how this account last proved it holds its email — an emailed
   /// code, or a provider that vouched for the address. Written only by the

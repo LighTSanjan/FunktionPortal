@@ -404,7 +404,7 @@ export async function submitMembershipForm(
     const [user, form, term, member, response] = await Promise.all([
       tx.user.findUnique({
         where: { id: userId },
-        select: { email: true, birthDay: true, birthMonth: true, birthYear: true },
+        select: { email: true, birthDay: true, birthMonth: true, birthYear: true, graduationYear: true },
       }),
       tx.membershipForm.findFirst({
         where: { orgId: org.id, termId },
@@ -581,6 +581,7 @@ export async function submitMembershipForm(
         birthDay: user.birthDay,
         birthMonth: user.birthMonth,
         birthYear: user.birthYear,
+        graduationYear: user.graduationYear,
         answers: answers as unknown as Prisma.InputJsonValue,
         ...held,
       }
@@ -759,6 +760,7 @@ export async function matchResponse(
           birthDay: response.birthDay,
           birthMonth: response.birthMonth,
           birthYear: response.birthYear,
+          graduationYear: response.graduationYear,
         },
         select: { id: true, fullName: true },
       })

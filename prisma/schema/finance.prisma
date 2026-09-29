@@ -148,6 +148,8 @@ model Member {
   birthDay   Int? @map("birth_day")
   birthMonth Int? @map("birth_month")
   birthYear  Int? @map("birth_year")
+  /// The year they expect to graduate, as they gave it when they joined.
+  graduationYear Int? @map("graduation_year")
 
   /// SUTD term number as carried in the roster sheet (5, 6, 8, ...).
   academicTerm Int? @map("academic_term")
@@ -748,6 +750,7 @@ model MembershipResponse {
   birthDay   Int? @map("birth_day")
   birthMonth Int? @map("birth_month")
   birthYear  Int? @map("birth_year")
+  graduationYear Int? @map("graduation_year")
   /// `[{ questionId, label, type, value }]`, with each question's wording as
   /// it was answered, so editing a question later cannot change an answer.
   answers Json     @default("[]")

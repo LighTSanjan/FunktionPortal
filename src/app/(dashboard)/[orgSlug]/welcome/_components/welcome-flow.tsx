@@ -14,7 +14,6 @@ import { FormField } from '@/core/ui/form-field'
 import { buttonVariants } from '@/core/ui/button-variants'
 import { cn } from '@/lib/utils'
 import { PHOTOS, type PhotoSlot } from './photos'
-import { hand } from './fonts'
 import { Confetti } from './confetti'
 
 type JoiningAs = 'NEW' | 'RETURNING'
@@ -27,6 +26,7 @@ interface Details {
   birthDay: string
   birthMonth: string
   birthYear: string
+  graduationYear: string
 }
 
 export interface WelcomeFlowProps {
@@ -43,6 +43,12 @@ const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
+
+/** The logo's four inks, in the logo's order. */
+const INKS = ['var(--brand-vermilion)', 'var(--brand-marigold)', 'var(--brand-sky)', 'var(--brand-indigo)']
+
+/** This year and the next six — the range saveWelcome accepts. */
+const GRADUATION_YEARS = Array.from({ length: 7 }, (_, index) => new Date().getFullYear() + index)
 
 const delay = (ms: number) => ({ '--delay': `${ms}ms` }) as React.CSSProperties
 
@@ -86,7 +92,6 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
 
   const errors = state.fieldErrors ?? {}
   const returning = details.joiningAs === 'RETURNING'
-  const firstName = details.fullName.trim().split(/\s+/)[0] ?? ''
 
   return (
     <>
@@ -101,37 +106,38 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
         )}
       >
         {step === 'hello' && (
-          <section className="grid items-center gap-8 md:grid-cols-[1fr_1.05fr] md:gap-16">
-            <div className="relative mx-auto w-full max-w-[250px] pb-14 pr-10 sm:max-w-[360px] sm:pb-20 sm:pr-16">
-              <Polaroid slot={PHOTOS.crew} aspect="4 / 5" tilt={-2.5} swing={-7} wait={60} tape drift priority sizes="(min-width: 768px) 320px, 75vw" />
-              <Polaroid
+          <section className="grid items-center gap-10 md:grid-cols-[1fr_1.1fr] md:gap-16">
+            <div className="relative mx-auto w-full max-w-[240px] pb-12 pr-10 sm:max-w-[330px] sm:pb-16 sm:pr-14">
+              <Photo slot={PHOTOS.crew} aspect="4 / 5" tilt={-2} swing={-6} wait={60} drift priority sizes="(min-width: 768px) 300px, 70vw" />
+              <Photo
                 slot={PHOTOS.candid}
                 aspect="1 / 1"
-                tilt={6}
-                swing={12}
-                wait={420}
+                tilt={5}
+                swing={11}
+                wait={400}
                 compact
                 className="absolute bottom-0 right-0 w-[48%]"
-                sizes="170px"
+                sizes="160px"
               />
             </div>
 
             <div>
-              <p className="rise-in text-[12.5px] font-semibold text-accent-500" style={delay(120)}>
-                FUNKtion - SUTD&rsquo;s Ultimate Popping &amp; Locking Dance Club!
-              </p>
-              <h1 className="mt-3 text-[44px] font-extrabold leading-[0.98] tracking-[-0.04em] text-text sm:text-[56px]">
-                <Line wait={220}>Hey, you </Line>
-                <Line wait={320}>found us.</Line>
+              <h1 className="text-[30px] font-semibold leading-[1.1] tracking-[-0.03em] text-text sm:text-[38px]">
+                <Line wait={160}>Welcome to the </Line>
+                <Line wait={240}>all new FUNKtion portal</Line>
               </h1>
-              <p className="rise-in mt-5 max-w-[40ch] text-[15px] leading-relaxed text-text-muted" style={delay(560)}>
-                Before you pay for the term, tell us who you are so we can get you on the roster. It takes about a
-                minute.
-              </p>
-              <p className={cn(hand.className, 'rise-in mt-2 text-[24px] leading-none text-text')} style={delay(680)}>
-                &mdash; the exco
-              </p>
-              <div className="rise-in mt-8" style={delay(780)}>
+              <div className="rise-in mt-5 max-w-[44ch] space-y-3 text-[15px] leading-relaxed text-text-muted" style={delay(460)}>
+                <p>
+                  We&rsquo;re trying this out as one place for the club&rsquo;s admin, so sign-ups and fees take less
+                  chasing around.
+                </p>
+                <p>
+                  Before you pay for the term, tell us who you are so we can get you on the roster. It takes about a
+                  minute.
+                </p>
+                <p className="text-text">okai go do now (づ￣ ³￣)づ</p>
+              </div>
+              <div className="rise-in mt-8" style={delay(600)}>
                 <Button type="button" size="lg" onClick={() => go('who')}>
                   Start <ArrowRight className="h-4 w-4" aria-hidden />
                 </Button>
@@ -143,15 +149,14 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
         {step === 'who' && (
           <section className="mx-auto w-full max-w-3xl">
             <StepCount n={1} />
-            <h1 className="mt-2 text-[34px] font-extrabold leading-[1.02] tracking-[-0.035em] text-text sm:text-[42px]">
+            <h1 className="mt-2 text-[28px] font-semibold leading-[1.1] tracking-[-0.03em] text-text sm:text-[34px]">
               <Line wait={60}>Danced with us before?</Line>
             </h1>
-            <div className="mt-8 grid gap-6 sm:grid-cols-2 sm:gap-7">
+            <div className="mt-8 grid gap-5 sm:grid-cols-2 sm:gap-6">
               <PathCard
                 slot={PHOTOS.newcomer}
                 title="First time"
-                detail="New to FUNKtion. Welcome in."
-                tilt={-1.2}
+                tilt={-1}
                 wait={160}
                 selected={details.joiningAs === 'NEW'}
                 dimmed={details.joiningAs === 'RETURNING'}
@@ -160,8 +165,7 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
               <PathCard
                 slot={PHOTOS.returning}
                 title="I’ve danced with you before"
-                detail="You were on the roster in an earlier term."
-                tilt={1.2}
+                tilt={1}
                 wait={260}
                 selected={details.joiningAs === 'RETURNING'}
                 dimmed={details.joiningAs === 'NEW'}
@@ -177,46 +181,22 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
         )}
 
         {step === 'details' && (
-          <section className="mx-auto w-full max-w-xl">
+          <section className="mx-auto w-full max-w-lg">
             <StepCount n={2} />
-            <div className="mt-2 flex items-start gap-4">
-              <div className="min-w-0 flex-1">
-                <h1 className="text-[32px] font-extrabold leading-[1.02] tracking-[-0.035em] text-text sm:text-[38px]">
-                  {returning ? (
-                    <>
-                      <Line wait={60}>Welcome back. </Line>
-                      <Line wait={140}>Remind us who you are.</Line>
-                    </>
-                  ) : (
-                    <Line wait={60}>Who are you?</Line>
-                  )}
-                </h1>
-                <p className="rise-in mt-3 text-[14px] leading-relaxed text-text-muted" style={delay(260)}>
-                  {returning ? 'We’ll find your old record and link you to it.' : 'This is what goes on the club roster.'}
-                </p>
-              </div>
-              <Polaroid
-                slot={returning ? PHOTOS.returning : PHOTOS.newcomer}
-                aspect="1 / 1"
-                tilt={5}
-                swing={10}
-                wait={120}
-                thumb
-                className="w-[76px] shrink-0 sm:w-[92px]"
-                sizes="92px"
-              />
-            </div>
+            <h1 className="mt-2 text-[28px] font-semibold leading-[1.1] tracking-[-0.03em] text-text sm:text-[34px]">
+              <Line wait={60}>{returning ? 'Welcome back' : 'About you'}</Line>
+            </h1>
 
             <form action={act} noValidate className="mt-8">
               <input type="hidden" name="joiningAs" value={details.joiningAs ?? ''} />
               <div className="space-y-5">
-                <div className="rise-in" style={delay(320)}>
-                  <FormField label="Full name" htmlFor="welcome-name" hint="As on your student card." error={errors.fullName} required>
+                <div className="rise-in" style={delay(160)}>
+                  <FormField label="Full name" htmlFor="welcome-name" error={errors.fullName} required>
                     <Input id="welcome-name" name="fullName" autoComplete="name" value={details.fullName} onChange={set('fullName')} />
                   </FormField>
                 </div>
-                <div className="rise-in" style={delay(390)}>
-                  <FormField label="Student ID" htmlFor="welcome-id" hint="The seven digits on your student card." error={errors.studentId} required>
+                <div className="rise-in" style={delay(220)}>
+                  <FormField label="Student ID" htmlFor="welcome-id" error={errors.studentId} required>
                     <Input
                       id="welcome-id"
                       name="studentId"
@@ -231,8 +211,8 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
                 </div>
                 <fieldset
                   className="rise-in space-y-1.5"
-                  style={delay(460)}
-                  aria-describedby={errors.birthday ? 'welcome-birthday-error' : 'welcome-birthday-hint'}
+                  style={delay(280)}
+                  aria-describedby={errors.birthday ? 'welcome-birthday-error' : undefined}
                 >
                   <legend className="text-[13px] font-medium text-text">
                     Birthday<span className="ml-0.5 text-danger" aria-hidden="true">*</span>
@@ -266,14 +246,30 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
                       onChange={set('birthYear')}
                     />
                   </div>
-                  {errors.birthday ? (
+                  {errors.birthday && (
                     <p id="welcome-birthday-error" className="text-[12.5px] text-danger" role="alert">{errors.birthday}</p>
-                  ) : (
-                    <p id="welcome-birthday-hint" className="text-[12px] text-text-subtle">
-                      So we can make a fuss on the day. The year is up to you.
-                    </p>
                   )}
                 </fieldset>
+                {!returning && (
+                  <div className="rise-in" style={delay(340)}>
+                    <FormField label="Graduating in" htmlFor="welcome-graduation" error={errors.graduationYear} required>
+                      <Select
+                        id="welcome-graduation"
+                        name="graduationYear"
+                        value={details.graduationYear}
+                        onChange={set('graduationYear')}
+                        aria-invalid={errors.graduationYear ? true : undefined}
+                      >
+                        <option value="">Year</option>
+                        {GRADUATION_YEARS.map((year) => (
+                          <option key={year} value={String(year)}>
+                            {year}
+                          </option>
+                        ))}
+                      </Select>
+                    </FormField>
+                  </div>
+                )}
               </div>
 
               {state.error && !state.fieldErrors && (
@@ -281,7 +277,7 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
               )}
               {errors.joiningAs && <p className="mt-4 text-[13px] text-danger" role="alert">{errors.joiningAs}</p>}
 
-              <div className="rise-in mt-8 flex items-center justify-between gap-3" style={delay(520)}>
+              <div className="rise-in mt-8 flex items-center justify-between gap-3" style={delay(400)}>
                 <Button type="button" variant="ghost" onClick={() => go('who')}>
                   <ArrowLeft className="h-4 w-4" aria-hidden /> Back
                 </Button>
@@ -295,35 +291,25 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
 
         {step === 'done' && (
           <section className="mx-auto w-full max-w-md text-center">
-            <Polaroid
+            <Photo
               slot={PHOTOS.done}
               aspect="1 / 1"
               tilt={-3}
               swing={-10}
               wait={0}
-              tape
               develop
-              centred
-              caption={firstName ? `${firstName}, ${returning ? 'back again' : 'day one'}` : returning ? 'back again' : 'day one'}
-              className="mx-auto w-[230px]"
-              sizes="230px"
+              className="mx-auto w-[210px]"
+              sizes="210px"
             />
-            <h1 className="mt-10 text-[34px] font-extrabold leading-[1.02] tracking-[-0.035em] text-text sm:text-[40px]">
-              {returning ? (
-                <>
-                  <Line wait={500}>Good to have </Line>
-                  <Line wait={580}>you back.</Line>
-                </>
-              ) : (
-                <Line wait={500}>Nearly there.</Line>
-              )}
+            <h1 className="mt-10 text-[28px] font-semibold leading-[1.1] tracking-[-0.03em] text-text sm:text-[34px]">
+              <Line wait={500}>{returning ? 'Good to have you back' : 'Nearly there'}</Line>
             </h1>
-            <p className="rise-in mx-auto mt-4 max-w-[38ch] text-[14.5px] leading-relaxed text-text-muted" style={delay(720)}>
+            <p className="rise-in mx-auto mt-3 max-w-[38ch] text-[14.5px] leading-relaxed text-text-muted" style={delay(680)}>
               {returning
                 ? 'We’ll link you to your old record. You don’t need to wait for that to pay.'
-                : 'Last bit: join for the term and pay the fee. We’ll put you on the roster once we’ve checked it.'}
+                : 'Last bit: join for the term and pay the fee.'}
             </p>
-            <div className="rise-in mt-8 flex flex-col items-center gap-3" style={delay(820)}>
+            <div className="rise-in mt-8 flex flex-col items-center gap-3" style={delay(780)}>
               {term ? (
                 <>
                   <Link href={`/${orgSlug}/fees`} className={buttonVariants({ size: 'lg' })}>
@@ -349,9 +335,12 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
 
       {preview && (
         <div className="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
-          <div className="flex items-center gap-1 rounded-full border border-brand-ink bg-surface py-1 pl-4 pr-1 shadow-lg">
+          <div className="flex items-center gap-1 rounded-full border border-border bg-surface py-1 pl-4 pr-1 shadow-lg">
             <Eye className="h-4 w-4 text-text-subtle" aria-hidden />
-            <span className="mr-2 text-[12.5px] font-medium text-text"><span className="sm:hidden">Preview</span><span className="hidden sm:inline">Preview, nothing is saved</span></span>
+            <span className="mr-2 text-[12.5px] font-medium text-text">
+              <span className="sm:hidden">Preview</span>
+              <span className="hidden sm:inline">Preview, nothing is saved</span>
+            </span>
             <Button type="button" variant="ghost" size="sm" onClick={() => setShot((n) => n + 1)}>
               <PartyPopper className="h-4 w-4" aria-hidden /> Confetti
             </Button>
@@ -374,11 +363,7 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
 }
 
 function StepCount({ n }: { n: 1 | 2 }) {
-  return (
-    <p className="rise-in text-[11px] font-semibold uppercase tracking-[0.16em] text-text-subtle">
-      {n} of 2
-    </p>
-  )
+  return <p className="rise-in text-[12px] font-medium text-text-subtle">{n} of 2</p>
 }
 
 /** One line of a headline, rising from behind its own baseline. */
@@ -391,66 +376,64 @@ function Line({ wait, children }: { wait: number; children: React.ReactNode }) {
 }
 
 /**
- * A photograph as an instant print: white border, deeper at the bottom for
- * the caption, set down on the page at a slight angle. Polaroids are white
- * whatever the theme, so the colours here are fixed rather than tokens.
+ * The print's wide bottom border, filled with the four inks stacked the way
+ * the logo stacks them, where an instant photo's caption would go.
  */
-function Polaroid({
+function InkChin({ small }: { small?: boolean }) {
+  return (
+    <div className={cn('mt-2 flex flex-col', small ? 'h-5' : 'h-9')} aria-hidden>
+      {INKS.map((ink) => (
+        <span key={ink} className="flex-1" style={{ background: ink }} />
+      ))}
+    </div>
+  )
+}
+
+/**
+ * A photograph as an instant print: a white border, the club's colours in
+ * the wide strip along the bottom, set down at a slight angle. Prints are white whatever the theme,
+ * so the colours here are fixed rather than tokens.
+ */
+function Photo({
   slot,
   aspect,
   tilt,
   swing,
   wait,
-  caption = slot.caption,
   className,
   sizes,
   priority,
-  tape,
   drift,
   develop,
   compact,
-  thumb,
-  centred,
 }: {
   slot: PhotoSlot
   aspect: string
   tilt: number
   swing: number
   wait: number
-  caption?: string
   className?: string
   sizes: string
   priority?: boolean
-  tape?: boolean
   drift?: boolean
   develop?: boolean
   /** Too small to say what belongs in it; just the file name. */
   compact?: boolean
-  /** A stamp-sized print: no caption, nothing written in the empty frame. */
-  thumb?: boolean
-  centred?: boolean
 }) {
   return (
     <figure
       className={cn(
-        'photo-place relative bg-[#FDFCF9] shadow-[0_1px_2px_rgba(20,16,10,.10),0_18px_36px_-16px_rgba(20,16,10,.45)]',
-        thumb ? 'p-1.5 pb-4' : 'p-2.5 pb-0',
+        'photo-place relative bg-[#FDFCF9] p-2 shadow-[0_1px_2px_rgba(20,16,10,.08),0_16px_32px_-16px_rgba(20,16,10,.4)]',
         className
       )}
       style={{ '--tilt': `${tilt}deg`, '--swing': `${swing}deg`, '--delay': `${wait}ms` } as React.CSSProperties}
     >
-      {tape && (
-        <span
-          aria-hidden
-          className="absolute -top-3 left-1/2 z-10 h-6 w-20 -translate-x-1/2 -rotate-3 bg-[#FBAE3A]/55 mix-blend-multiply"
-        />
-      )}
       <div className="relative overflow-hidden bg-[#ECE6DB]" style={{ aspectRatio: aspect }}>
         <div className={cn('absolute inset-0', drift && 'photo-drift', develop && 'develop')} style={develop ? delay(250) : undefined}>
           {slot.ready ? (
             <Image
               src={`/welcome/${slot.file}`}
-              alt={thumb ? '' : slot.alt}
+              alt={slot.alt}
               fill
               sizes={sizes}
               priority={priority}
@@ -458,28 +441,24 @@ function Polaroid({
               style={{ objectPosition: slot.focus }}
             />
           ) : (
-            <EmptyFrame slot={slot} detail={!compact && !thumb} bare={thumb} />
+            <EmptyFrame slot={slot} detail={!compact} />
           )}
         </div>
       </div>
-      {!thumb && (
-        <figcaption className={cn(hand.className, 'flex h-11 items-center px-3 text-[22px] leading-none text-[#2A2622]', centred ? 'justify-center' : 'justify-start')}>
-          {caption}
-        </figcaption>
-      )}
+      <InkChin small={compact} />
     </figure>
   )
 }
 
 /** Where a photo will go, saying which one. */
-function EmptyFrame({ slot, detail, bare }: { slot: PhotoSlot; detail: boolean; bare?: boolean }) {
+function EmptyFrame({ slot, detail }: { slot: PhotoSlot; detail: boolean }) {
   return (
     <div
       className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-3 text-center"
       style={{ backgroundImage: 'repeating-linear-gradient(135deg, transparent 0 10px, rgba(20,16,10,.05) 10px 11px)' }}
     >
       <ImagePlus className="h-5 w-5 text-[#8A8175]" aria-hidden />
-      {!bare && <p className="break-all font-mono text-[10.5px] text-[#6E665B]">welcome/{slot.file}</p>}
+      <p className="break-all font-mono text-[10.5px] text-[#6E665B]">welcome/{slot.file}</p>
       {detail && <p className="max-w-[26ch] text-[11.5px] leading-snug text-[#8A8175]">{slot.want}</p>}
     </div>
   )
@@ -488,7 +467,6 @@ function EmptyFrame({ slot, detail, bare }: { slot: PhotoSlot; detail: boolean; 
 function PathCard({
   slot,
   title,
-  detail,
   tilt,
   wait,
   selected,
@@ -497,7 +475,6 @@ function PathCard({
 }: {
   slot: PhotoSlot
   title: string
-  detail: string
   tilt: number
   wait: number
   selected: boolean
@@ -510,10 +487,10 @@ function PathCard({
       onClick={onSelect}
       aria-pressed={selected}
       className={cn(
-        'photo-place group block w-full rounded-[var(--radius-md)] border-2 bg-surface p-2 text-left',
+        'photo-place group block w-full rounded-[var(--radius-md)] border bg-surface p-2 text-left',
         'transition-[opacity,border-color,box-shadow,scale] duration-300 ease-[var(--ease-soft)]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2',
-        selected ? 'border-brand-ink lapis-plate-sm' : 'border-border hover:border-brand-ink',
+        selected ? 'border-brand-ink shadow-md' : 'border-border hover:border-text-subtle hover:shadow-sm',
         dimmed && 'scale-[0.97] opacity-40'
       )}
       style={{ '--tilt': `${tilt}deg`, '--swing': `${tilt * 5}deg`, '--delay': `${wait}ms` } as React.CSSProperties}
@@ -534,13 +511,10 @@ function PathCard({
           )}
         </div>
       </div>
-      <div className="flex items-end justify-between gap-3 px-2 pb-2 pt-3.5">
-        <span>
-          <span className="block text-[18px] font-bold tracking-[-0.01em] text-text">{title}</span>
-          <span className="mt-0.5 block text-[13px] leading-relaxed text-text-muted">{detail}</span>
-        </span>
+      <div className="flex items-center justify-between gap-3 px-2 pb-1.5 pt-3">
+        <span className="text-[16px] font-medium text-text">{title}</span>
         <ArrowRight
-          className="mb-1 h-5 w-5 shrink-0 text-text-subtle transition-[translate,color] duration-300 group-hover:translate-x-1 group-hover:text-text"
+          className="h-4 w-4 shrink-0 text-text-subtle transition-[translate,color] duration-300 group-hover:translate-x-1 group-hover:text-text"
           aria-hidden
         />
       </div>

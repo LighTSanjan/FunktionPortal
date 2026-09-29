@@ -29,6 +29,8 @@ import {
   type TestUser,
 } from './harness'
 
+const GRADUATING = new Date().getFullYear() + 3
+
 const blank = { error: null }
 const today = new Date()
 const iso = (d: Date) =>
@@ -44,7 +46,7 @@ let fresh: TestUser
 let termId: string
 
 const welcome = (fields: Record<string, string>) =>
-  form({ joiningAs: 'NEW', fullName: 'Someone', studentId: '1004444', birthDay: '14', birthMonth: '2', birthYear: '', ...fields })
+  form({ joiningAs: 'NEW', fullName: 'Someone', studentId: '1004444', birthDay: '14', birthMonth: '2', birthYear: '', graduationYear: String(GRADUATING), ...fields })
 
 describe('the welcome screen', () => {
   beforeAll(async () => {
@@ -92,6 +94,11 @@ describe('the welcome screen', () => {
       expect(bad.fieldErrors?.birthday).toMatch(/not in that month/)
       const unsure = await saveWelcome(org.slug, blank, welcome({ joiningAs: 'MAYBE' }))
       expect(unsure.fieldErrors?.joiningAs).toBeTruthy()
+      // Somebody new says when they graduate, and it has to be a year ahead of them.
+      const undecided = await saveWelcome(org.slug, blank, welcome({ graduationYear: '' }))
+      expect(undecided.fieldErrors?.graduationYear).toBeTruthy()
+      const longGone = await saveWelcome(org.slug, blank, welcome({ graduationYear: '1999' }))
+      expect(longGone.fieldErrors?.graduationYear).toBeTruthy()
       expect(await getStanding(org.slug)).toBe('WELCOME')
     })
 
@@ -106,6 +113,7 @@ describe('the welcome screen', () => {
         birthDay: 14,
         birthMonth: 2,
         birthYear: 2004,
+        graduationYear: GRADUATING,
       })
       expect(user.onboardedAt).not.toBeNull()
       expect(await getStanding(org.slug)).toBe('JOINING')
@@ -117,6 +125,8 @@ describe('the welcome screen', () => {
       as(stranger)
       await ok(() => saveWelcome(org.slug, blank, welcome({ joiningAs: 'RETURNING', fullName: 'Tess Treasurer', studentId: '1000009' })))
       expect(await getStanding(org.slug)).toBe('JOINING')
+      // Not asked of somebody returning, so nothing is kept even if it's sent.
+      expect((await dbAdmin.user.findUniqueOrThrow({ where: { id: stranger.id } })).graduationYear).toBeNull()
       const membership = await dbAdmin.organisationMembership.findFirstOrThrow({ where: { userId: stranger.id } })
       expect(membership.role).toBe('MEMBER')
       // The treasurer's roster row is still theirs.
@@ -162,15 +172,16 @@ describe('the welcome screen', () => {
         }))
       )
       const response = await dbAdmin.membershipResponse.findFirstOrThrow({ where: { termId, userId: fresh.id } })
-      expect(response).toMatchObject({ birthDay: 14, birthMonth: 2, birthYear: 2004 })
+      expect(response).toMatchObject({ birthDay: 14, birthMonth: 2, birthYear: 2004, graduationYear: GRADUATING })
 
       as(treasurer)
       const listed = (await listResponses(treasurer.id, org.id, termId)).find((row) => row.userId === fresh.id)
       expect(listed?.joiningAs).toBe('NEW')
+      expect(listed?.graduationYear).toBe(GRADUATING)
 
       await ok(() => matchResponse(org.slug, blank, form({ responseId: response.id, target: 'NEW' })))
       const row = await dbAdmin.member.findFirstOrThrow({ where: { userId: fresh.id } })
-      expect(row).toMatchObject({ fullName: 'Fern Fresh', studentId: '1004444', birthDay: 14, birthMonth: 2, birthYear: 2004 })
+      expect(row).toMatchObject({ fullName: 'Fern Fresh', studentId: '1004444', birthDay: 14, birthMonth: 2, birthYear: 2004, graduationYear: GRADUATING })
 
       as(fresh)
       expect(await getStanding(org.slug)).toBe('FULL')

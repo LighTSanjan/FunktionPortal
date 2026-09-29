@@ -43,6 +43,7 @@ export default async function WelcomePage({
           birthDay: true,
           birthMonth: true,
           birthYear: true,
+          graduationYear: true,
         },
       })
     ),
@@ -65,6 +66,7 @@ export default async function WelcomePage({
         birthDay: user?.birthDay ? String(user.birthDay) : '',
         birthMonth: user?.birthMonth ? String(user.birthMonth) : '',
         birthYear: user?.birthYear ? String(user.birthYear) : '',
+        graduationYear: user?.graduationYear ? String(user.graduationYear) : '',
       }}
       term={term ? { name: term.name, open: form?.state === 'OPEN' && !term.closed } : null}
     />

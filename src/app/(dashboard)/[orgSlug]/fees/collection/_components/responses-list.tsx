@@ -25,6 +25,7 @@ export interface ResponseView {
   edited: boolean
   matchedByName: string | null
   joiningAs: 'NEW' | 'RETURNING' | null
+  graduationYear: number | null
   candidates: { id: string; fullName: string; studentId: string | null; reasons: string[]; sameAccount: boolean }[]
   idTakenBy: string | null
 }
@@ -206,6 +207,7 @@ function ResponseDetail({
             }
           />
         )}
+        {response.graduationYear && <Row label="Graduating" value={String(response.graduationYear)} />}
         {response.matchedByName && <Row label="Matched by" value={response.matchedByName} />}
         <Row label="Sent" value={`${response.sentLong}${response.edited ? ' · edited since' : ''}`} />
         {response.answers.map((answer) => (

@@ -10,11 +10,18 @@ import { readBirthday, readStudentId } from '@/modules/membership-form/questions
 export interface WelcomeState {
   error: string | null
   ok?: boolean
-  /** Keyed by field: `joiningAs`, `fullName`, `studentId`, `birthday`. */
+  /** Keyed by field: `joiningAs`, `fullName`, `studentId`, `birthday`, `graduationYear`. */
   fieldErrors?: Record<string, string>
 }
 
 const joiningSchema = z.enum(['NEW', 'RETURNING'])
+
+/** This year or one of the next six — what the welcome screen offers — or undefined. */
+function readGraduationYear(value: FormDataEntryValue | null): number | undefined {
+  const year = Number(value)
+  const first = new Date().getFullYear()
+  return Number.isInteger(year) && year >= first && year <= first + 6 ? year : undefined
+}
 
 /**
  * Save what somebody not yet on the roster says about themselves.
@@ -47,7 +54,11 @@ export async function saveWelcome(orgSlug: string, _prev: WelcomeState, formData
   )
   if (typeof birthday === 'string') fieldErrors.birthday = birthday
 
-  if (Object.keys(fieldErrors).length > 0 || !joining.success || !studentId || typeof birthday === 'string') {
+  // Asked only of somebody new: a returning member's row already says.
+  const graduationYear = joining.success && joining.data === 'NEW' ? readGraduationYear(formData.get('graduationYear')) : null
+  if (graduationYear === undefined) fieldErrors.graduationYear = 'Pick the year you expect to graduate.'
+
+  if (Object.keys(fieldErrors).length > 0 || !joining.success || !studentId || typeof birthday === 'string' || graduationYear === undefined) {
     return { error: 'A few things need fixing first.', fieldErrors }
   }
 
@@ -66,6 +77,7 @@ export async function saveWelcome(orgSlug: string, _prev: WelcomeState, formData
         birthDay: birthday.day,
         birthMonth: birthday.month,
         birthYear: birthday.year,
+        graduationYear,
         onboardedAt: now,
       },
     })

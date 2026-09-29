@@ -3,8 +3,8 @@
  *
  * To put a picture in a slot: drop the file into `public/welcome/` under the
  * name given here, then set `ready: true`. Until then the slot shows a frame
- * saying what belongs in it. `caption` is the handwriting under the photo;
- * `focus` is the CSS object-position, for when the faces aren't in the middle.
+ * saying what belongs in it. `focus` is the CSS object-position, for when the
+ * faces aren't in the middle.
  */
 export interface PhotoSlot {
   file: string
@@ -12,7 +12,6 @@ export interface PhotoSlot {
   /** What to put here — shown in the empty frame. */
   want: string
   alt: string
-  caption: string
   focus?: string
 }
 
@@ -23,7 +22,6 @@ export const PHOTOS = {
     ready: false,
     want: 'Everyone in one frame. A group shot after a showcase or a jam.',
     alt: 'The FUNKtion crew together after a performance',
-    caption: 'the crew',
   },
   /** First screen, the small one tucked under the big one. Square. */
   candid: {
@@ -31,7 +29,6 @@ export const PHOTOS = {
     ready: false,
     want: 'A candid mid-move. Popping or locking, not posing.',
     alt: 'A FUNKtion dancer mid-move',
-    caption: 'mid-hit',
   },
   /** On the "first time" card. Landscape, roughly 16:10. */
   newcomer: {
@@ -39,7 +36,6 @@ export const PHOTOS = {
     ready: false,
     want: 'A beginner class or a freshie workshop, people learning.',
     alt: 'A FUNKtion beginner class',
-    caption: 'first class',
   },
   /** On the "coming back" card. Landscape, roughly 16:10. */
   returning: {
@@ -47,14 +43,12 @@ export const PHOTOS = {
     ready: false,
     want: 'Last term: a battle, a showcase, the practice room at 11pm.',
     alt: 'FUNKtion members at last term’s showcase',
-    caption: 'last term',
   },
-  /** The last screen, as an instant photo with their name under it. Square. */
+  /** The last screen, a print that develops as they finish. Square. */
   done: {
     file: 'done.jpg',
     ready: false,
     want: 'The practice room, or the crew cheering somebody on.',
     alt: 'The FUNKtion practice room',
-    caption: '',
   },
 } satisfies Record<string, PhotoSlot>

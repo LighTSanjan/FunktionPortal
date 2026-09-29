@@ -120,6 +120,7 @@ export interface ResponseRow {
   matchedByName: string | null
   /** What they said on the welcome screen. A claim, for the exco to weigh. */
   joiningAs: 'NEW' | 'RETURNING' | null
+  graduationYear: number | null
   /**
    * For a response not yet on the roster: rows it might be, best first. Empty
    * means nobody on the roster looks like them and they are new.
@@ -209,6 +210,7 @@ export async function listResponses(userId: string, orgId: string, termId: strin
       updatedAt: row.updatedAt,
       matchedByName: row.matchedBy?.name ?? null,
       joiningAs: row.user.joiningAs,
+      graduationYear: row.graduationYear,
       candidates,
       idTakenBy,
     }
