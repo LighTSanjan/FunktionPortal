@@ -7,7 +7,6 @@ import { afterSignIn } from '@/core/auth/after-sign-in'
 import { proofFromEmailCode } from '@/core/auth/proof'
 import { mayJoin, normaliseEmail } from '@/core/auth/eligibility'
 import { takeAttempt } from '@/core/auth/throttle'
-import { logAuthEvent } from '@/core/audit/auth-events'
 import { alert } from '@/core/alerts'
 import { isDemo, isDemoDatabase, isDemoPersona, settleDemoPersona, signInDemoPersona } from '@/core/auth/demo'
 
@@ -164,16 +163,4 @@ export async function signInAsDemo(formData: FormData): Promise<never> {
   await afterSignIn(supabase, user, { method: 'demo' })
   await settleDemoPersona(user.id, persona)
   redirect('/')
-}
-
-export async function signOut(): Promise<void> {
-  const supabase = await createSupabaseServer()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  await supabase.auth.signOut()
-  if (user) {
-    await logAuthEvent(user.id, 'auth.sign_out')
-  }
-  redirect('/sign-in')
 }

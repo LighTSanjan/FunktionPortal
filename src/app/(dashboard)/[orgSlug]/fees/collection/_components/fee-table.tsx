@@ -62,10 +62,8 @@ type Open = { memberId: string; mode: 'fee' | 'record' | 'undo' | 'check' } | nu
 /**
  * Everybody on the roster and where their fee stands, as one list.
  *
- * The screen used to be eleven cards, one after another, with the answer to
- * "who still owes" in the eighth. This is that answer first: find somebody,
- * change what they pay, record that they paid. Tick several to set a fee for
- * all of them at once.
+ * "Who still owes?" comes first: find somebody, change what they pay, record
+ * that they paid. Tick several to set a fee for all of them at once.
  */
 export function FeeTable({
   orgSlug,

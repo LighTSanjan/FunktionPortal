@@ -94,7 +94,7 @@ export function depositFormModel(input: ModelInput): DepositFormModel {
 }
 
 /** The template's own number format: _("$"* #,##0.00_). */
-export function money(amount: number): string {
+function money(amount: number): string {
   return `$${amount.toLocaleString('en-SG', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,

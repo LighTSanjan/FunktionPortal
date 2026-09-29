@@ -36,12 +36,9 @@ const TONE = {
 /**
  * Things that need attention and are not part of either job.
  *
- * It used to say "Nothing needs you right now. Everything with a deadline on
- * it is clear" whenever it had no alerts — while only ever looking at
- * invoices that had already been raised. A month whose classes were recorded
- * and whose documents had never been raised produced no alert at all, so the
- * screen said everything was clear on the 14th. The two workflow cards above
- * carry that state now, and this says nothing when it has nothing to say.
+ * It says nothing when it has nothing to say. It never claims "everything is
+ * clear": it only sees raised invoices, so a month whose documents were never
+ * raised would look clear here. The two workflow cards above carry that state.
  */
 export function Alerts({ alerts, delayMs = 0 }: { alerts: DashboardAlert[]; delayMs?: number }) {
   if (alerts.length === 0) return null

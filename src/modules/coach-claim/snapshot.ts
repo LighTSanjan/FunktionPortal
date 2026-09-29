@@ -1,13 +1,10 @@
 /**
  * A raised month, frozen.
  *
- * Both monthly documents used to be rebuilt on every download from live
- * class, rate, roster and instructor rows. The guards stop a class in a raised
- * month being edited, but nothing stopped a rate being backdated, a member
- * joining the roster, a coach changing bank account, or attendance being
- * re-marked — and each of those silently changes a document already sitting
- * with the Office of Finance, while the invoice row keeps the total it was
- * issued with.
+ * Rebuilt from live rows on every download, a document already sitting with
+ * the Office of Finance would change whenever a rate was backdated, a member
+ * joined the roster, a coach changed bank account or attendance was re-marked
+ * — while the invoice row kept the total it was issued with.
  *
  * So the month is captured when it is raised, and every later rendering reads
  * this. The invoice row and its lines remain the authority for the money; this
@@ -150,7 +147,7 @@ export function linesFrom(
   }))
 }
 
-export function fromIsoDate(value: string): Date {
+function fromIsoDate(value: string): Date {
   const [year, month, day] = value.split('-').map(Number)
   return new Date(year, month - 1, day)
 }

@@ -471,11 +471,9 @@ export async function rejectPayment(
  * Record that the deposit form has gone to OSL.
  *
  * Closing a collection, filing the form and the money landing are three
- * events, and the portal used to collapse them into one: the moment you
- * closed, the screen said "Banked in". It cannot see OSL's inbox or the
- * club's statement, so this is somebody reporting what they did — and
- * reversible, because the usual way it goes wrong is clicking it before
- * actually sending the email.
+ * separate events. The portal cannot see OSL's inbox or the club's statement,
+ * so this is somebody reporting what they did — and reversible, because the
+ * usual way it goes wrong is clicking it before actually sending the email.
  */
 export async function markDepositSubmitted(
   orgSlug: string,
@@ -1069,10 +1067,9 @@ const setFeeSchema = z.object({
 /**
  * Set what one or more members pay this term.
  *
- * The fee used to come only from the roster's free-text label, so putting
- * somebody on half a term meant editing the attendance sheet and importing it
- * again. This is the exco deciding directly, for everybody ticked at once.
- * "ROSTER" takes the decision back and lets the label speak again.
+ * Without this the fee is read off the roster's free-text label. This is the
+ * exco deciding directly, for everybody ticked at once. "ROSTER" takes the
+ * decision back and lets the label speak again.
  *
  * A confirmed payment is left alone: what was paid was paid, and changing the
  * fee underneath it would restate a figure already counted toward the bank.

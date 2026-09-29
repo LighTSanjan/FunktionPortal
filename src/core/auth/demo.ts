@@ -20,8 +20,8 @@ import { dbAdmin } from '@/core/db/admin'
  * signed in. Demo addresses are on a `.test` domain, which no real person can
  * own (RFC 2606).
  */
-export const DEMO_ORG_SLUG = 'demo'
-export const DEMO_DOMAIN = 'demo.funktion.test'
+const DEMO_ORG_SLUG = 'demo'
+const DEMO_DOMAIN = 'demo.funktion.test'
 
 export type DemoPersona = 'treasurer' | 'president' | 'member' | 'newcomer'
 
@@ -44,9 +44,6 @@ export function isDemo(): boolean {
 export function isDemoPersona(value: unknown): value is DemoPersona {
   return value === 'treasurer' || value === 'president' || value === 'member' || value === 'newcomer'
 }
-
-/** The roster address the demo seed gives the member, so their account links itself. */
-export const DEMO_MEMBER_EMAIL = PERSONAS.member.email
 
 /** Whether this database is the demo's. See the note at the top. */
 export async function isDemoDatabase(): Promise<boolean> {

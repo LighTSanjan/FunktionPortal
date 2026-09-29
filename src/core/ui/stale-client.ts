@@ -24,8 +24,8 @@ import { unstable_isUnrecognizedActionError } from 'next/navigation'
  *
  * The router's "An unexpected response was received from the server." is not
  * here either: it covers any reply that is not a server response, a genuine
- * 500 among them. The one that used to reach members — the proxy turning a
- * button press away as HTML — is answered properly in src/proxy.ts now.
+ * 500 among them. The proxy's side of it — a button press from a signed-out
+ * tab — is answered in src/proxy.ts.
  */
 
 /** Next's class names: an action id not in this build, and a missing chunk. */

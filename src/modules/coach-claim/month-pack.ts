@@ -8,7 +8,7 @@ import type { AttendanceSheetDocData, InvoiceDocData } from './types'
 import { invoiceSection } from './invoice'
 import { attendanceSheetSection } from './attendance-sheet'
 
-export function buildMonthPack(invoice: InvoiceDocData, sheet: AttendanceSheetDocData): Document {
+function buildMonthPack(invoice: InvoiceDocData, sheet: AttendanceSheetDocData): Document {
   const first = invoiceSection(invoice)
   const second = attendanceSheetSection(sheet)
   return new Document({

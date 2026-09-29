@@ -1,4 +1,4 @@
-import { verifySession, getOrgContext } from '@/core/auth'
+import { verifySession, getOrgContext } from '@/core/auth/dal'
 import { hasPermission } from '@/core/permissions'
 import { AppShell } from '@/core/ui/shell'
 import { resolveNavGroups } from '@/modules/register'

@@ -3,8 +3,7 @@
  *
  * Classes happen, the month's documents are raised from them, read, signed,
  * emailed to OSL by the 15th, and eventually paid. Five steps across four
- * screens, with one deadline that is not negotiable, and until now the only
- * way to know where you were was to visit each screen and work it out.
+ * screens, with one deadline that is not negotiable.
  */
 import 'server-only'
 import { dbAs } from '@/core/db'

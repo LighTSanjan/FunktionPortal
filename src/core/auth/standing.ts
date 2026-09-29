@@ -37,7 +37,7 @@ export const getStanding = cache(async (orgSlug: string): Promise<Standing> => {
 })
 
 /** Where somebody who is not FULL belongs. */
-export function joiningHome(orgSlug: string, standing: Exclude<Standing, 'FULL'>): string {
+function joiningHome(orgSlug: string, standing: Exclude<Standing, 'FULL'>): string {
   return standing === 'WELCOME' ? `/${orgSlug}/welcome` : `/${orgSlug}/fees`
 }
 

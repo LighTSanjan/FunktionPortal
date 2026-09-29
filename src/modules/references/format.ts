@@ -20,7 +20,7 @@ export function financialYearOf(date: Date): number {
 }
 
 /** FY2026 -> 26, the form the reference number carries. */
-export function shortFinancialYear(financialYear: number): number {
+function shortFinancialYear(financialYear: number): number {
   return financialYear % 100
 }
 

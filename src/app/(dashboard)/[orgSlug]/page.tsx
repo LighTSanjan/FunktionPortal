@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getOrgContext } from '@/core/auth'
+import { getOrgContext } from '@/core/auth/dal'
 
 /**
  * Organisation root. The setup wizard redirects here after creating an
