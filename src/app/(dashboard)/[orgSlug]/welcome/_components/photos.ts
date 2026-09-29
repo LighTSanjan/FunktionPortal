@@ -49,8 +49,9 @@ export const PHOTOS = {
   /** The last screen, a big print that develops as they finish. Landscape, 3:2. */
   done: {
     file: 'done.jpg',
-    ready: false,
+    ready: true,
     want: 'The dance floor, everyone joining in.',
-    alt: 'FUNKtion members dancing together on the floor',
+    alt: 'FUNKtion members and the crowd dancing together on the floor',
+    focus: '50% 55%',
   },
 } satisfies Record<string, PhotoSlot>
