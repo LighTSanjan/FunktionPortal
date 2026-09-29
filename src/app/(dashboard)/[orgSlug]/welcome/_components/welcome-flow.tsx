@@ -91,7 +91,15 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
   return (
     <>
       <Confetti shot={shot} />
-      <div ref={top} key={step} className="mx-auto flex min-h-[calc(100dvh-10rem)] w-full max-w-5xl flex-col justify-center py-6 sm:py-10">
+      <div
+        ref={top}
+        key={step}
+        className={cn(
+          'mx-auto flex min-h-[calc(100dvh-10rem)] w-full max-w-5xl flex-col justify-center py-6 sm:py-10',
+          // Room to scroll the last button clear of the preview bar.
+          preview && 'pb-24 sm:pb-24'
+        )}
+      >
         {step === 'hello' && (
           <section className="grid items-center gap-8 md:grid-cols-[1fr_1.05fr] md:gap-16">
             <div className="relative mx-auto w-full max-w-[250px] pb-14 pr-10 sm:max-w-[360px] sm:pb-20 sm:pr-16">
