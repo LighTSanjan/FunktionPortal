@@ -210,6 +210,17 @@ describe('the membership form', () => {
     expect(answers.map((a) => [a.label, a.value])).toEqual([['Telegram handle', '@ada'], ['Shirt size', 'M']])
   })
 
+  it('lists a response whose sender the exco cannot see', async () => {
+    // Row-level security shows the exco only accounts that share the club.
+    const outsider = await createUser('Oz Outside')
+    const response = await dbAdmin.membershipResponse.create({
+      data: { orgId: org.id, termId, userId: outsider.id, email: outsider.email, fullName: 'Oz Outside' },
+    })
+    const listed = (await listResponses(treasurer.id, org.id, termId)).find((r) => r.id === response.id)
+    expect(listed?.joiningAs).toBeNull()
+    await dbAdmin.membershipResponse.delete({ where: { id: response.id } })
+  })
+
   describe('somebody not on the roster yet', () => {
     it('gives their required name and student ID, and pays', async () => {
       as(newbie)
