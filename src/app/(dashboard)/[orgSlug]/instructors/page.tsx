@@ -24,12 +24,12 @@ export default async function InstructorsPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        breadcrumbItems={[{ label: org.name, href: `/${orgSlug}/dashboard` }, { label: 'Instructors' }]}
-        title="Instructors"
+        breadcrumbItems={[{ label: org.name, href: `/${orgSlug}/dashboard` }, { label: 'Coaches' }]}
+        title="Coaches"
         subtitle="Contracted coaches and guests. Rates, bank details and contract references."
         actions={
           <Link href={`/${orgSlug}/instructors/new`}>
-            <Button>Add instructor</Button>
+            <Button>Add a coach</Button>
           </Link>
         }
       />
@@ -37,7 +37,7 @@ export default async function InstructorsPage({
       {instructors.length === 0 ? (
         <Card>
           <CardContent className="space-y-2 py-8 text-center">
-            <p className="font-medium">No instructors yet</p>
+            <p className="font-medium">No coaches yet</p>
             <p className="mx-auto max-w-[52ch] text-[13px] text-text-muted">
               Add the coaches who teach the standing classes. Their rate and bank details are
               what the monthly invoice is built from.

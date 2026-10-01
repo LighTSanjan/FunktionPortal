@@ -18,10 +18,10 @@ export default async function NewInstructorPage({
       <PageHeader
         breadcrumbItems={[
           { label: org.name, href: `/${orgSlug}/dashboard` },
-          { label: 'Instructors', href: `/${orgSlug}/instructors` },
+          { label: 'Coaches', href: `/${orgSlug}/instructors` },
           { label: 'Add' },
         ]}
-        title="Add instructor"
+        title="Add a coach"
         subtitle="The rate is set once they exist — a rate needs somebody to attach to."
       />
 

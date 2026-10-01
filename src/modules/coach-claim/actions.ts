@@ -14,6 +14,8 @@ export interface ActionState {
   error: string | null
   ok?: boolean
   message?: string
+  /** The row just created, so the form can go to its page next. */
+  createdId?: string
 }
 
 /** Store blank optional form values as null. */
@@ -77,6 +79,7 @@ export async function saveInstructor(
   }
   let bankChanged = false
 
+  let createdId: string | undefined
   const missing = await dbAs(userId, async (tx) => {
     if (instructorId) {
       const before = await tx.instructor.findFirst({ where: { id: instructorId, orgId: org.id } })
@@ -99,6 +102,7 @@ export async function saveInstructor(
       )
     } else {
       const created = await tx.instructor.create({ data: { ...data, orgId: org.id } })
+      createdId = created.id
       await writeAudit(
         {
           orgId: org.id,
@@ -114,14 +118,14 @@ export async function saveInstructor(
     return false
   })
 
-  if (missing) return { error: 'That instructor no longer exists' }
+  if (missing) return { error: 'That coach no longer exists' }
 
   // Changing where a coach's money goes is the classic invoice fraud. It is
   // allowed, it is audited, and somebody hears about it straight away.
   if (bankChanged) await alert('bank_details_changed', { coach: data.fullName, club: org.slug })
 
   revalidatePath(`/${orgSlug}/instructors`)
-  return { error: null, ok: true }
+  return { error: null, ok: true, createdId }
 }
 
 const rateSchema = z.object({
@@ -167,7 +171,7 @@ export async function addInstructorRate(
       where: { id: instructorId, orgId: org.id },
       select: { id: true },
     })
-    if (!instructor) return 'That instructor no longer exists'
+    if (!instructor) return 'That coach no longer exists'
 
     const existing = await tx.instructorRate.findUnique({
       where: { instructorId_effectiveFrom: { instructorId: instructor.id, effectiveFrom } },
@@ -268,6 +272,7 @@ export async function saveSession(
     notes: parsed.data.notes,
   }
 
+  let createdId: string | undefined
   const problem = await dbAs(userId, async (tx) => {
     if (parsed.data.instructorId) {
       const instructor = await tx.instructor.findFirst({
@@ -337,6 +342,7 @@ export async function saveSession(
       if (raised) return raised
 
       const created = await tx.classSession.create({ data: { ...data, orgId: org.id } })
+      createdId = created.id
       await writeAudit(
         {
           orgId: org.id,
@@ -356,7 +362,7 @@ export async function saveSession(
 
   revalidatePath(`/${orgSlug}/sessions`)
   revalidatePath(`/${orgSlug}/dashboard`)
-  return { error: null, ok: true }
+  return { error: null, ok: true, createdId }
 }
 
 /**

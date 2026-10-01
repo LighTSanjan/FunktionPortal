@@ -25,7 +25,7 @@ export default async function InstructorPage({
       <PageHeader
         breadcrumbItems={[
           { label: org.name, href: `/${orgSlug}/dashboard` },
-          { label: 'Instructors', href: `/${orgSlug}/instructors` },
+          { label: 'Coaches', href: `/${orgSlug}/instructors` },
           { label: instructor.fullName },
         ]}
         title={instructor.fullName}
