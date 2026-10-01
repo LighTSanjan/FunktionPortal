@@ -193,15 +193,17 @@ describe('what a provider sign-in proves', () => {
   const now = new Date('2026-09-15T10:00:00Z')
   const at = (secondsAgo: number) => new Date(now.getTime() - secondsAgo * 1000).toISOString()
 
-  function identity(provider: string, data: Record<string, unknown>, secondsAgo = 5) {
+  function identity(provider: string, data: Record<string, unknown>, secondsAgo = 5, firstSignInSecondsAgo = secondsAgo) {
     return {
       id: randomUUID(),
       identity_id: randomUUID(),
       user_id: 'u',
       provider,
       identity_data: data,
-      last_sign_in_at: at(secondsAgo),
-      created_at: at(9999),
+      // What Supabase does: last_sign_in_at is the first sign-in, and
+      // updated_at moves with every one after it.
+      last_sign_in_at: at(firstSignInSecondsAgo),
+      created_at: at(firstSignInSecondsAgo),
       updated_at: at(secondsAgo),
     }
   }
@@ -213,6 +215,13 @@ describe('what a provider sign-in proves', () => {
 
   it('trusts Google when Google says the address is verified', () => {
     const u = user('ada@mymail.sutd.edu.sg', [identity('google', { email: 'ada@mymail.sutd.edu.sg', email_verified: true })])
+    expect(proofFromProviderSignIn(u, now)).toEqual({ method: 'google' })
+  })
+
+  it('trusts Google when somebody comes back through it weeks after it was linked', () => {
+    const u = user('ada@mymail.sutd.edu.sg', [
+      identity('google', { email: 'ada@mymail.sutd.edu.sg', email_verified: true }, 5, 30 * 86_400),
+    ])
     expect(proofFromProviderSignIn(u, now)).toEqual({ method: 'google' })
   })
 
