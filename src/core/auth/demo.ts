@@ -97,12 +97,16 @@ export async function signInDemoPersona(supabase: SupabaseClient, persona: DemoP
   return data.user
 }
 
-/** The demo's exco hold their office, whatever a tester did with the access screen. */
+/**
+ * Each person is who the sign-in page says, whatever a tester did with the
+ * access screen: Tess and Priya hold their offices, and Ada is a member again
+ * even after somebody approved her for the exco.
+ */
 export async function settleDemoPersona(userId: string, persona: DemoPersona): Promise<void> {
-  if (persona === 'newcomer' || persona === 'member') return
-  const office = PERSONAS[persona].exco!
+  if (persona === 'newcomer') return
+  const office = PERSONAS[persona].exco ?? null
   await dbAdmin.organisationMembership.updateMany({
     where: { userId, organisation: { slug: DEMO_ORG_SLUG } },
-    data: { role: 'EXCO', office, isActive: true },
+    data: { role: office ? 'EXCO' : 'MEMBER', office, isActive: true },
   })
 }
