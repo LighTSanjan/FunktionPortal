@@ -2,10 +2,16 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['@prisma/adapter-pg', 'pg', 'playwright-core', '@sparticuz/chromium'],
-  // The email-assets route reads these from disk; its readFile is excluded
-  // from tracing so the whole project is not bundled, so name them here.
+  // Files read from disk at runtime, which tracing cannot see. The email-assets
+  // route's readFile is excluded from tracing so the whole project is not
+  // bundled. Playwright requires its browsers.json by a computed path, and
+  // @sparticuz/chromium unpacks Chromium from bin/ on first launch.
   outputFileTracingIncludes: {
     '/api/email-assets/*': ['./docs/assets/funktion-logo.png', './public/eu-gene-battle.jpg'],
+    '/*/monthly-run/*/pdf': [
+      './node_modules/playwright-core/**/*',
+      './node_modules/@sparticuz/chromium/bin/**/*',
+    ],
   },
   experimental: {
     serverActions: {
