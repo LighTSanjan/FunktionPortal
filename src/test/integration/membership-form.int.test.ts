@@ -8,17 +8,9 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { createTerm, updateTerm, uploadPaynowQr, closeCollection } from '@/modules/fees/collection-actions'
 import { confirmPayment, recordPayment } from '@/modules/fees/payment-actions'
 import { listCollection } from '@/modules/fees/queries'
-import {
-  clearHeldPayment,
-  deleteQuestion,
-  matchResponse,
-  removeResponse,
-  saveAudience,
-  saveFormSettings,
-  saveQuestion,
-  setFormState,
-  submitMembershipForm,
-} from '@/modules/membership-form/actions'
+import { deleteQuestion, saveAudience, saveFormSettings, saveQuestion, setFormState } from '@/modules/membership-form/form-actions'
+import { clearHeldPayment, matchResponse, removeResponse } from '@/modules/membership-form/response-actions'
+import { submitMembershipForm } from '@/modules/membership-form/submit-actions'
 import { getForm, listResponses } from '@/modules/membership-form/queries'
 import {
   addRosterMember,

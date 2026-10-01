@@ -1,7 +1,8 @@
 'use client'
 
 import { useActionState, useMemo, useState } from 'react'
-import { saveAudience, type FormActionState } from '@/modules/membership-form/actions'
+import { saveAudience } from '@/modules/membership-form/form-actions'
+import type { FormActionState } from '@/modules/membership-form/action-state'
 import { Button } from '@/core/ui/button'
 import { Notice, pillClass } from '../../_components/ui'
 

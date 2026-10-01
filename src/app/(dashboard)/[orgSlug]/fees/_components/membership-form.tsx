@@ -2,7 +2,8 @@
 
 import { startTransition, useActionState, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { submitMembershipForm, type FormActionState } from '@/modules/membership-form/actions'
+import { submitMembershipForm } from '@/modules/membership-form/submit-actions'
+import type { FormActionState } from '@/modules/membership-form/action-state'
 import { fieldName, type Answer, type Question } from '@/modules/membership-form/questions'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { Button } from '@/core/ui/button'

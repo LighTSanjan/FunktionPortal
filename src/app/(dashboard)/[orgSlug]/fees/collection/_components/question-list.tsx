@@ -2,7 +2,8 @@
 
 import { useActionState, useState, useTransition } from 'react'
 import type { FormQuestionType } from '@prisma/client'
-import { deleteQuestion, moveQuestion, saveQuestion, type FormActionState } from '@/modules/membership-form/actions'
+import { deleteQuestion, moveQuestion, saveQuestion } from '@/modules/membership-form/form-actions'
+import type { FormActionState } from '@/modules/membership-form/action-state'
 import { QUESTION_TYPES, TYPE_LABEL, needsOptions, type Question } from '@/modules/membership-form/questions'
 import { Button } from '@/core/ui/button'
 import { Input } from '@/core/ui/input'
