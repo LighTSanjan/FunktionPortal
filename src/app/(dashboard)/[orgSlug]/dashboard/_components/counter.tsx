@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { formatCents } from '@/modules/coach-claim/money'
+import { formatSgd } from '@/modules/coach-claim/money'
 
 export function Counter({
   cents,
@@ -38,7 +38,7 @@ export function Counter({
 
   return (
     <span className={className}>
-      {cents !== undefined ? `$${formatCents(value)}` : value.toLocaleString('en-SG')}
+      {cents !== undefined ? formatSgd(value) : value.toLocaleString('en-SG')}
     </span>
   )
 }
