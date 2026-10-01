@@ -15,7 +15,11 @@ import 'server-only'
 import { dbAdmin } from '@/core/db/admin'
 import { listEnv } from './proof'
 
-const DEFAULT_DOMAINS = ['mymail.sutd.edu.sg', 'alumni.sutd.edu.sg']
+// Gmail because SUTD's mail filter quarantines the sign-in code as phishing,
+// and a Google sign-in needs no email at all. An account from any of these is
+// a MEMBER that sees only the welcome screen and the join-and-pay form until
+// the exco link it to a roster row — see core/auth/standing.ts.
+const DEFAULT_DOMAINS = ['mymail.sutd.edu.sg', 'alumni.sutd.edu.sg', 'gmail.com']
 
 export function allowedDomains(): string[] {
   const configured = listEnv('ALLOWED_EMAIL_DOMAINS')

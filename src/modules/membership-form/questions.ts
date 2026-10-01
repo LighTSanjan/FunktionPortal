@@ -34,8 +34,8 @@ export const TYPE_LABEL: Record<FormQuestionType, string> = Object.fromEntries(
   QUESTION_TYPES.map((entry) => [entry.type, entry.label])
 ) as Record<FormQuestionType, string>
 
-export const MAX_SHORT = 200
-export const MAX_LONG = 2000
+const MAX_SHORT = 200
+const MAX_LONG = 2000
 export const MAX_OPTIONS = 20
 
 export function needsOptions(type: FormQuestionType): boolean {

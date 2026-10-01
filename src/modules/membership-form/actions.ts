@@ -402,7 +402,10 @@ export async function submitMembershipForm(
 
   const context = await dbAs(userId, async (tx) => {
     const [user, form, term, member, response] = await Promise.all([
-      tx.user.findUnique({ where: { id: userId }, select: { email: true } }),
+      tx.user.findUnique({
+        where: { id: userId },
+        select: { email: true, birthDay: true, birthMonth: true, birthYear: true, graduationYear: true },
+      }),
       tx.membershipForm.findFirst({
         where: { orgId: org.id, termId },
         include: { questions: { orderBy: { position: 'asc' } }, recipients: { select: { memberId: true } } },
@@ -573,9 +576,12 @@ export async function submitMembershipForm(
         email: user.email,
         fullName,
         studentId,
-        birthDay: null,
-        birthMonth: null,
-        birthYear: null,
+        // What they gave on the welcome screen, so the exco have it when they
+        // add somebody new to the roster.
+        birthDay: user.birthDay,
+        birthMonth: user.birthMonth,
+        birthYear: user.birthYear,
+        graduationYear: user.graduationYear,
         answers: answers as unknown as Prisma.InputJsonValue,
         ...held,
       }
@@ -751,6 +757,10 @@ export async function matchResponse(
           studentId: response.studentId,
           email: response.email,
           userId: response.userId,
+          birthDay: response.birthDay,
+          birthMonth: response.birthMonth,
+          birthYear: response.birthYear,
+          graduationYear: response.graduationYear,
         },
         select: { id: true, fullName: true },
       })

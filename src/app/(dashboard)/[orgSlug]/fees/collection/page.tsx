@@ -41,14 +41,6 @@ const TABS = [
 ] as const
 type Tab = (typeof TABS)[number]['key']
 
-/** Links written before the form existed still land somewhere sensible. */
-const OLD_TABS: Record<string, { tab: Tab; show?: Filter }> = {
-  members: { tab: 'payments' },
-  check: { tab: 'payments', show: 'check' },
-  setup: { tab: 'form' },
-  close: { tab: 'deposit' },
-}
-
 const SGT = 'Asia/Singapore'
 
 /**
@@ -112,10 +104,9 @@ export default async function CollectionPage({
     listResponses(userId, org.id, term.id),
   ])
 
-  const legacy = tabParam ? OLD_TABS[tabParam] : undefined
   const defaultTab: Tab = term.closed ? 'deposit' : form.state === 'DRAFT' ? 'form' : form.state === 'OPEN' ? 'responses' : 'payments'
-  const tab: Tab = TABS.some((t) => t.key === tabParam) ? (tabParam as Tab) : (legacy?.tab ?? defaultTab)
-  const show = (legacy?.show ?? showParam) as Filter | undefined
+  const tab: Tab = TABS.some((t) => t.key === tabParam) ? (tabParam as Tab) : defaultTab
+  const show = showParam as Filter | undefined
 
   const split = splitGst(totals.bankableCents, settings?.gstBasisPoints ?? DEFAULT_GST_BASIS_POINTS)
   const views = rows.map((row) => toView(row, userId))
@@ -314,6 +305,8 @@ export default async function CollectionPage({
                   }),
                   edited: row.updatedAt.getTime() - row.submittedAt.getTime() > 60_000,
                   matchedByName: row.matchedByName,
+                  joiningAs: row.joiningAs,
+                  graduationYear: row.graduationYear,
                   candidates: row.candidates,
                   idTakenBy: row.idTakenBy,
                 })

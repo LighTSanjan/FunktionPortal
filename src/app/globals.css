@@ -392,6 +392,61 @@ body {
   animation-delay: var(--delay, 120ms);
 }
 
+/* ─── Welcome ─────────────────────────────────────────────────────
+   Photographs put down on a table: each one arrives from a little lower,
+   a little more crooked, and settles at its own tilt (--tilt). Uses the
+   individual `translate`/`rotate` properties so the resting tilt set in
+   `rotate` is the animation's end state, not something it fights. */
+@keyframes photo-place {
+  from {
+    opacity: 0;
+    translate: 0 28px;
+    rotate: calc(var(--tilt, 0deg) + var(--swing, -5deg));
+    scale: 1.04;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+    rotate: var(--tilt, 0deg);
+    scale: 1;
+  }
+}
+
+.photo-place {
+  rotate: var(--tilt, 0deg);
+  animation: photo-place 820ms var(--ease-soft) backwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* A headline line coming up from behind its own baseline. The parent
+   clips; the child moves. */
+.line-reveal {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.08em;
+}
+
+.line-reveal > span {
+  display: block;
+  animation: line-reveal 760ms var(--ease-soft) backwards;
+  animation-delay: var(--delay, 0ms);
+}
+
+@keyframes line-reveal {
+  from { transform: translateY(105%); }
+  to { transform: translateY(0); }
+}
+
+/* The slow drift of a photograph you're looking at for a while. */
+@keyframes photo-drift {
+  from { transform: scale(1.02) translate3d(0, 0, 0); }
+  to { transform: scale(1.08) translate3d(-1.5%, -1%, 0); }
+}
+
+.photo-drift {
+  animation: photo-drift 22s var(--ease-soft) infinite alternate;
+}
+
 /* ══════════════════════════════════════════════════════════════════
    prefers-reduced-motion
    ══════════════════════════════════════════════════════════════════
@@ -414,7 +469,10 @@ body {
   .rise-in,
   .fade-in,
   .bar-fill,
-  .ring-grow {
+  .ring-grow,
+  .photo-place,
+  .line-reveal > span,
+  .photo-drift {
     animation: none;
   }
 }

@@ -46,6 +46,7 @@ export default async function ScreensPage({ params }: { params: Promise<{ orgSlu
       title: 'What members see',
       blurb: 'You see these with exco extras. Sign in as a member in a private window to see exactly what they get.',
       screens: [
+        { label: 'Welcome, for somebody not on the roster yet (saves nothing)', href: `${base}/welcome?preview` },
         { label: 'Home', href: `${base}/dashboard` },
         { label: 'Your membership fee', href: `${base}/fees` },
         { label: 'Ask for exco access', href: `${base}/access` },

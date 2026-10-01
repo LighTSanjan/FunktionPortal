@@ -21,7 +21,7 @@ async function launch(): Promise<Browser> {
   return playwright.launch()
 }
 
-export class PrintFailedError extends Error {
+class PrintFailedError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'PrintFailedError'

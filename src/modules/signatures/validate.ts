@@ -31,13 +31,13 @@ export const MAX_BYTES = 2_000_000
  * the box, not about width alone. 150 dpi is the point at which a stamped
  * signature stops looking scanned and starts looking pixelated in print.
  */
-export const MIN_EFFECTIVE_DPI = 150
+const MIN_EFFECTIVE_DPI = 150
 
 /** The box is measured in pixels at 96dpi, so that is what the fit is in. */
 const BOX_DPI = 96
 
 /** Past this it is a photograph of a room that happens to contain a pen. */
-export const MAX_DIMENSION = 6000
+const MAX_DIMENSION = 6000
 
 /**
  * Bounds on the shape of the thing.
@@ -114,7 +114,7 @@ export function validateSignature(bytes: Uint8Array): ImageInfo {
  * returns is what the printed image is actually rendered at. Dividing the
  * box's own dpi by that scale gives the density of the result.
  */
-export function effectiveDpi(info: ImageInfo): number {
+function effectiveDpi(info: ImageInfo): number {
   const fitted = fitWithin(info, SIGNATURE_BOX)
   const scale = fitted.width / info.width
   return BOX_DPI / scale

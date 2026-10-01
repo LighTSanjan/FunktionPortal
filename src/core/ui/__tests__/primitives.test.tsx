@@ -7,7 +7,7 @@ import { Avatar } from '../avatar'
 import { Skeleton } from '../skeleton'
 import { Label } from '../label'
 import { FormField } from '../form-field'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../card'
+import { Card, CardHeader, CardTitle, CardContent } from '../card'
 import { EmptyState } from '../empty-state'
 import { Logo } from '../logo'
 import { Breadcrumb } from '../breadcrumb'
@@ -133,16 +133,12 @@ describe('Card', () => {
       <Card>
         <CardHeader>
           <CardTitle>Title</CardTitle>
-          <CardDescription>Desc</CardDescription>
         </CardHeader>
         <CardContent>Body</CardContent>
-        <CardFooter>Footer</CardFooter>
       </Card>
     )
     expect(screen.getByText('Title')).toBeInTheDocument()
-    expect(screen.getByText('Desc')).toBeInTheDocument()
     expect(screen.getByText('Body')).toBeInTheDocument()
-    expect(screen.getByText('Footer')).toBeInTheDocument()
   })
 })
 

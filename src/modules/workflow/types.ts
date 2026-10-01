@@ -3,10 +3,9 @@
  *
  * The portal is organised around records — coaches, classes, invoices, terms
  * — and a treasurer is not. They arrive with a job ("it's the 8th, the coaches
- * need paying for last month") which spans four screens, and until now nothing
- * in the portal held that job together or said how far through it they were.
+ * need paying for last month") which spans four screens.
  *
- * A workflow is that missing thing: the steps, which are done, which one is
+ * A workflow holds that job together: the steps, which are done, which one is
  * live, when it is due, and the single next action. Built on the server from
  * the same rows the screens read, so it cannot claim a step is done that is
  * not.

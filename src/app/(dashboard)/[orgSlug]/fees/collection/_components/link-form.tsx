@@ -1,7 +1,8 @@
 'use client'
 
 import { useActionState } from 'react'
-import { linkMemberAccount, type FeeState } from '@/modules/fees/actions'
+import { linkMemberAccount } from '@/modules/fees/member-actions'
+import { type FeeState } from '@/modules/fees/action-state'
 import type { UnlinkedAccount } from '@/modules/fees/queries'
 import { Button } from '@/core/ui/button'
 import { Select } from '@/core/ui/select'

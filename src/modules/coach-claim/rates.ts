@@ -9,7 +9,7 @@ export interface RateSchedule {
   note?: string
 }
 
-export class NoRateError extends Error {
+class NoRateError extends Error {
   constructor(readonly instructorName: string, readonly on: Date) {
     super(
       `No rate on file for ${instructorName} on ${isoDate(on)}. ` +

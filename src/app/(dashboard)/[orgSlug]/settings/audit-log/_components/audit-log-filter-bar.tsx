@@ -1,4 +1,5 @@
-import { Button, Select } from '@/core/ui'
+import { Button } from '@/core/ui/button'
+import { Select } from '@/core/ui/select'
 
 interface AuditLogFilterBarProps {
   orgSlug: string

@@ -13,9 +13,7 @@
 ///
 /// FY is stored in full — 2026 means FY2026, i.e. April 2026 to March 2027 —
 /// and shortened to its last two digits only when printed into a reference
-/// number. (This comment used to say the two-digit form was stored. It never
-/// was; the seed, the allocator and the dashboard all use four digits, and a
-/// counter written from the comment is a counter nothing ever finds.)
+/// number.
 model ReferenceCounter {
   id            String    @id @default(cuid())
   orgId         String    @map("org_id")
@@ -148,6 +146,8 @@ model Member {
   birthDay   Int? @map("birth_day")
   birthMonth Int? @map("birth_month")
   birthYear  Int? @map("birth_year")
+  /// The year they expect to graduate, as they gave it when they joined.
+  graduationYear Int? @map("graduation_year")
 
   /// SUTD term number as carried in the roster sheet (5, 6, 8, ...).
   academicTerm Int? @map("academic_term")
@@ -398,8 +398,8 @@ model AttendanceSheet {
 /// An invoice ISSUED BY the instructor and billed to Singapore University
 /// of Technology and Design (§3.1.2, §3.3). The club is not the issuer: it
 /// countersigns, records the reference number in the top right corner, and
-/// forwards to OSL. See docs/implementation-plan for why this constrains
-/// how the document may be branded.
+/// forwards to OSL — so the document carries the coach's name, never the
+/// club's letterhead.
 model Invoice {
   id                String        @id @default(cuid())
   orgId             String        @map("org_id")
@@ -748,6 +748,7 @@ model MembershipResponse {
   birthDay   Int? @map("birth_day")
   birthMonth Int? @map("birth_month")
   birthYear  Int? @map("birth_year")
+  graduationYear Int? @map("graduation_year")
   /// `[{ questionId, label, type, value }]`, with each question's wording as
   /// it was answered, so editing a question later cannot change an answer.
   answers Json     @default("[]")

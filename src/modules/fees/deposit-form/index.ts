@@ -13,12 +13,9 @@
  */
 import JSZip from 'jszip'
 import { Sheet } from './sheet'
-import { depositFormTemplate, DEPOSIT_FORM_REVISION } from './template'
+import { depositFormTemplate } from './template'
 import { depositFormModel, type DepositFormModel } from './model'
 
-export { DEPOSIT_FORM_REVISION }
-export { depositFormModel, money, FORM_LABELS } from './model'
-export type { DepositFormModel, DepositLineView } from './model'
 
 /** One row of the form's Breakdown table. */
 export interface DepositLine {

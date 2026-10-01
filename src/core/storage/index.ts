@@ -14,7 +14,7 @@ export interface StorageAdapter {
 export const BUCKET = 'private-documents'
 const DEFAULT_SIGNED_URL_EXPIRY = 60 // seconds
 
-export class SupabaseStorageAdapter implements StorageAdapter {
+class SupabaseStorageAdapter implements StorageAdapter {
   constructor(private readonly client: SupabaseClient) {}
 
   async upload(

@@ -10,18 +10,9 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest'
 import JSZip from 'jszip'
-import {
-  claimStudentId,
-  closeCollection,
-  confirmPayment,
-  createTerm,
-  declarePayment,
-  linkMemberAccount,
-  markDepositSubmitted,
-  rejectPayment,
-  updateTerm,
-  uploadPaynowQr,
-} from '@/modules/fees/actions'
+import { claimStudentId, linkMemberAccount } from '@/modules/fees/member-actions'
+import { closeCollection, createTerm, markDepositSubmitted, updateTerm, uploadPaynowQr } from '@/modules/fees/collection-actions'
+import { confirmPayment, declarePayment, rejectPayment } from '@/modules/fees/payment-actions'
 import { getOwnFee, listCollection, listUnlinked } from '@/modules/fees/queries'
 import { subscriptionWorkflow } from '@/modules/workflow/subscription'
 import { GET as qrRoute } from '@/app/(dashboard)/[orgSlug]/fees/qr/[termId]/route'

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 
-vi.mock('@/modules/fees/actions', () => ({
+vi.mock('@/modules/fees/collection-actions', () => ({
   closeCollection: vi.fn(),
 }))
 

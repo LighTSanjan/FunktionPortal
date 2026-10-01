@@ -4,6 +4,8 @@ import { AuthCardShell } from '../_components/auth-card-shell'
 import { ProviderButton } from '../_components/provider-button'
 import { EmailCodeForm } from '../_components/email-code-form'
 import { readReturnPath } from '@/core/auth/return-path'
+import { isDemo } from '@/core/auth/demo'
+import { DemoSignIn } from '../_components/demo-sign-in'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +17,7 @@ const REDIRECT_ERRORS: Record<string, string> = {
   google_unavailable: 'Google sign-in is not available right now. Use an emailed code.',
   azure_unavailable: 'Microsoft sign-in is not available right now. Use an emailed code.',
   access_denied: 'Sign-in was cancelled.',
+  demo_busy: 'Lots of demo sign-ins from here in the last hour. Try again a bit later.',
 }
 
 export default async function SignInPage({
@@ -27,10 +30,26 @@ export default async function SignInPage({
   const error = code ? (REDIRECT_ERRORS[code] ?? 'Something went wrong signing you in.') : null
   const providers = await enabledProviders()
 
+  if (isDemo()) {
+    return (
+      <AuthCardShell
+        title="FUNKtion portal demo"
+        subtitle="A made-up club to click around in. Nothing here is real, nothing is emailed, and it gets reset now and then. Pick who to be."
+      >
+        {error && (
+          <div className="mb-5 rounded-[var(--radius-sm)] border border-danger/20 bg-danger/8 p-3 text-[13px] text-danger" role="alert">
+            {error}
+          </div>
+        )}
+        <DemoSignIn />
+      </AuthCardShell>
+    )
+  }
+
   return (
     <AuthCardShell
       title="Welcome!"
-      subtitle="For SUTD students and alumni. Instructors and anyone else: ask the exco to invite your email first."
+      subtitle="For FUNKtion members, new and returning. Use Google, or a code sent to your SUTD address or Gmail. Codes to SUTD addresses can land in Outlook’s quarantine."
     >
       {returning && !error && (
         <p className="mb-5 rounded-[var(--radius-sm)] border border-border bg-surface px-3 py-2.5 text-[13px] leading-relaxed text-text-muted">

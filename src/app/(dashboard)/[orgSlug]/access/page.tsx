@@ -1,4 +1,5 @@
 import { getOrgContext, verifySession } from '@/core/auth/dal'
+import { requireFullMember } from '@/core/auth/standing'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
 import { Badge } from '@/core/ui/badge'
@@ -16,6 +17,7 @@ export default async function AccessPage({
   const { orgSlug } = await params
   const { org, membership } = await getOrgContext(orgSlug)
   const { userId } = await verifySession()
+  await requireFullMember(orgSlug)
 
   const [request, current] = await Promise.all([
     getOwnAccessRequest(org.id, userId),

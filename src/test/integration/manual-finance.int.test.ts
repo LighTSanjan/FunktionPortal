@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { addInstructorRate, saveInstructor, saveSession } from '@/modules/coach-claim/actions'
 import { markMonthPaidOutside } from '@/modules/coach-claim/run-actions'
-import { createTerm, updateTerm } from '@/modules/fees/actions'
+import { createTerm, updateTerm } from '@/modules/fees/collection-actions'
 import { fundBalances } from '@/modules/funds/balance'
 import {
   createManualRegisterEntry,
