@@ -6,6 +6,5 @@
 
 .next
 node_modules
-e2e
 playwright-report
 test-results
