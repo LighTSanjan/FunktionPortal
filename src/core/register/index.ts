@@ -11,7 +11,7 @@ export const SECTION_FUND: Record<RegisterSection, 'SEED' | 'INCOME' | 'DONATION
   UNOFFICIAL: 'UNOFFICIAL',
 }
 
-export const SECTION_ORDER: RegisterSection[] = ['SEED_FUND', 'INCOME', 'DONATION', 'UNOFFICIAL']
+const SECTION_ORDER: RegisterSection[] = ['SEED_FUND', 'INCOME', 'DONATION', 'UNOFFICIAL']
 
 export const SECTION_LABEL: Record<RegisterSection, string> = {
   SEED_FUND: 'OSL Seed Fund',

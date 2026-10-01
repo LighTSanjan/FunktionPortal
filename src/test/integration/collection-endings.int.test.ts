@@ -7,16 +7,9 @@
  * last term's receipt after the next term has begun.
  */
 import { beforeAll, describe, expect, it } from 'vitest'
-import {
-  closeCollection,
-  createTerm,
-  declarePayment,
-  recordPayment,
-  rejectPayment,
-  setMemberFees,
-  updateTerm,
-  uploadPaynowQr,
-} from '@/modules/fees/actions'
+import { closeCollection, createTerm, updateTerm, uploadPaynowQr } from '@/modules/fees/collection-actions'
+import { declarePayment, recordPayment, rejectPayment } from '@/modules/fees/payment-actions'
+import { setMemberFees } from '@/modules/fees/member-actions'
 import { getOwnFee, getTerm, listCollection, listOwnTerms } from '@/modules/fees/queries'
 import { depositFormInput } from '@/modules/fees/deposit-input'
 import { subscriptionWorkflow } from '@/modules/workflow/subscription'

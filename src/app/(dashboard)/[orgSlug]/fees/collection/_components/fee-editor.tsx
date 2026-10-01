@@ -2,7 +2,8 @@
 
 import { useActionState, useState } from 'react'
 import type { FeeTier } from '@prisma/client'
-import { setMemberFees, type FeeState } from '@/modules/fees/actions'
+import { setMemberFees } from '@/modules/fees/member-actions'
+import { type FeeState } from '@/modules/fees/action-state'
 import { TIER_CHOICES, TIER_LABEL, amountForTier, type TermRates } from '@/modules/fees/tiers'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { Button } from '@/core/ui/button'

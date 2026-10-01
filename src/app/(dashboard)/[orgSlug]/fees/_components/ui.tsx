@@ -1,10 +1,9 @@
 /**
  * The handful of pieces every membership fee screen is built from.
  *
- * The screens used to set their own padding, heading sizes, notice colours
- * and button styles one block at a time, so no two cards quite matched and
- * every control moved by a different amount under the pointer. Everything on
- * them now comes from here or from core/ui, and nothing sets its own.
+ * Padding, heading sizes, notice colours and button styles come from here or
+ * from core/ui, never from the screen itself, so every card matches and every
+ * control moves the same way under the pointer.
  */
 import * as React from 'react'
 import { cn } from '@/lib/utils'
@@ -96,17 +95,6 @@ export function linkButtonClass(
   size: 'sm' | 'md' = 'md'
 ): string {
   return buttonVariants({ variant, size })
-}
-
-/** A small label over a value, for the figures along the top of a screen. */
-export function Figure({ label, value, sub }: { label: string; value: React.ReactNode; sub?: React.ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-subtle">{label}</p>
-      <p className="mt-1 text-[20px] font-semibold leading-none tabular-nums text-text">{value}</p>
-      {sub && <p className="mt-1 text-[12px] text-text-muted">{sub}</p>}
-    </div>
-  )
 }
 
 /** The dot-and-word for a form's state, the same wherever it appears. */

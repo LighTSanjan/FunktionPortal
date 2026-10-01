@@ -1,7 +1,8 @@
 'use client'
 
 import { useActionState, useState } from 'react'
-import { recordPayment, undoPayment, type FeeState } from '@/modules/fees/actions'
+import { recordPayment, undoPayment } from '@/modules/fees/payment-actions'
+import { type FeeState } from '@/modules/fees/action-state'
 import { Button } from '@/core/ui/button'
 
 /**

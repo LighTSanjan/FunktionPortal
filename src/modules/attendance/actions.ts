@@ -115,10 +115,8 @@ const mapSchema = z.object({
 /**
  * Say what a date is: a coach's class, a self-practice session, or nothing.
  *
- * Three answers rather than two. "Nobody taught it" and "leave it out" used to
- * collapse into the same blank, which is how five real dates across the 2026
- * trimesters — one of them with twenty-five people on it — ended up recorded
- * nowhere at all.
+ * Three answers rather than two. If "nobody taught it" and "leave it out"
+ * share a blank, a real self-practice date gets recorded nowhere at all.
  */
 export async function mapDate(
   orgSlug: string,

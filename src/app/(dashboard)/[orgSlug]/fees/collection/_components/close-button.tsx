@@ -1,8 +1,8 @@
 'use client'
 
 import { useActionState, useState } from 'react'
-import { closeCollection } from '@/modules/fees/actions'
-import type { FeeState } from '@/modules/fees/actions'
+import { closeCollection } from '@/modules/fees/collection-actions'
+import type { FeeState } from '@/modules/fees/action-state'
 import { Button } from '@/core/ui/button'
 import { Notice } from '../../_components/ui'
 

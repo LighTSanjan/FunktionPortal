@@ -394,7 +394,7 @@ export default async function DashboardPage({
       {isExco && !collection && (
         // No term at all. Both the collection screen and the attendance
         // import are read against one, so this is the first thing a new club
-        // needs and nothing used to say so.
+        // needs.
         <section
           className="rise-in rounded-[var(--radius-lg)] border border-dashed border-border-strong bg-surface px-5 py-5"
           style={{ '--delay': '80ms' } as React.CSSProperties}

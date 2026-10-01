@@ -10,11 +10,6 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}', 'prisma/**/*.{test,spec}.{ts,tsx}'],
     exclude: ['**/node_modules/**', 'src/test/integration/**'],
-    coverage: {
-      reporter: ['text', 'json', 'html'],
-      include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/test/**', 'src/**/*.d.ts'],
-    },
   },
   resolve: {
     alias: {

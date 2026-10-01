@@ -39,18 +39,3 @@ export async function logAuthEvent(userId: string, action: AuthEventAction): Pro
     )
   )
 }
-
-/**
- * Log a failed sign-in attempt — only when the email matches an existing
- * user. An unknown email has no org to scope the event to, and is bot/scanner
- * noise the org-level audit trail doesn't need.
- */
-export async function logFailedSignIn(email: string): Promise<void> {
-  const user = await dbAdmin.user.findUnique({
-    where: { email },
-    select: { id: true },
-  })
-  if (!user) return
-
-  await logAuthEvent(user.id, 'auth.sign_in_failed')
-}

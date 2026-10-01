@@ -62,7 +62,7 @@ export interface MonthlyRun {
 }
 
 /** The window a month's sessions fall in, in UTC to match the DATE column. */
-export function periodRange(periodYear: number, periodMonth: number): { from: Date; to: Date } {
+function periodRange(periodYear: number, periodMonth: number): { from: Date; to: Date } {
   return {
     from: new Date(Date.UTC(periodYear, periodMonth - 1, 1)),
     to: new Date(Date.UTC(periodYear, periodMonth, 1)),

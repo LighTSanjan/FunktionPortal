@@ -19,7 +19,7 @@
  */
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 
-export type ProofMethod = 'email_code' | 'google' | 'azure'
+export type ProofMethod = 'email_code' | 'google' | 'azure' | 'demo'
 
 export interface EmailProof {
   method: ProofMethod

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import type { FeeTier } from '@prisma/client'
 import { TIER_LABEL, type TermRates } from '@/modules/fees/tiers'
 import { formatSgd } from '@/modules/coach-claim/money'
-import type { FeeState } from '@/modules/fees/actions'
+import type { FeeState } from '@/modules/fees/action-state'
 import { Badge } from '@/core/ui/badge'
 import { Button } from '@/core/ui/button'
 import { FeeEditor } from './fee-editor'
@@ -62,10 +62,8 @@ type Open = { memberId: string; mode: 'fee' | 'record' | 'undo' | 'check' } | nu
 /**
  * Everybody on the roster and where their fee stands, as one list.
  *
- * The screen used to be eleven cards, one after another, with the answer to
- * "who still owes" in the eighth. This is that answer first: find somebody,
- * change what they pay, record that they paid. Tick several to set a fee for
- * all of them at once.
+ * "Who still owes?" comes first: find somebody, change what they pay, record
+ * that they paid. Tick several to set a fee for all of them at once.
  */
 export function FeeTable({
   orgSlug,

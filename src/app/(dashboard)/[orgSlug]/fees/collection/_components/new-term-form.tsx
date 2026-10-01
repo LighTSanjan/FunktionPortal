@@ -1,7 +1,8 @@
 'use client'
 
 import { useActionState } from 'react'
-import { createTerm, type FeeState } from '@/modules/fees/actions'
+import { createTerm } from '@/modules/fees/collection-actions'
+import { type FeeState } from '@/modules/fees/action-state'
 import { Button } from '@/core/ui/button'
 import { Input } from '@/core/ui/input'
 import { FormField } from '@/core/ui/form-field'

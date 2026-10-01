@@ -301,9 +301,8 @@ export async function withSignature(loaded: Loaded): Promise<MonthDocuments> {
  * The post the signatory actually held, or an honest statement that they held
  * none.
  *
- * It used to fall back to "Treasurer", which put a post on the document that
- * nobody had been given — on the one line the Office of Finance reads to know
- * who stood behind the month.
+ * Never a default like "Treasurer": that would put a post nobody was given on
+ * the one line the Office of Finance reads to know who stood behind the month.
  */
 function officeLabel(office: ExcoOffice | null): string {
   return office ? OFFICE_LABELS[office] : NO_OFFICE

@@ -7,8 +7,8 @@ import { DeclareForm } from './declare-form'
 /**
  * Scan, pay, tell us — in that order, with the form hidden until step three.
  *
- * The declaration form used to sit open under the QR, which read as two
- * things to do at once, and people filled it in before they had paid.
+ * With the form open under the QR it reads as two things to do at once, and
+ * people fill it in before they have paid.
  */
 export function PayPanel({
   orgSlug,

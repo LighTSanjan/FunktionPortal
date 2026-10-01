@@ -3,14 +3,11 @@
 -- RUN THIS FROM THE SUPABASE SQL EDITOR, not from a migration. storage.objects
 -- belongs to supabase_storage_admin, which the migration role is not.
 --
--- The previous version of this file granted a signed-in user direct INSERT on
--- their own signature folder and on payment-screenshot paths, and SELECT on
--- their own signature. None of it was used: every upload and download in the
--- portal goes through the server, which validates the image, checks
--- permissions, and derives the object key from the session. The policies only
--- served somebody calling the Storage API directly with their token — who
--- could then upload unvalidated files of any size, as many as they liked,
--- bypassing every check the portal makes.
+-- Every upload and download goes through the server, which validates the
+-- image, checks permissions and derives the object key from the session. A
+-- policy for signed-in users would only serve somebody calling the Storage API
+-- directly with their token, past every one of those checks. The drops below
+-- remove policies an early version of this file created.
 --
 -- With RLS on and no policies, a signed-in user's own token can reach nothing
 -- in the bucket. The server's service-role key is unaffected.

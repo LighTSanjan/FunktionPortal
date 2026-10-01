@@ -6,10 +6,8 @@ import { buttonVariants } from '@/core/ui/button-variants'
 /**
  * What this person owes the club, on the screen they land on.
  *
- * For an ordinary member this is the whole reason to open the portal, and the
- * home screen used to leave it out entirely — it offered to widen their
- * access and nothing else. For an exco member it is the one thing of their own
- * in a screen full of the club's.
+ * For an ordinary member this is the whole reason to open the portal. For an
+ * exco member it is the one thing of their own in a screen full of the club's.
  *
  * Quiet when there is nothing to do, so an exco member who has paid does not
  * carry a reminder around on their work screen.
