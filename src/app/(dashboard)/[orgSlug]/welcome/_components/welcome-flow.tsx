@@ -6,7 +6,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, ArrowRight, Eye, ImagePlus, PartyPopper, RotateCcw } from 'lucide-react'
-import { saveWelcome, type WelcomeState } from '@/actions/welcome'
+import { lookUpStudentId, saveWelcome, type StudentIdLookup, type WelcomeState } from '@/actions/welcome'
 import { Button } from '@/core/ui/button'
 import { Input } from '@/core/ui/input'
 import { Select } from '@/core/ui/select'
@@ -52,6 +52,14 @@ const GRADUATION_YEARS = Array.from({ length: 7 }, (_, index) => new Date().getF
 
 const delay = (ms: number) => ({ '--delay': `${ms}ms` }) as React.CSSProperties
 
+/** The seven digits of a student ID, out of whatever was typed — or null. */
+function studentDigits(typed: string): string | null {
+  const digits = typed.split('@')[0].replace(/\D/g, '')
+  return /^\d{7}$/.test(digits) ? digits : null
+}
+
+type Lookup = StudentIdLookup['status'] | 'looking' | null
+
 export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: WelcomeFlowProps) {
   const router = useRouter()
   const [step, setStep] = useState<Step>(done ? 'done' : 'hello')
@@ -59,6 +67,8 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
   // Bumped to fire the confetti: when somebody finishes, not on every visit.
   const [shot, setShot] = useState(0)
   const top = useRef<HTMLDivElement>(null)
+  const [lookup, setLookup] = useState<Lookup>(null)
+  const [lookedFor, setLookedFor] = useState<string | null>(null)
 
   const go = (next: Step) => setStep(next)
 
@@ -76,7 +86,9 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
       go('done')
       setShot((n) => n + 1)
       // The sidebar and the fees page read where they stand; bring them along.
-      if (!preview) router.refresh()
+      // Once linked, this page would send them home, so the done screen
+      // leaves with a full load instead.
+      if (!preview && !result.linked) router.refresh()
     }
     return result
   }, { error: null })
@@ -84,14 +96,83 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
   const set = (field: keyof Details) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setDetails((current) => ({ ...current, [field]: event.target.value }))
 
+  // Somebody coming back types their student ID, and the roster fills in
+  // the rest. Asked once per ID, and never in a preview.
+  const findMe = async (typed: string) => {
+    const studentId = studentDigits(typed)
+    if (!studentId || preview || lookedFor === studentId) return
+    setLookedFor(studentId)
+    setLookup('looking')
+    const found = await lookUpStudentId(orgSlug, studentId)
+    setLookup(found.status)
+    if (found.status !== 'found') return
+    setDetails((current) =>
+      // They have typed a different ID while this one was being looked up.
+      studentDigits(current.studentId) !== studentId
+        ? current
+        : {
+            ...current,
+            fullName: found.fullName,
+            birthDay: found.birthDay || current.birthDay,
+            birthMonth: found.birthMonth || current.birthMonth,
+            birthYear: found.birthYear || current.birthYear,
+          }
+    )
+  }
+
   const pick = (joiningAs: JoiningAs) => {
     setDetails((current) => ({ ...current, joiningAs }))
+    // An ID already there — from their SUTD address, or typed last time — is
+    // looked up now, rather than waiting for them to touch it.
+    if (joiningAs === 'RETURNING' && details.studentId) void findMe(details.studentId)
     // Long enough to see the other card step back before the screen moves on.
     window.setTimeout(() => go('details'), 380)
   }
 
   const errors = state.fieldErrors ?? {}
   const returning = details.joiningAs === 'RETURNING'
+
+  const lookupNote =
+    lookup === 'found'
+      ? 'Found you. Check it’s right, then continue.'
+      : lookup === 'taken'
+        ? 'That student ID is already linked to another login. Sign in that way instead — you can add Google to it in Settings.'
+        : lookup === 'unknown'
+          ? 'We couldn’t find that ID on the roster. Fill in the rest and the exco will sort it out.'
+          : lookup === 'slow-down'
+            ? 'That’s a lot of tries. Fill in the rest yourself and the exco will match you.'
+            : null
+
+  const studentIdField = (wait: number) => (
+    <div className="rise-in" style={delay(wait)}>
+      <FormField label="Student ID" htmlFor="welcome-id" error={errors.studentId} required>
+        <Input
+          id="welcome-id"
+          name="studentId"
+          inputMode="numeric"
+          autoComplete="off"
+          maxLength={40}
+          value={details.studentId}
+          onChange={(event) => {
+            set('studentId')(event)
+            if (!returning) return
+            if (studentDigits(event.target.value)) void findMe(event.target.value)
+            else setLookup(null)
+          }}
+          onBlur={(event) => returning && void findMe(event.target.value)}
+          className="tabular-nums"
+        />
+      </FormField>
+      {returning && !errors.studentId && lookupNote && (
+        <p
+          className={cn('mt-1.5 text-[12.5px]', lookup === 'taken' ? 'text-danger' : 'text-text-muted')}
+          role={lookup === 'taken' ? 'alert' : 'status'}
+        >
+          {lookupNote}
+        </p>
+      )}
+    </div>
+  )
 
   return (
     <>
@@ -190,25 +271,13 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
             <form action={act} noValidate className="mt-8">
               <input type="hidden" name="joiningAs" value={details.joiningAs ?? ''} />
               <div className="space-y-5">
-                <div className="rise-in" style={delay(160)}>
+                {returning && studentIdField(160)}
+                <div className="rise-in" style={delay(returning ? 220 : 160)}>
                   <FormField label="Full name" htmlFor="welcome-name" error={errors.fullName} required>
                     <Input id="welcome-name" name="fullName" autoComplete="name" value={details.fullName} onChange={set('fullName')} />
                   </FormField>
                 </div>
-                <div className="rise-in" style={delay(220)}>
-                  <FormField label="Student ID" htmlFor="welcome-id" error={errors.studentId} required>
-                    <Input
-                      id="welcome-id"
-                      name="studentId"
-                      inputMode="numeric"
-                      autoComplete="off"
-                      maxLength={40}
-                      value={details.studentId}
-                      onChange={set('studentId')}
-                      className="tabular-nums"
-                    />
-                  </FormField>
-                </div>
+                {!returning && studentIdField(220)}
                 <fieldset
                   className="rise-in space-y-1.5"
                   style={delay(280)}
@@ -304,12 +373,20 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
               <Line wait={500}>{returning ? 'Good to have you back' : 'Nearly there'}</Line>
             </h1>
             <p className="rise-in mx-auto mt-3 max-w-[38ch] text-[14.5px] leading-relaxed text-text-muted" style={delay(680)}>
-              {returning
-                ? 'We’ll link you to your old record. You don’t need to wait for that to pay.'
-                : 'Last bit: join for the term and pay the fee.'}
+              {state.linked
+                ? 'You’re in.'
+                : returning
+                  ? 'We’ll link you to your old record. You don’t need to wait for that to pay.'
+                  : 'Last bit: join for the term and pay the fee.'}
             </p>
             <div className="rise-in mt-8 flex flex-col items-center gap-3" style={delay(780)}>
-              {term ? (
+              {state.linked ? (
+                // A full load: the sidebar has a whole portal to show now.
+                <a href={`/${orgSlug}/${term?.open ? 'fees' : 'dashboard'}`} className={buttonVariants({ size: 'lg' })}>
+                  {term?.open ? `Pay for ${term.name}` : 'Go to the portal'}
+                  <ArrowRight className="h-4 w-4" aria-hidden />
+                </a>
+              ) : term ? (
                 <>
                   <Link href={`/${orgSlug}/fees`} className={buttonVariants({ size: 'lg' })}>
                     {term.open ? `Join and pay for ${term.name}` : `See the ${term.name} form`}
@@ -324,9 +401,11 @@ export function WelcomeFlow({ orgSlug, done, initial, term, preview = false }: W
               ) : (
                 <p className="text-[13px] text-text-muted">There&rsquo;s no term to join right now. Check back soon.</p>
               )}
-              <Button type="button" variant="ghost" size="sm" onClick={() => go('details')}>
-                Change my details
-              </Button>
+              {!state.linked && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => go('details')}>
+                  Change my details
+                </Button>
+              )}
             </div>
           </section>
         )}

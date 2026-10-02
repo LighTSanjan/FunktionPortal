@@ -131,3 +131,64 @@ export async function linkRosterToAccounts(orgId: string, actorId: string): Prom
   }
   return linked
 }
+
+export interface RosterRowForId {
+  id: string
+  fullName: string
+  birthDay: number | null
+  birthMonth: number | null
+  birthYear: number | null
+  /** Already somebody's: another login has this student ID. */
+  linkedTo: string | null
+}
+
+/** The roster row with this student ID in one club, linked or not. */
+export async function rosterRowForStudentId(orgId: string, studentId: string): Promise<RosterRowForId | null> {
+  const row = await dbAdmin.member.findFirst({
+    where: { orgId, studentId },
+    select: { id: true, fullName: true, birthDay: true, birthMonth: true, birthYear: true, userId: true },
+  })
+  if (!row) return null
+  const { userId, ...rest } = row
+  return { ...rest, linkedTo: userId }
+}
+
+export type SelfLink = 'linked' | 'taken' | 'none'
+
+/** Said to somebody whose student ID another login already has. */
+export const ID_TAKEN =
+  'That student ID is already linked to another login. Sign in that way instead — you can add Google to it in Settings.'
+
+/**
+ * Link an account to the roster row with the student ID it typed.
+ *
+ * The club chose this over waiting for an exco member: somebody coming back
+ * types their ID and is in. A row that is already somebody's is never moved,
+ * so the worst a wrong ID does is take a free row, which the exco can see in
+ * the audit log and undo from the roster.
+ */
+export async function linkAccountByStudentId(userId: string, orgId: string, studentId: string): Promise<SelfLink> {
+  const already = await dbAdmin.member.findFirst({ where: { userId }, select: { id: true } })
+  if (already) return 'none'
+
+  const row = await rosterRowForStudentId(orgId, studentId)
+  if (!row) return 'none'
+  if (row.linkedTo) return row.linkedTo === userId ? 'linked' : 'taken'
+  if (await decidedOwnFee(userId, row.id)) return 'none'
+
+  const claimed = await dbAdmin.member.updateMany({
+    where: { id: row.id, orgId, userId: null },
+    data: { userId },
+  })
+  if (claimed.count !== 1) return 'taken'
+
+  await writeAudit({
+    orgId,
+    actorId: userId,
+    action: 'member.link_account_self',
+    targetType: 'Member',
+    targetId: row.id,
+    after: { userId, studentId, memberName: row.fullName },
+  })
+  return 'linked'
+}

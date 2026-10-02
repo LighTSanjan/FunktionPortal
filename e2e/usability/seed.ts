@@ -15,6 +15,8 @@ import {
 
 export const TREASURER = { name: 'Tess Treasurer', email: 'treasurer@mymail.sutd.edu.sg' }
 export const MEMBER = { name: 'Ada Lee', email: 'ada.personal@gmail.test', studentId: '1000001' }
+/** Somebody new to the club, signing in with an address that carries no student ID. */
+export const NEWCOMER = { name: 'Nia New', email: 'nia_new@alumni.sutd.edu.sg', studentId: '1000099' }
 /** Somebody nobody invited, with no university address. */
 export const STRANGER = { email: 'stranger@gmail.test' }
 

@@ -1,5 +1,5 @@
 import { test, expect, type Page, type BrowserContext } from '@playwright/test'
-import { TREASURER, MEMBER, STRANGER } from './seed'
+import { TREASURER, MEMBER, NEWCOMER, STRANGER } from './seed'
 import { latestCode, signInWithCode } from './sign-in'
 import { png as makePng } from '../../src/test/integration/harness'
 
@@ -39,15 +39,18 @@ test.describe.configure({ mode: 'serial' })
 
 let treasurer: BrowserContext
 let member: BrowserContext
+let newcomer: BrowserContext
 
 test.beforeAll(async ({ browser }) => {
   treasurer = await browser.newContext()
   member = await browser.newContext()
+  newcomer = await browser.newContext()
 })
 
 test.afterAll(async () => {
   await treasurer.close()
   await member.close()
+  await newcomer.close()
 })
 
 test('the treasurer signs in with a code to their SUTD address and lands on their work', async () => {
@@ -242,26 +245,29 @@ test('the treasurer invites a member who has no SUTD address', async () => {
   await expect(page.getByText(`Invited ${MEMBER.email}`)).toBeVisible()
 })
 
-test('the invited member, not on the roster yet, fills in the form and pays', async () => {
+test('the invited member is found on the roster by her student ID, and pays', async () => {
   const page = await member.newPage()
   await signInWithCode(page, MEMBER.email)
-  // Not on the roster yet: the welcome screen comes first, whatever they opened.
+  // Not linked yet: the welcome screen comes first, whatever they opened.
   await page.waitForURL(new RegExp(`/${ORG}/welcome$`))
   await page.getByRole('button', { name: /^Start/ }).click()
   await page.getByRole('button', { name: /I’ve danced with you before/ }).click()
-  await page.getByLabel('Full name').fill('Ada Lee')
+  // Coming back, the student ID comes first and the roster fills in the rest.
   await page.getByLabel('Student ID').fill(MEMBER.studentId)
+  await expect(page.getByText('Found you.')).toBeVisible()
+  await expect(page.getByLabel('Full name')).toHaveValue('Ada Lee')
   await page.getByLabel('Day').fill('14')
   await page.getByLabel('Month').selectOption('2')
   await page.getByRole('button', { name: /Continue/ }).click()
   await expect(page.getByRole('heading', { name: /Good to have\s*you back/ })).toBeVisible()
-  await page.getByRole('link', { name: 'Join and pay for Trimester 1' }).click()
+  await expect(page.getByText('You’re in.')).toBeVisible()
+  await page.getByRole('link', { name: 'Pay for Trimester 1' }).click()
   await page.waitForURL(new RegExp(`/${ORG}/fees$`))
 
-  // Filled in from the welcome screen.
+  // Filled in from the roster.
   await expect(page.getByLabel('Full name')).toHaveValue('Ada Lee')
   await expect(page.getByLabel('Student ID')).toHaveValue(MEMBER.studentId)
-  await page.getByLabel('Student ID').fill(MEMBER.studentId)
+  await expect(page.getByText(/Not comfortable paying \$70 towards club funds\? PM the treasurer/)).toBeVisible()
   await page.getByLabel(/Telegram handle/).fill('@ada')
   await page.getByRole('button', { name: /^Send/ }).click()
   // Nothing typed is lost when something is missing.
@@ -276,18 +282,32 @@ test('the invited member, not on the roster yet, fills in the form and pays', as
   })
   await page.getByRole('button', { name: 'Send, I’ve paid $70.00' }).click()
   await expect(page.getByText('We’ve got your response')).toBeVisible()
-  await expect(page.getByText('An exco member will add you to the roster')).toBeVisible()
+  await expect(page.getByText('On the roster as Ada Lee')).toBeVisible()
 })
 
-test('somebody not on the roster yet reaches nothing but joining, and exco screens refuse them politely', async () => {
-  const page = await member.newPage()
-  for (const path of ['dashboard', 'access', 'settings/profile']) {
+test('somebody new says who they are, reaches nothing but joining and their profile, and pays', async () => {
+  const page = await newcomer.newPage()
+  await signInWithCode(page, NEWCOMER.email, new RegExp(`/${ORG}/welcome$`))
+  await page.getByRole('button', { name: /^Start/ }).click()
+  await page.getByRole('button', { name: /First time/ }).click()
+  await page.getByLabel('Full name').fill(NEWCOMER.name)
+  await page.getByLabel('Student ID').fill(NEWCOMER.studentId)
+  await page.getByLabel('Day').fill('3')
+  await page.getByLabel('Month').selectOption('7')
+  await page.getByLabel('Graduating in').selectOption({ index: 2 })
+  await page.getByRole('button', { name: /Continue/ }).click()
+  await expect(page.getByRole('heading', { name: /Nearly there/ })).toBeVisible()
+
+  for (const path of ['dashboard', 'access']) {
     await visit(page, `/${ORG}/${path}`)
     expect(page.url(), `${path} should send somebody not on the roster to join and pay`).toMatch(new RegExp(`/${ORG}/fees$`))
   }
-  await visit(page, `/${ORG}/fees`)
-  await visit(page, `/${ORG}/welcome`)
-  for (const path of ['monthly-run', 'fees/collection', 'instructors', 'register', 'sessions']) {
+  // Everybody keeps a profile, on the roster or not.
+  const { body: profile } = await visit(page, `/${ORG}/settings/profile`)
+  expect(page.url()).toMatch(new RegExp(`/${ORG}/settings/profile$`))
+  expect(profile).toContain('Your profile')
+  expect(profile).toContain('Once you’re on the club roster')
+  for (const path of ['monthly-run', 'fees/collection', 'instructors', 'register', 'sessions', 'settings/audit-log', 'settings/organisation', 'settings/invitations']) {
     const { body } = await visit(page, `/${ORG}/${path}`)
     // Told plainly, with a way back — not a crash, and nothing of the exco's.
     expect(page.url(), `${path} should send a member to no-access`).toMatch(/\/no-access$/)
@@ -295,24 +315,30 @@ test('somebody not on the roster yet reaches nothing but joining, and exco scree
     expect(body).not.toContain('Kai Smith')
     expect(body).not.toContain('000-00000-0')
   }
-  // Settings are closed to them as a whole, before any one tab is asked about.
-  for (const path of ['settings/audit-log', 'settings/organisation', 'settings/invitations']) {
-    const { body } = await visit(page, `/${ORG}/${path}`)
-    expect(page.url(), `${path} should send somebody not on the roster to join and pay`).toMatch(new RegExp(`/${ORG}/fees$`))
-    expect(body).not.toContain('Kai Smith')
-    expect(body).not.toContain('000-00000-0')
-  }
+
+  await visit(page, `/${ORG}/fees`)
+  await expect(page.getByLabel('Full name')).toHaveValue(NEWCOMER.name)
+  await page.getByLabel(/Telegram handle/).fill('@nia')
+  await page.getByLabel('PayNow reference').fill('PAYNOW NIA 0916')
+  await page.locator('input[name="proof"]').setInputFiles({
+    name: 'paid.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(makePng(300, 600)),
+  })
+  await page.getByRole('button', { name: 'Send, I’ve paid $70.00' }).click()
+  await expect(page.getByText('We’ve got your response')).toBeVisible()
+  await expect(page.getByText('An exco member will add you to the roster')).toBeVisible()
 })
 
-test('the treasurer is told about the response and matches it to the roster in one click', async () => {
+test('the treasurer is told about the response and adds the newcomer to the roster in one click', async () => {
   const page = await treasurer.newPage()
   await visit(page, `/${ORG}/dashboard`)
   await page.getByText(/membership form response to put on the roster/).click()
   await page.waitForURL(/tab=responses/)
-  await page.getByRole('button', { name: /Ada Lee/ }).click()
-  await expect(page.getByText('same student ID, same name')).toBeVisible()
-  await page.getByRole('button', { name: 'Match to this row' }).click()
-  await expect(page.getByText(/Ada Lee is on the roster as Ada Lee\. Their payment is waiting to be checked\./)).toBeVisible()
+  await page.getByRole('button', { name: /Nia New/ }).click()
+  await expect(page.getByText('Nobody on the roster looks like them.')).toBeVisible()
+  await page.getByRole('button', { name: 'Add to the roster' }).click()
+  await expect(page.getByText(/Nia New is on the roster as Nia New\./)).toBeVisible()
 })
 
 test('the member’s home screen now says their payment is being checked', async () => {
