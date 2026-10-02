@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
-import { dbAs } from '@/core/db'
+import { dbAs, inTurn } from '@/core/db'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
 import { Badge } from '@/core/ui/badge'
@@ -44,7 +44,7 @@ export default async function MonthDocumentsPage({
     if (documents === 'NOT_FROZEN') return 'NOT_FROZEN' as const
     if (!documents) return null
 
-    const [user, settings, membership, monthInvoices, voiding] = await Promise.all([
+    const [user, settings, membership, monthInvoices, voiding] = await inTurn([
       tx.user.findUnique({ where: { id: userId }, select: { signatureImagePath: true } }),
       tx.organisationSettings.findUnique({
         where: { orgId: org.id },

@@ -28,7 +28,6 @@ export function RequestAccessForm({ orgSlug }: { orgSlug: string }) {
         label="Which office"
         htmlFor="requestedOffice"
         required
-        hint="The office routes notifications and prints under signatures — the access it comes with is the same either way"
       >
         <Select id="requestedOffice" name="requestedOffice" defaultValue="TREASURER" required>
           <option value="PRESIDENT">President</option>
@@ -44,7 +43,6 @@ export function RequestAccessForm({ orgSlug }: { orgSlug: string }) {
         label="Why"
         htmlFor="reason"
         required
-        hint="Whoever approves this is handing over the club's financial records — give them enough to decide on"
       >
         <Textarea id="reason" name="reason" rows={4} required minLength={20} />
       </FormField>

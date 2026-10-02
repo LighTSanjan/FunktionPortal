@@ -1,5 +1,5 @@
 /** RLS-scoped audit-log reads for the exco viewer. */
-import { dbAs } from '@/core/db'
+import { dbAs, inTurn } from '@/core/db'
 
 export interface AuditLogEntry {
   id: string
@@ -43,7 +43,7 @@ export async function getAuditLog(
         : {}),
     }
 
-    const [rows, total] = await Promise.all([
+    const [rows, total] = await inTurn([
       tx.auditLog.findMany({
         where,
         include: { actor: { select: { name: true } } },

@@ -162,6 +162,46 @@ export async function linkMemberAccount(
   return { error: null, ok: true }
 }
 
+/**
+ * Take a login off a roster row.
+ *
+ * For a wrong link: somebody coming back links themselves by typing a
+ * student ID, and a mistyped ID takes a stranger's row. The row and its
+ * payments stay where they are; the login goes back to the welcome screen.
+ */
+export async function unlinkMemberAccount(orgSlug: string, memberId: string): Promise<FeeState> {
+  const { org } = await getOrgContext(orgSlug)
+  const { userId: actorId } = await requirePermission(org.id, 'org.manage_members')
+
+  const problem = await dbAs(actorId, async (tx) => {
+    const member = await tx.member.findFirst({
+      where: { id: memberId, orgId: org.id },
+      select: { id: true, fullName: true, userId: true },
+    })
+    if (!member) return 'That roster row no longer exists'
+    if (!member.userId) return `${member.fullName} has no login linked.`
+    if (member.userId === actorId) return 'Someone else has to unlink yours.'
+
+    await tx.member.update({ where: { id: member.id }, data: { userId: null } })
+    await writeAudit(
+      {
+        orgId: org.id,
+        actorId,
+        action: 'member.unlink_account',
+        targetType: 'Member',
+        targetId: member.id,
+        before: { userId: member.userId, memberName: member.fullName },
+      },
+      tx
+    )
+    return null
+  })
+
+  if (problem) return { error: problem }
+  revalidatePath(`/${orgSlug}/fees/collection`)
+  return { error: null, ok: true }
+}
+
 const setFeeSchema = z.object({
   termId: z.string().min(1),
   memberIds: z.array(z.string().min(1)).min(1, 'Pick somebody first').max(300),

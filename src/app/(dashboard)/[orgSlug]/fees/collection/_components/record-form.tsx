@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from 'react'
 import { recordPayment, undoPayment } from '@/modules/fees/payment-actions'
+import { unlinkMemberAccount } from '@/modules/fees/member-actions'
 import { type FeeState } from '@/modules/fees/action-state'
 import { Button } from '@/core/ui/button'
 
@@ -117,6 +118,45 @@ export function UndoPayment({
       <span className="text-[12.5px] text-text">{label}</span>
       <Button type="submit" size="sm" variant="danger" loading={pending}>
         Yes, undo
+      </Button>
+      <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+        Keep it
+      </Button>
+      {state.error && (
+        <span className="w-full text-[12.5px] text-danger" role="alert">
+          {state.error}
+        </span>
+      )}
+    </form>
+  )
+}
+
+export function UnlinkLogin({
+  orgSlug,
+  memberId,
+  name,
+  onDone,
+  onCancel,
+}: {
+  orgSlug: string
+  memberId: string
+  name: string
+  onDone: () => void
+  onCancel: () => void
+}) {
+  const [state, act, pending] = useActionState<FeeState, FormData>(async () => {
+    const result = await unlinkMemberAccount(orgSlug, memberId)
+    if (!result.error) onDone()
+    return result
+  }, { error: null })
+
+  return (
+    <form action={act} className="flex flex-wrap items-center gap-2">
+      <span className="text-[12.5px] text-text">
+        Unlink the login on {name}&rsquo;s row? It goes back to the welcome screen. Their payments stay.
+      </span>
+      <Button type="submit" size="sm" variant="danger" loading={pending}>
+        Unlink
       </Button>
       <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
         Keep it

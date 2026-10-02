@@ -13,7 +13,8 @@ export function Hero({
   orgName: string
   roleLabel: string
   termName: string | null
-  financialYear: number
+  /** For the exco, who budget by it. Null for everybody else. */
+  financialYear: number | null
   today: Date
 }) {
   // Singapore time, not the server's. A treasurer in Changi being told "good
@@ -39,20 +40,16 @@ export function Hero({
           <h1 className="mt-1.5 text-[22px] font-semibold leading-[1.1] tracking-[-0.03em] text-text sm:text-[26px]">
             {partOfDay}, {greetingName}.
           </h1>
-          <p className="mt-1.5 max-w-[46ch] text-[13px] leading-relaxed text-text-muted">
-            {termName ? (
-              <>
-                <span className="font-medium text-text">{termName}</span> is running.{' '}
-              </>
-            ) : null}
-            Financial year {financialYear}/{financialYear + 1}. Today is{' '}
-            {today.toLocaleDateString('en-SG', {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-            })}
-            .
-          </p>
+          {(termName || financialYear) && (
+            <p className="mt-1.5 max-w-[46ch] text-[13px] leading-relaxed text-text-muted">
+              {termName ? (
+                <>
+                  <span className="font-medium text-text">{termName}</span> is running.{' '}
+                </>
+              ) : null}
+              {financialYear ? `Financial year ${financialYear}/${financialYear + 1}.` : null}
+            </p>
+          )}
         </div>
 
         {/* The club itself. Hidden below sm, where it would push the greeting

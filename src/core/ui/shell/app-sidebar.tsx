@@ -39,7 +39,7 @@ interface AppSidebarProps {
   orgSlug: string
   orgName: string
   navGroups: NavGroup[]
-  canManageSettings?: boolean
+  showSettings?: boolean
 }
 
 function collapsedSnapshot(): boolean {
@@ -60,7 +60,7 @@ export function AppSidebar({
   orgSlug,
   orgName,
   navGroups,
-  canManageSettings,
+  showSettings,
 }: AppSidebarProps) {
   const pathname = usePathname()
   const collapsed = React.useSyncExternalStore(subscribe, collapsedSnapshot, () => false)
@@ -179,7 +179,7 @@ export function AppSidebar({
       </nav>
 
       <div className="space-y-0.5 border-t border-border px-2 py-2">
-        {canManageSettings && (
+        {showSettings && (
           <Link
             href={`/${orgSlug}/settings`}
             className={cn(

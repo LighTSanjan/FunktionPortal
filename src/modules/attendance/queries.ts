@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { dbAs } from '@/core/db'
+import { dbAs, inTurn } from '@/core/db'
 import type { AttendanceImportStatus } from '@prisma/client'
 import type { ParsedSheet } from './parse'
 import { matchMembers, type MatchResult } from './match'
@@ -103,7 +103,7 @@ export async function getImport(
     if (!row) return null
 
     const parsed = row.parsed as unknown as ParsedSheet
-    const [members, instructors] = await Promise.all([
+    const [members, instructors] = await inTurn([
       tx.member.findMany({
         where: { orgId },
         select: { id: true, fullName: true, studentId: true, email: true },

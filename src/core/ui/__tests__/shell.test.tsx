@@ -70,7 +70,7 @@ describe('AppSidebar', () => {
   })
 
   it('renders Settings in footer', () => {
-    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navGroups={mockGroups} canManageSettings />)
+    render(<AppSidebar orgSlug="acme" orgName="Acme Inc" navGroups={mockGroups} showSettings />)
     expect(screen.getByText('Settings')).toBeInTheDocument()
   })
 
@@ -147,7 +147,7 @@ describe('AppHeader', () => {
   it('explains an empty notification queue', () => {
     render(<AppHeader {...defaultHeaderProps} />)
     fireEvent.click(screen.getByLabelText('Notifications'))
-    expect(screen.getByText('Nothing needs attention')).toBeInTheDocument()
+    expect(screen.getByText('Nothing new.')).toBeInTheDocument()
   })
 
 })

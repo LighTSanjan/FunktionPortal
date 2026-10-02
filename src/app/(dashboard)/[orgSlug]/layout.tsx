@@ -1,10 +1,10 @@
 import { verifySession, getOrgContext } from '@/core/auth/dal'
-import { hasPermission } from '@/core/permissions'
 import { AppShell } from '@/core/ui/shell'
 import { resolveNavGroups } from '@/modules/register'
 import { loadPortalNotifications } from '@/core/notifications/load'
 import { getStanding } from '@/core/auth/standing'
 import type { NavGroup } from '@/core/navigation'
+import { photoUrl } from '@/modules/photos'
 
 const JOINING_NAV: NavGroup[] = [
   {
@@ -33,7 +33,6 @@ export default async function OrgDashboardLayout({
   const navGroups = standing === 'FULL' ? resolveNavGroups(membership.role) : JOINING_NAV
   const navEntries = navGroups.flatMap((group) => group.entries)
 
-  const canManageSettings = hasPermission(membership.role, 'org.manage_settings')
   const notifications = await loadPortalNotifications({
     userId: session.userId,
     orgId: org.id,
@@ -47,9 +46,11 @@ export default async function OrgDashboardLayout({
       orgName={org.name}
       userName={session.name}
       userEmail={session.email}
+      userPhoto={photoUrl(session.photoPath)}
       navGroups={navGroups}
       navEntries={navEntries}
-      canManageSettings={canManageSettings}
+      // Everybody has a profile to keep; the exco tabs are filtered inside.
+      showSettings
       notifications={notifications}
     >
       {children}

@@ -31,7 +31,6 @@ export default async function AccessPage({
       <PageHeader
         breadcrumbItems={[{ label: org.name, href: `/${orgSlug}/dashboard` }, { label: 'Your access' }]}
         title="Your access"
-        subtitle="What you can reach in the portal, and how to ask for more."
       />
 
       <Card>
@@ -54,9 +53,7 @@ export default async function AccessPage({
       {membership.role === 'EXCO' ? (
         <Card>
           <CardContent className="py-5 text-[13.5px] text-text-muted">
-            You already have exco access. To change which office you hold, ask another exco
-            member — the office decides who gets notified and whose title prints under a
-            signature, so it is theirs to set, not yours.
+            You&rsquo;re exco. To change your office, ask another exco member.
           </CardContent>
         </Card>
       ) : pending && request ? (
@@ -116,10 +113,8 @@ export default async function AccessPage({
             <CardContent className="space-y-5 py-6">
               <div>
                 <p className="font-medium">Ask for exco access</p>
-                <p className="mt-1 max-w-[62ch] text-[13.5px] leading-relaxed text-text-muted">
-                  Exco reach the roster, every payment, the fund balances and the register.
-                  Another exco member has to approve it — never you — and both halves are
-                  recorded. Requests expire after {REQUEST_TTL_DAYS} days.
+                <p className="mt-1 text-[13.5px] text-text-muted">
+                  Another exco member approves it. Requests expire after {REQUEST_TTL_DAYS} days.
                 </p>
               </div>
               <RequestAccessForm orgSlug={orgSlug} />

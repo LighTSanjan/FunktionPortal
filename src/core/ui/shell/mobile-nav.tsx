@@ -12,7 +12,7 @@ interface MobileNavProps {
   orgSlug: string
   orgName: string
   navEntries: NavEntry[]
-  canManageSettings?: boolean
+  showSettings?: boolean
 }
 
 export function MobileNav(props: MobileNavProps) {
@@ -24,7 +24,7 @@ function MobileNavInner({
   orgSlug,
   orgName,
   navEntries,
-  canManageSettings,
+  showSettings,
   pathname,
 }: MobileNavProps & { pathname: string }) {
   const [open, setOpen] = React.useState(false)
@@ -82,7 +82,7 @@ function MobileNavInner({
                     </li>
                   )
                 })}
-                {canManageSettings && (
+                {showSettings && (
                   <li>
                     <Link
                       href={`/${orgSlug}/settings`}

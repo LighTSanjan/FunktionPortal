@@ -351,7 +351,7 @@ export default async function DashboardPage({
         orgName={org.name}
         roleLabel={roleLabel}
         termName={data.currentTerm?.name ?? null}
-        financialYear={data.financialYear}
+        financialYear={isExco ? data.financialYear : null}
         today={now}
       />
 
@@ -478,22 +478,12 @@ export default async function DashboardPage({
       )}
 
       {!isExco && (
-        <section
-          className="rise-in rounded-[var(--radius-lg)] border border-border bg-surface px-5 py-5"
-          style={{ '--delay': '360ms' } as React.CSSProperties}
-        >
-          <p className="text-[14px] font-medium text-text">You are a member of {org.name}.</p>
-          <p className="mt-1.5 max-w-[64ch] text-[13px] leading-relaxed text-text-muted">
-            That is everything most people need. If you have taken on a committee post, you can
-            ask for your access to be widened — another exco member decides it, never you.
-          </p>
-          <Link
-            href={`/${orgSlug}/access`}
-            className="mt-3 inline-block text-[13px] font-medium text-accent-600 underline-offset-4 hover:underline"
-          >
+        <p className="rise-in px-1 text-[13px] text-text-muted" style={{ '--delay': '360ms' } as React.CSSProperties}>
+          On the exco now?{' '}
+          <Link href={`/${orgSlug}/access`} className="font-medium text-accent-600 underline-offset-4 hover:underline">
             Ask for exco access
           </Link>
-        </section>
+        </p>
       )}
 
       {canSeeInstructors && data.instructors.length > 0 && (

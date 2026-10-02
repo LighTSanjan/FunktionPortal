@@ -4,12 +4,16 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { dbAs } from '@/core/db'
 import { getOrgContext, requirePermission } from '@/core/auth/dal'
+import { ID_TAKEN, linkAccountByStudentId, rosterRowForStudentId } from '@/core/auth/roster-link'
+import { takeAttempt } from '@/core/auth/throttle'
 import { writeAudit } from '@/core/audit'
 import { readBirthday, readStudentId } from '@/modules/membership-form/questions'
 
 export interface WelcomeState {
   error: string | null
   ok?: boolean
+  /** Their student ID matched a roster row, and the account is now on it. */
+  linked?: boolean
   /** Keyed by field: `joiningAs`, `fullName`, `studentId`, `birthday`, `graduationYear`. */
   fieldErrors?: Record<string, string>
 }
@@ -23,13 +27,62 @@ function readGraduationYear(value: FormDataEntryValue | null): number | undefine
   return Number.isInteger(year) && year >= first && year <= first + 6 ? year : undefined
 }
 
+export type StudentIdLookup =
+  | { status: 'found'; fullName: string; birthDay: string; birthMonth: string; birthYear: string }
+  | { status: 'taken' | 'unknown' | 'slow-down' }
+
+/**
+ * Who is on the roster under this student ID, so somebody coming back has
+ * their name and birthday filled in for them.
+ *
+ * The club chose this knowing student IDs run in sequence: anybody signed in
+ * could walk through them. So it answers only accounts not yet on the roster,
+ * a few times an hour, and every answer is in the audit log.
+ */
+export async function lookUpStudentId(orgSlug: string, typed: string): Promise<StudentIdLookup> {
+  const { org } = await getOrgContext(orgSlug)
+  const { userId } = await requirePermission(org.id, 'fee.declare')
+
+  const studentId = readStudentId(typed)
+  if (!studentId) return { status: 'unknown' }
+
+  const linked = await dbAs(userId, (tx) => tx.member.findFirst({ where: { orgId: org.id, userId }, select: { id: true } }))
+  if (linked) return { status: 'unknown' }
+
+  const allowed = await takeAttempt([
+    { key: `roster-lookup:hour:${userId}`, max: 8, windowSeconds: 60 * 60 },
+    { key: `roster-lookup:day:${userId}`, max: 20, windowSeconds: 24 * 60 * 60 },
+  ])
+  if (!allowed) return { status: 'slow-down' }
+
+  const row = await rosterRowForStudentId(org.id, studentId)
+  if (!row) return { status: 'unknown' }
+  if (row.linkedTo && row.linkedTo !== userId) return { status: 'taken' }
+
+  await writeAudit({
+    orgId: org.id,
+    actorId: userId,
+    action: 'member.look_up_student_id',
+    targetType: 'Member',
+    targetId: row.id,
+    after: { studentId },
+  })
+  return {
+    status: 'found',
+    fullName: row.fullName,
+    birthDay: row.birthDay ? String(row.birthDay) : '',
+    birthMonth: row.birthMonth ? String(row.birthMonth) : '',
+    birthYear: row.birthYear ? String(row.birthYear) : '',
+  }
+}
+
 /**
  * Save what somebody not yet on the roster says about themselves.
  *
- * All of it is a claim. The student ID goes where claimStudentId has always
- * put it — beside the roster row it names, for an exco member to confirm —
- * and nothing here links the account to a row or grants a role. Somebody
- * already on the roster has nothing to say here.
+ * Somebody coming back whose student ID is on the roster is linked to that
+ * row there and then. Anybody else's ID is a claim, kept beside the account
+ * for an exco member to confirm. Nothing here grants a role, and a row that
+ * is already somebody's is never moved.
  */
 export async function saveWelcome(orgSlug: string, _prev: WelcomeState, formData: FormData): Promise<WelcomeState> {
   const { org } = await getOrgContext(orgSlug)
@@ -60,6 +113,11 @@ export async function saveWelcome(orgSlug: string, _prev: WelcomeState, formData
 
   if (Object.keys(fieldErrors).length > 0 || !joining.success || !studentId || typeof birthday === 'string' || graduationYear === undefined) {
     return { error: 'A few things need fixing first.', fieldErrors }
+  }
+
+  const existing = joining.data === 'RETURNING' ? await rosterRowForStudentId(org.id, studentId) : null
+  if (existing?.linkedTo && existing.linkedTo !== userId) {
+    return { error: 'A few things need fixing first.', fieldErrors: { studentId: ID_TAKEN } }
   }
 
   const problem = await dbAs(userId, async (tx) => {
@@ -97,6 +155,10 @@ export async function saveWelcome(orgSlug: string, _prev: WelcomeState, formData
   })
 
   if (problem) return { error: problem }
-  revalidatePath(`/${orgSlug}`, 'layout')
-  return { error: null, ok: true }
+
+  const linked = existing ? (await linkAccountByStudentId(userId, org.id, studentId)) === 'linked' : false
+  // Once linked, this page sends them home; refreshing it now would do that
+  // before they've seen they're in. The screen goes on with a full load.
+  if (!linked) revalidatePath(`/${orgSlug}`, 'layout')
+  return { error: null, ok: true, linked }
 }

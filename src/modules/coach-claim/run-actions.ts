@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
-import { dbAs } from '@/core/db'
+import { dbAs, inTurn } from '@/core/db'
 import { getOrgContext, requirePermission, verifySession } from '@/core/auth/dal'
 import { writeAudit } from '@/core/audit'
 import { alert } from '@/core/alerts'
@@ -271,7 +271,7 @@ export async function signMonth(orgSlug: string, invoiceId: string): Promise<Act
       return `Already verified by ${who}. Withdraw that first if it needs signing again.`
     }
 
-    const [user, membership] = await Promise.all([
+    const [user, membership] = await inTurn([
       tx.user.findUnique({
         where: { id: userId },
         select: { name: true, signatureImagePath: true },

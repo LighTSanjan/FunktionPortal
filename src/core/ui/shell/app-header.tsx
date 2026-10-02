@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { Search, Moon, Sun, Monitor, LogOut, Bell, ArrowRight } from 'lucide-react'
+import { Search, Moon, Sun, Monitor, LogOut, Bell, ArrowRight, UserRound } from 'lucide-react'
 import { Avatar } from '@/core/ui/avatar'
 import { cn } from '@/lib/utils'
 import type { PortalNotification } from '@/core/notifications/types'
@@ -10,6 +10,9 @@ import type { PortalNotification } from '@/core/notifications/types'
 interface AppHeaderProps {
   userName: string
   userEmail: string
+  userPhoto?: string | null
+  /** Where the menu's "Your profile" goes. */
+  profileHref?: string
   onSignOut: () => void
   onCommandPalette?: () => void
   notifications?: PortalNotification[]
@@ -43,6 +46,8 @@ function applyTheme(t: Theme) {
 function AppHeader({
   userName,
   userEmail,
+  userPhoto,
+  profileHref,
   onSignOut,
   onCommandPalette,
   notifications = [],
@@ -131,7 +136,7 @@ function AppHeader({
             aria-haspopup="true"
             aria-label="Profile menu"
           >
-            <Avatar fallback={userName} size="sm" />
+            <Avatar fallback={userName} src={userPhoto} size="sm" />
           </button>
 
           {openMenu === 'notifications' && (
@@ -150,13 +155,7 @@ function AppHeader({
               </div>
 
               {notifications.length === 0 ? (
-                <div className="px-5 py-8 text-center">
-                  <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-surface-hover text-text-subtle">
-                    <Bell className="h-4 w-4" aria-hidden="true" />
-                  </div>
-                  <p className="text-[13px] font-medium text-text">Nothing needs attention</p>
-                  <p className="mt-1 text-[12px] text-text-subtle">New work will appear here automatically.</p>
-                </div>
+                <p className="px-4 py-6 text-center text-[13px] text-text-muted">Nothing new.</p>
               ) : (
                 <div className="max-h-[min(26rem,70vh)] overflow-y-auto p-1.5">
                   {notifications.map((notification) => (
@@ -202,6 +201,18 @@ function AppHeader({
                 <p className="text-[13px] font-medium text-text">{userName}</p>
                 <p className="text-[12px] text-text-muted truncate">{userEmail}</p>
               </div>
+
+              {profileHref && (
+                <Link
+                  href={profileHref}
+                  onClick={() => setOpenMenu(null)}
+                  className="flex w-full items-center gap-2.5 rounded-[var(--radius-xs)] px-3 py-1.5 text-[13px] text-text-muted transition-colors hover:bg-surface-hover hover:text-text"
+                  role="menuitem"
+                >
+                  <UserRound className="h-4 w-4" aria-hidden="true" />
+                  Your profile
+                </Link>
+              )}
 
               <button
                 onClick={cycleTheme}

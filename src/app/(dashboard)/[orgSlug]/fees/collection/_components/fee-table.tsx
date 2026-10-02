@@ -8,7 +8,7 @@ import type { FeeState } from '@/modules/fees/action-state'
 import { Badge } from '@/core/ui/badge'
 import { Button } from '@/core/ui/button'
 import { FeeEditor } from './fee-editor'
-import { RecordForm, UndoPayment } from './record-form'
+import { RecordForm, UndoPayment, UnlinkLogin } from './record-form'
 import { DecideButtons } from './decide-buttons'
 import { Notice, pillClass } from '../../_components/ui'
 
@@ -57,7 +57,7 @@ const FILTERS: { key: Filter; label: string; test: (row: FeeRowView) => boolean 
   },
 ]
 
-type Open = { memberId: string; mode: 'fee' | 'record' | 'undo' | 'check' } | null
+type Open = { memberId: string; mode: 'fee' | 'record' | 'undo' | 'check' | 'unlink' } | null
 
 /**
  * Everybody on the roster and where their fee stands, as one list.
@@ -258,6 +258,18 @@ export function FeeTable({
                       <p className="text-[11.5px] tabular-nums text-text-subtle">
                         {row.studentId ?? 'No student ID'}
                         {!row.hasAccount && ' · no portal account'}
+                        {row.hasAccount && !row.isYou && (
+                          <>
+                            {' · '}
+                            <button
+                              type="button"
+                              onClick={() => setOpen(isOpen && open?.mode === 'unlink' ? null : { memberId: row.memberId, mode: 'unlink' })}
+                              className="hover:text-accent-600"
+                            >
+                              unlink login
+                            </button>
+                          </>
+                        )}
                       </p>
                     </div>
 
@@ -373,6 +385,15 @@ export function FeeTable({
                             />
                           </div>
                         </div>
+                      )}
+                      {open.mode === 'unlink' && (
+                        <UnlinkLogin
+                          orgSlug={orgSlug}
+                          memberId={row.memberId}
+                          name={row.name}
+                          onDone={() => done()}
+                          onCancel={() => setOpen(null)}
+                        />
                       )}
                       {open.mode === 'undo' && row.paymentId && (
                         <UndoPayment
