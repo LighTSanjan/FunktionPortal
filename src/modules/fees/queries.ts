@@ -1,7 +1,7 @@
 /** Reading a term's collection, for the member and for the exco. */
 import 'server-only'
 import type { FeeTier, FormState, PaymentStatus, FeeRoute, PaymentSource } from '@prisma/client'
-import { dbAs } from '@/core/db'
+import { dbAs, inTurn } from '@/core/db'
 import { fromDateColumn, singaporeDay, toDateColumn } from '@/lib/date-only'
 import { resolveFee, tierFor, TIER_LABEL, type TermRates } from './tiers'
 
@@ -465,7 +465,7 @@ export async function getOwnFee(
       select: { id: true, fullName: true, rosterLabel: true, isActive: true },
     })
     const [formRow, responseRow] = term
-      ? await Promise.all([
+      ? await inTurn([
           tx.membershipForm.findFirst({
             where: { orgId, termId: term.id },
             // RLS shows a member only their own recipient row, so any row
@@ -503,7 +503,7 @@ export async function getOwnFee(
       }
     }
 
-    const [payment, arrangement] = await Promise.all([
+    const [payment, arrangement] = await inTurn([
       tx.feePayment.findUnique({
         where: { termId_memberId: { termId: term.id, memberId: member.id } },
       }),

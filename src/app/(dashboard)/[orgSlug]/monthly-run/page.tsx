@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ChevronDown, Landmark } from 'lucide-react'
 import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
-import { dbAs } from '@/core/db'
+import { dbAs, inTurn } from '@/core/db'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
 import { getMonthlyRun } from '@/modules/coach-claim/monthly-run'
@@ -46,7 +46,7 @@ export default async function MonthlyRunPage({
   })
 
   const { settlement, outsidePayments } = await dbAs(userId, async (tx) => {
-    const [settlement, outsidePayments] = await Promise.all([
+    const [settlement, outsidePayments] = await inTurn([
       tx.coachMonthSettlement.findUnique({
         where: { orgId_periodYear_periodMonth: { orgId: org.id, periodYear: year, periodMonth: monthIndex + 1 } },
         select: { settledAt: true, settledBy: { select: { name: true } } },

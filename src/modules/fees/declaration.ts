@@ -3,6 +3,7 @@
  * membership form, and the exco matching a form response to its roster row.
  * All three have to price it and guard it the same way.
  */
+import { inTurn } from '@/core/db'
 import 'server-only'
 import type { FeeTier, Prisma } from '@prisma/client'
 import { writeAudit } from '@/core/audit'
@@ -64,7 +65,7 @@ export async function writeDeclaration(
   if (!member) return { written: false, reason: 'GONE' }
 
   const key = { termId_memberId: { termId: input.termId, memberId: input.memberId } }
-  const [existing, arrangement] = await Promise.all([
+  const [existing, arrangement] = await inTurn([
     tx.feePayment.findUnique({ where: key, select: { id: true, status: true } }),
     tx.feeArrangement.findUnique({ where: key, select: { tier: true, amountCents: true } }),
   ])

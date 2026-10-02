@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { getOrgContext, requirePermission } from '@/core/auth/dal'
-import { dbAs } from '@/core/db'
+import { dbAs, inTurn } from '@/core/db'
 import { writeAudit } from '@/core/audit'
 import { alert } from '@/core/alerts'
 import { LogoRejected, MAX_LOGO_BYTES, putLogo, validateLogo } from '@/modules/branding/logo'
@@ -95,7 +95,7 @@ export async function updateOrgSettings(
   let settingsChanged = false
 
   await dbAs(userId, async (tx) => {
-    const [beforeOrg, beforeSettings] = await Promise.all([
+    const [beforeOrg, beforeSettings] = await inTurn([
       tx.organisation.findUnique({ where: { id: org.id }, select: { name: true } }),
       tx.organisationSettings.findUnique({ where: { orgId: org.id } }),
     ])

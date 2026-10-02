@@ -3,7 +3,7 @@
 /** A member sending the form, and paying with it. */
 import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
-import { dbAs } from '@/core/db'
+import { dbAs, inTurn } from '@/core/db'
 import { getOrgContext, requirePermission } from '@/core/auth/dal'
 import { writeAudit } from '@/core/audit'
 import { amountForTier, resolveFee, type ResolvedFee } from '@/modules/fees/tiers'
@@ -43,7 +43,7 @@ export async function submitMembershipForm(
   const termId = String(formData.get('termId') ?? '')
 
   const context = await dbAs(userId, async (tx) => {
-    const [user, form, term, member, response] = await Promise.all([
+    const [user, form, term, member, response] = await inTurn([
       tx.user.findUnique({
         where: { id: userId },
         select: { email: true, birthDay: true, birthMonth: true, birthYear: true, graduationYear: true },
@@ -70,7 +70,7 @@ export async function submitMembershipForm(
     ])
     const key = member ? { termId_memberId: { termId, memberId: member.id } } : null
     const [payment, arrangement] = key
-      ? await Promise.all([
+      ? await inTurn([
           tx.feePayment.findUnique({ where: key, select: { id: true, status: true } }),
           tx.feeArrangement.findUnique({ where: key, select: { tier: true, amountCents: true } }),
         ])
@@ -181,7 +181,7 @@ export async function submitMembershipForm(
       // Everything read before the lock is read again under it. The upload in
       // between is not instant, and the exco may have closed the form, changed
       // the fee, or put this person on the roster in the meantime.
-      const [still, termNow, memberNow, responseNow] = await Promise.all([
+      const [still, termNow, memberNow, responseNow] = await inTurn([
         tx.membershipForm.findFirst({ where: { id: form.id }, select: { state: true } }),
         tx.term.findFirst({
           where: { id: term.id },
@@ -278,7 +278,7 @@ export async function submitMembershipForm(
         // the exco compare the screenshot with what they now owe — priced
         // from what is true under the lock, not from the read before it.
         const key = { termId_memberId: { termId: term.id, memberId: member.id } }
-        const [now, arrangementNow] = await Promise.all([
+        const [now, arrangementNow] = await inTurn([
           tx.feePayment.findUnique({ where: key, select: { id: true, status: true } }),
           tx.feeArrangement.findUnique({ where: key, select: { tier: true, amountCents: true } }),
         ])
