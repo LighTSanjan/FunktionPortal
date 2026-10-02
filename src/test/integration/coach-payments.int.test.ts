@@ -164,6 +164,14 @@ describe('a month of coach payments', () => {
     expect(entry?.subtotalCents).toBe(40_500)
   })
 
+  it('hears of somebody who missed the month, and somebody who joined after it', async () => {
+    const before = new Date(last.getFullYear(), last.getMonth() - 2, 1)
+    const dev = await addRosterMember(org, { fullName: 'Dev Absent', studentId: '1000003' })
+    await dbAdmin.member.update({ where: { id: dev.id }, data: { joinedAt: before } })
+    // Added today, so after every class in last month's sheet.
+    await addRosterMember(org, { fullName: 'Cara Late', studentId: '1000004' })
+  })
+
   it('raises the month and allocates the first IV reference', async () => {
     as(treasurer)
     await ok(() =>
@@ -178,6 +186,12 @@ describe('a month of coach payments', () => {
     expect(invoice.lines).toHaveLength(3)
     expect(invoice.totalCents).toBe(40_500)
     expect(invoice.referenceNumber?.formatted).toMatch(/^IV\d{2}-097-0001$/)
+
+    // The sheet is the roster as it stood that month: whoever missed it is
+    // marked absent, and whoever joined since is not on it at all.
+    const sheet = await dbAdmin.attendanceSheet.findFirstOrThrow({ where: { orgId: org.id } })
+    const names = (sheet.snapshot as { roster: { fullName: string }[] }).roster.map((m) => m.fullName)
+    expect(names).toEqual(['Ada Lee', 'Ben Ong', 'Dev Absent'])
   })
 
   it('refuses to raise the same month twice', async () => {

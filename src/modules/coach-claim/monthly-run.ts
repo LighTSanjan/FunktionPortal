@@ -273,14 +273,27 @@ export async function buildClaimContext(
     include: { attendance: { where: { present: true }, select: { memberId: true } } },
   })
 
-  // Everybody on the roster now, and everybody who came that month even if
-  // they have left since. A sheet for March raised in May is a record of
-  // March: somebody who graduated in April was still in the room, and leaving
-  // them off made the attendance counts disagree with the names — which the
-  // claim rightly refused to build.
+  // The roster as it stood that month. A sheet for March raised in May is a
+  // record of March: somebody who came and has graduated since is on it, or
+  // the counts disagree with the names; somebody who joined in April is not,
+  // or March shows them absent from classes held before they joined. A row
+  // made by an import is dated by the import, so an earlier class they came
+  // to counts as being on the roster too.
   const attended = [...new Set(sessions.flatMap((s) => s.attendance.map((a) => a.memberId)))]
   const members = await tx.member.findMany({
-    where: { orgId: args.orgId, OR: [{ isActive: true }, { id: { in: attended } }] },
+    where: {
+      orgId: args.orgId,
+      OR: [
+        { id: { in: attended } },
+        {
+          isActive: true,
+          OR: [
+            { joinedAt: { lt: to } },
+            { attendance: { some: { present: true, session: { heldOn: { lt: to } } } } },
+          ],
+        },
+      ],
+    },
     orderBy: { fullName: 'asc' },
     select: { id: true, fullName: true },
   })
