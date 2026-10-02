@@ -1,51 +1,90 @@
 import Link from 'next/link'
 import { verifySession, getOrgContext } from '@/core/auth/dal'
+import { getStanding } from '@/core/auth/standing'
+import { createSupabaseServer } from '@/core/auth/supabase-server'
+import { isEmptyLogin } from '@/core/auth/empty-login'
+import { ownRosterRow } from '@/core/auth/own-profile'
+import { isDemo } from '@/core/auth/demo'
+import { studentIdFromEmail } from '@/core/auth/roster-match'
 import { dbAs } from '@/core/db'
 import { PageHeader } from '@/core/ui/page-header'
 import { Card, CardContent } from '@/core/ui/card'
 import { Badge } from '@/core/ui/badge'
 import { OFFICE_LABELS } from '@/core/access'
-import { ProfileForm } from './_components/profile-form'
-import { SignatureForm } from './_components/signature-form'
+import { photoUrl } from '@/modules/photos'
 import { signaturePreviewUrl } from '@/modules/signatures'
+import { ProfileForm } from './_components/profile-form'
+import { PhotoForm } from './_components/photo-form'
+import { SignInMethods } from './_components/sign-in-methods'
+import { SignatureForm } from './_components/signature-form'
 
 export const dynamic = 'force-dynamic'
 
+const OUTCOMES = ['connected', 'taken', 'failed'] as const
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <Card>
+      <CardContent className="space-y-4 py-6">
+        <h2 className="text-[15px] font-semibold text-text">{title}</h2>
+        {children}
+      </CardContent>
+    </Card>
+  )
+}
+
 export default async function ProfilePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ orgSlug: string }>
+  searchParams: Promise<{ google?: string }>
 }) {
   const { orgSlug } = await params
   const { org, membership } = await getOrgContext(orgSlug)
   const { userId } = await verifySession()
+  const standing = await getStanding(orgSlug)
 
-  const { user, membershipRow } = await dbAs(userId, async (tx) => ({
-    user: await tx.user.findUnique({
-      where: { id: userId },
-      select: {
-        name: true,
-        email: true,
-        signatureImagePath: true,
-        signatureUpdatedAt: true,
-        createdAt: true,
-      },
-    }),
-    membershipRow: await tx.organisationMembership.findUnique({
-      where: { userId_orgId: { userId, orgId: org.id } },
-      select: { office: true, createdAt: true },
-    }),
-  }))
-
+  const supabase = await createSupabaseServer()
+  const [{ user, membershipRow }, member, identities, removable] = await Promise.all([
+    dbAs(userId, async (tx) => ({
+      user: await tx.user.findUnique({
+        where: { id: userId },
+        select: {
+          name: true,
+          email: true,
+          photoPath: true,
+          claimedStudentId: true,
+          birthDay: true,
+          birthMonth: true,
+          birthYear: true,
+          signatureImagePath: true,
+          signatureUpdatedAt: true,
+        },
+      }),
+      membershipRow: await tx.organisationMembership.findUnique({
+        where: { userId_orgId: { userId, orgId: org.id } },
+        select: { office: true },
+      }),
+    })),
+    ownRosterRow(org.id, userId),
+    supabase.auth.getUserIdentities().then(({ data }) => data?.identities ?? []),
+    isEmptyLogin(userId),
+  ])
   if (!user) return null
 
   const isExco = membership.role === 'EXCO'
+  const google = identities.find((identity) => identity.provider === 'google')
+  const googleEmail = google ? String((google.identity_data as Record<string, unknown> | undefined)?.email ?? '') || 'connected' : null
+  const { google: returned } = await searchParams
+  const outcome = OUTCOMES.find((value) => value === returned) ?? null
   // Minted per request and short-lived, so the page cannot be saved and
   // reshared as a way of handing somebody a specimen.
-  const signatureUrl = await signaturePreviewUrl(user.signatureImagePath)
+  const signatureUrl = isExco ? await signaturePreviewUrl(user.signatureImagePath) : null
+  const birth = member ?? user
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-2xl space-y-6">
       <PageHeader
         breadcrumbItems={[
           { label: org.name, href: `/${orgSlug}/dashboard` },
@@ -53,102 +92,80 @@ export default async function ProfilePage({
           { label: 'Profile' },
         ]}
         title="Your profile"
-        subtitle="How you appear in the portal and on the documents it produces."
       />
 
       <Card>
-        <CardContent className="py-6">
+        <CardContent className="space-y-6 py-6">
+          <PhotoForm orgSlug={orgSlug} name={user.name} src={photoUrl(user.photoPath)} />
           <ProfileForm
             orgSlug={orgSlug}
-            name={user.name}
-            email={user.email}
+            details={{
+              name: user.name,
+              email: user.email,
+              studentId: member?.studentId ?? user.claimedStudentId ?? studentIdFromEmail(user.email) ?? '',
+              onRoster: member !== null,
+              birthDay: birth.birthDay ? String(birth.birthDay) : '',
+              birthMonth: birth.birthMonth ? String(birth.birthMonth) : '',
+              birthYear: birth.birthYear ? String(birth.birthYear) : '',
+            }}
           />
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent className="space-y-4 py-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-subtle">
-                In {org.name}
-              </p>
-              <p className="mt-1.5 font-medium">
-                {isExco ? 'Exco' : 'Member'}
-                {membershipRow?.office ? ` · ${OFFICE_LABELS[membershipRow.office]}` : ''}
-              </p>
-              {membershipRow?.createdAt && (
-                <p className="mt-0.5 text-[12.5px] text-text-muted">
-                  Since{' '}
-                  {membershipRow.createdAt.toLocaleDateString('en-SG', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                  })}
-                </p>
-              )}
-            </div>
-            <Badge variant={isExco ? 'success' : 'neutral'}>
-              {isExco ? 'Full access' : 'Your own records only'}
-            </Badge>
-          </div>
+      <Section title="Signing in">
+        <SignInMethods
+          orgSlug={orgSlug}
+          email={user.email}
+          google={googleEmail}
+          googleOnly={identities.length === 1 && google !== undefined}
+          removable={removable}
+          outcome={outcome}
+          demo={isDemo()}
+        />
+      </Section>
 
-          {!isExco && (
-            <p className="text-[13px] leading-relaxed text-text-muted">
-              Taken on a committee post?{' '}
-              <Link
-                href={`/${orgSlug}/access`}
-                className="font-medium text-accent-600 underline-offset-4 hover:underline"
-              >
-                Ask for exco access
-              </Link>
-              . Another exco member decides it, never you.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="space-y-4 py-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="font-medium">Signature specimen</p>
-            <Badge variant={signatureUrl ? 'success' : 'neutral'}>
-              {signatureUrl ? 'On file' : 'Not uploaded'}
-            </Badge>
-          </div>
-          <p className="max-w-[68ch] text-[13px] leading-relaxed text-text-muted">
-            A stored signature lets the portal stamp the documents you sign off instead of
-            asking you to print and sign one every month. It is only ever applied in the same
-            moment you press the button that authorises a document, and only to documents you
-            authorise yourself &mdash; never on a schedule and never on anyone else&rsquo;s
-            behalf.
+      <Section title={`In ${org.name}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[14px] font-medium">
+            {isExco ? 'Exco' : 'Member'}
+            {membershipRow?.office ? ` · ${OFFICE_LABELS[membershipRow.office]}` : ''}
           </p>
-          <p className="max-w-[68ch] text-[13px] leading-relaxed text-text-muted">
-            Sign a blank sheet of white paper, photograph it straight on, and crop to the
-            signature. PNG or JPEG, at least 200 pixels wide.
+          <Badge variant={isExco ? 'success' : 'neutral'}>{isExco ? 'Full access' : 'Your own records'}</Badge>
+        </div>
+        {!isExco && (
+          <p className="text-[13px] text-text-muted">
+            {standing === 'FULL' ? (
+              <>
+                On the exco now?{' '}
+                <Link href={`/${orgSlug}/access`} className="font-medium text-accent-600 underline-offset-4 hover:underline">
+                  Ask for exco access
+                </Link>
+                . Another exco member approves it.
+              </>
+            ) : (
+              'Once you’re on the club roster, you can ask for exco access here. Already exco on another login? Sign in with that one and connect Google to it.'
+            )}
           </p>
+        )}
+      </Section>
 
+      {isExco && (
+        <Section title="Signature">
+          <p className="max-w-[62ch] text-[13px] leading-relaxed text-text-muted">
+            Stamped on the documents you sign off, only when you press the button that signs them. Sign a blank sheet of
+            white paper, photograph it straight on, and crop to the signature.
+          </p>
           <SignatureForm
             orgSlug={orgSlug}
             currentUrl={signatureUrl}
             updatedAt={
               user.signatureUpdatedAt
-                ? user.signatureUpdatedAt.toLocaleDateString('en-SG', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                  })
+                ? user.signatureUpdatedAt.toLocaleDateString('en-SG', { day: 'numeric', month: 'long', year: 'numeric' })
                 : null
             }
           />
-
-          <p className="max-w-[68ch] border-t border-border pt-4 text-[12.5px] leading-relaxed text-text-subtle">
-            Held in private storage, read only by the server while it composes a document you
-            have just signed, and never rendered into a page as a link anyone else could
-            follow. Uploading, replacing and removing it are all written to the audit log.
-          </p>
-        </CardContent>
-      </Card>
+        </Section>
+      )}
     </div>
   )
 }

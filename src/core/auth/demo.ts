@@ -1,9 +1,10 @@
 import 'server-only'
 
 import { randomBytes } from 'node:crypto'
-import { createClient, type SupabaseClient, type User as SupabaseUser } from '@supabase/supabase-js'
+import type { SupabaseClient, User as SupabaseUser } from '@supabase/supabase-js'
 import type { ExcoOffice } from '@prisma/client'
 import { dbAdmin } from '@/core/db/admin'
+import { supabaseAdmin } from './admin-client'
 
 /**
  * The hosted demo: a copy of the portal with a made-up club, where anybody
@@ -51,14 +52,6 @@ export async function isDemoDatabase(): Promise<boolean> {
   return orgs.length === 1 && orgs[0].slug === DEMO_ORG_SLUG
 }
 
-function adminClient(): SupabaseClient {
-  const secret = process.env.SUPABASE_SECRET_KEY
-  if (!secret) throw new Error('SUPABASE_SECRET_KEY is needed for demo sign-in.')
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, secret, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
-}
-
 /**
  * Sign the browser in as a demo person, on the caller's cookie-bound client.
  *
@@ -71,7 +64,7 @@ export async function signInDemoPersona(supabase: SupabaseClient, persona: DemoP
       ? { email: `new-${randomBytes(4).toString('hex')}@${DEMO_DOMAIN}`, name: 'New Person' }
       : PERSONAS[persona]
 
-  const admin = adminClient()
+  const admin = supabaseAdmin()
   const { error: createError } = await admin.auth.admin.createUser({
     email: spec.email,
     email_confirm: true,

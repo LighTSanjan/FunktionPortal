@@ -1,5 +1,4 @@
 import { getOrgContext } from '@/core/auth/dal'
-import { requireFullMember } from '@/core/auth/standing'
 import { hasPermission } from '@/core/permissions'
 import { screenPreviewsEnabled } from '@/core/screen-previews'
 import { SettingsNav } from './_components/settings-nav'
@@ -13,9 +12,8 @@ export default async function SettingsLayout({
 }) {
   const { orgSlug } = await params
   const { membership } = await getOrgContext(orgSlug)
-  // Every settings page sits under this layout, and nothing leads from one
-  // to another without passing through it first, so one check covers them.
-  await requireFullMember(orgSlug)
+  // Open to anybody signed in, on the roster or not: everybody has a profile
+  // to keep. Each exco tab checks its own permission on the page.
 
   // Filtered here rather than shown and refused on click. Every tab but the
   // profile is exco-only, and a member offered four tabs that answer three
@@ -36,7 +34,8 @@ export default async function SettingsLayout({
 
   return (
     <div className="space-y-6">
-      <SettingsNav orgSlug={orgSlug} tabs={tabs.map(({ slug, label }) => ({ slug, label }))} />
+      {/* A member has the profile and nothing else; one tab is not a choice. */}
+      {tabs.length > 1 && <SettingsNav orgSlug={orgSlug} tabs={tabs.map(({ slug, label }) => ({ slug, label }))} />}
       {children}
     </div>
   )

@@ -11,6 +11,7 @@ export interface VerifiedSession {
   userId: string
   email: string
   name: string
+  photoPath: string | null
 }
 
 export interface OrgContext {
@@ -43,7 +44,7 @@ export async function retryWithBackoff<T>(
 export const verifySession = cache(async (): Promise<VerifiedSession> => {
   const session = await verifySessionAllowingUnproven()
   if (!session.emailProven) redirect('/verify-email')
-  return { userId: session.userId, email: session.email, name: session.name }
+  return { userId: session.userId, email: session.email, name: session.name, photoPath: session.photoPath }
 })
 
 /** The signed-in account, proven or not. Only the confirm-your-email screen wants this. */
@@ -61,7 +62,7 @@ export const verifySessionAllowingUnproven = cache(async (): Promise<VerifiedSes
     () =>
       dbAdmin.user.findUnique({
         where: { id: user.id },
-        select: { id: true, email: true, name: true, isActive: true, emailProvenAt: true },
+        select: { id: true, email: true, name: true, isActive: true, emailProvenAt: true, photoPath: true },
       }),
     (result) => !result
   )
@@ -74,6 +75,7 @@ export const verifySessionAllowingUnproven = cache(async (): Promise<VerifiedSes
     userId: appUser.id,
     email: appUser.email,
     name: appUser.name,
+    photoPath: appUser.photoPath,
     emailProven: appUser.emailProvenAt !== null,
   }
 })

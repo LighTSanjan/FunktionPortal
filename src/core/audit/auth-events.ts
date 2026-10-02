@@ -10,6 +10,7 @@ export type AuthEventAction =
   // A changed password is a change of who can act as this person, so it
   // belongs in the same log as the sign-ins it enables.
   | 'auth.password_reset'
+  | 'auth.connect_google'
 
 async function requestMetadata(): Promise<{ ip: string | null; userAgent: string | null }> {
   const h = await headers()

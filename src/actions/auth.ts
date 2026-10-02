@@ -7,6 +7,7 @@ import { afterSignIn } from '@/core/auth/after-sign-in'
 import { proofFromEmailCode } from '@/core/auth/proof'
 import { mayJoin, normaliseEmail } from '@/core/auth/eligibility'
 import { takeAttempt } from '@/core/auth/throttle'
+import { appUrl } from '@/lib/app-url'
 import { alert } from '@/core/alerts'
 import { isDemo, isDemoDatabase, isDemoPersona, settleDemoPersona, signInDemoPersona } from '@/core/auth/demo'
 
@@ -113,16 +114,6 @@ export async function verifyEmailCode(_prev: CodeState, formData: FormData): Pro
 
 const PROVIDERS = { google: 'Google', azure: 'Microsoft' } as const
 type Provider = keyof typeof PROVIDERS
-
-function appUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_APP_URL
-  if (configured) return configured.replace(/\/$/, '')
-
-  const vercel = process.env.VERCEL_URL
-  if (vercel) return `https://${vercel}`
-
-  return 'http://localhost:3000'
-}
 
 export async function signInWithProvider(formData: FormData): Promise<never> {
   const provider = String(formData.get('provider')) as Provider

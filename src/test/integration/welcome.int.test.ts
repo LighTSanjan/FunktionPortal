@@ -1,12 +1,16 @@
 /**
  * The welcome screen, for anybody signed in whom the club hasn't matched to
- * its roster yet. They say who they are and go on to join and pay; until an
- * exco member links them, that is all they can reach. What they type never
- * links them to a roster row or grants them a role — least of all an exco
- * member's student ID.
+ * its roster yet. Somebody coming back types their student ID, has the rest
+ * filled in from the roster, and is linked to their row. Anybody else says
+ * who they are and goes on to join and pay until an exco member matches
+ * them. Nothing typed here grants a role, or moves a row that is already
+ * somebody's — least of all an exco member's.
  */
 import { beforeAll, describe, expect, it } from 'vitest'
-import { saveWelcome } from '@/actions/welcome'
+import { lookUpStudentId, saveWelcome } from '@/actions/welcome'
+import { removePhoto, updateProfile, uploadPhoto } from '@/actions/profile'
+import { GET as photo } from '@/app/api/photo/route'
+import { unlinkMemberAccount } from '@/modules/fees/member-actions'
 import { requestAccess } from '@/actions/access'
 import { getStanding, requireFullMember } from '@/core/auth/standing'
 import { createTerm, updateTerm, uploadPaynowQr } from '@/modules/fees/collection-actions'
@@ -45,6 +49,8 @@ let president: TestUser
 let ada: TestUser
 let stranger: TestUser
 let fresh: TestUser
+let returning: TestUser
+let nosy: TestUser
 let termId: string
 
 const welcome = (fields: Record<string, string>) =>
@@ -60,12 +66,16 @@ describe('the welcome screen', () => {
     ada = await createUser('Ada Lee')
     stranger = await createUser('Sly Stranger', 'sly.stranger@gmail.com')
     fresh = await createUser('Fern Fresh', 'fern.fresh@gmail.com')
+    returning = await createUser('Rae Returning', 'rae.personal@gmail.com')
+    nosy = await createUser('Nosy Parker', 'nosy.parker@gmail.com')
     await join(treasurer, org, 'EXCO', 'TREASURER')
     await join(president, org, 'EXCO', 'PRESIDENT')
-    for (const user of [ada, stranger, fresh]) await join(user, org, 'MEMBER')
+    for (const user of [ada, stranger, fresh, returning, nosy]) await join(user, org, 'MEMBER')
 
     await addRosterMember(org, { fullName: 'Ada Lee', studentId: '1000001', userId: ada.id })
     await addRosterMember(org, { fullName: 'Tess Treasurer', studentId: '1000009', userId: treasurer.id })
+    const rae = await addRosterMember(org, { fullName: 'Rae Tan Wei Ling', studentId: '1000021' })
+    await dbAdmin.member.update({ where: { id: rae.id }, data: { birthDay: 3, birthMonth: 11, birthYear: 2003 } })
   })
 
   describe('where people stand', () => {
@@ -125,7 +135,13 @@ describe('the welcome screen', () => {
 
     it('never makes anybody exco for typing an exco member’s student ID', async () => {
       as(stranger)
-      await ok(() => saveWelcome(org.slug, blank, welcome({ joiningAs: 'RETURNING', fullName: 'Tess Treasurer', studentId: '1000009' })))
+      expect(await lookUpStudentId(org.slug, '1000009')).toEqual({ status: 'taken' })
+      const refused = await saveWelcome(org.slug, blank, welcome({ joiningAs: 'RETURNING', fullName: 'Tess Treasurer', studentId: '1000009' }))
+      expect(refused.fieldErrors?.studentId).toMatch(/already linked to another login/)
+      expect(await getStanding(org.slug)).toBe('WELCOME')
+
+      // Coming back under an ID the roster doesn't have is a claim, as before.
+      await ok(() => saveWelcome(org.slug, blank, welcome({ joiningAs: 'RETURNING', fullName: 'Sly Stranger', studentId: '1009999' })))
       expect(await getStanding(org.slug)).toBe('JOINING')
       // Not asked of somebody returning, so nothing is kept even if it's sent.
       expect((await dbAdmin.user.findUniqueOrThrow({ where: { id: stranger.id } })).graduationYear).toBeNull()
@@ -141,6 +157,83 @@ describe('the welcome screen', () => {
       const refused = await requestAccess(org.slug, blank, form({ requestedOffice: 'TREASURER', reason: 'I am the treasurer, honestly.' }))
       expect(refused.error).toMatch(/isn’t linked to the club roster/)
       expect(await dbAdmin.accessRequest.count({ where: { userId: stranger.id } })).toBe(0)
+    })
+
+    it('fills in somebody coming back from the roster, and links them', async () => {
+      as(returning)
+      expect(await lookUpStudentId(org.slug, '100 0021')).toEqual({
+        status: 'found',
+        fullName: 'Rae Tan Wei Ling',
+        birthDay: '3',
+        birthMonth: '11',
+        birthYear: '2003',
+      })
+      const saved = await saveWelcome(org.slug, blank, welcome({
+        joiningAs: 'RETURNING', fullName: 'Rae Tan Wei Ling', studentId: '1000021', birthDay: '3', birthMonth: '11', birthYear: '2003',
+      }))
+      expect(saved).toMatchObject({ ok: true, linked: true })
+      expect(await getStanding(org.slug)).toBe('FULL')
+      const row = await dbAdmin.member.findFirstOrThrow({ where: { orgId: org.id, studentId: '1000021' } })
+      expect(row.userId).toBe(returning.id)
+      expect(await dbAdmin.auditLog.count({ where: { action: 'member.link_account_self', targetId: row.id } })).toBe(1)
+      // The role is untouched: linking is who you are, not what you may do.
+      const membership = await dbAdmin.organisationMembership.findFirstOrThrow({ where: { userId: returning.id } })
+      expect(membership.role).toBe('MEMBER')
+      // Once on the roster there is nothing more to look up.
+      expect(await lookUpStudentId(org.slug, '1000001')).toEqual({ status: 'unknown' })
+    })
+
+    it('stops somebody walking through student IDs after a few', async () => {
+      as(nosy)
+      const answers = []
+      for (let id = 1000100; id < 1000110; id++) answers.push((await lookUpStudentId(org.slug, String(id))).status)
+      expect(answers.slice(0, 8).every((status) => status === 'unknown')).toBe(true)
+      expect(answers.slice(8)).toEqual(['slow-down', 'slow-down'])
+    })
+
+    it('lets the exco take a wrong link off again', async () => {
+      const row = await dbAdmin.member.findFirstOrThrow({ where: { orgId: org.id, studentId: '1000021' } })
+      as(returning)
+      expect((await outcome(() => unlinkMemberAccount(org.slug, row.id))).kind).toBe('denied')
+      as(treasurer)
+      await ok(() => unlinkMemberAccount(org.slug, row.id))
+      expect((await dbAdmin.member.findUniqueOrThrow({ where: { id: row.id } })).userId).toBeNull()
+      as(returning)
+      expect(await getStanding(org.slug)).toBe('JOINING')
+
+      // And back on, from Settings: somebody coming back who fixes their ID there is linked.
+      await ok(() => updateProfile(org.slug, blank, form({ name: 'Rae Tan', studentId: '1000021', birthDay: '', birthMonth: '', birthYear: '' })))
+      expect(await getStanding(org.slug)).toBe('FULL')
+    })
+
+    it('keeps a member’s own name and birthday on their roster row', async () => {
+      as(returning)
+      await ok(() => updateProfile(org.slug, blank, form({ name: 'Rae Tan', studentId: '1234567', birthDay: '4', birthMonth: '11', birthYear: '' })))
+      const row = await dbAdmin.member.findFirstOrThrow({ where: { orgId: org.id, userId: returning.id } })
+      // The student ID is the roster's once they're on it; what was sent is ignored.
+      expect(row).toMatchObject({ fullName: 'Rae Tan', studentId: '1000021', birthDay: 4, birthMonth: 11, birthYear: null })
+      expect(row.overriddenFields).toEqual(expect.arrayContaining(['fullName', 'birthDay']))
+      const bad = await updateProfile(org.slug, blank, form({ name: 'R', birthDay: '31', birthMonth: '2' }))
+      expect(bad.fieldErrors).toMatchObject({ name: expect.any(String), birthday: expect.any(String) })
+    })
+
+    it('keeps a photo of their own, and shows it only to them', async () => {
+      as(returning)
+      const refused = await uploadPhoto(org.slug, blank, form({ photo: new File([new Uint8Array([1, 2, 3])], 'x.heic') }))
+      expect(refused.error).toMatch(/JPEG or PNG/)
+      await ok(() => uploadPhoto(org.slug, blank, form({ photo: pngFile(320, 320) })))
+      const { photoPath } = await dbAdmin.user.findUniqueOrThrow({ where: { id: returning.id } })
+      expect(photoPath).toMatch(new RegExp(`^photos/${returning.id}/`))
+      const mine = await photo()
+      expect(mine.status).toBe(200)
+      expect(mine.headers.get('content-type')).toBe('image/png')
+
+      as(ada)
+      expect((await photo()).status).toBe(404)
+
+      as(returning)
+      await ok(() => removePhoto(org.slug))
+      expect((await dbAdmin.user.findUniqueOrThrow({ where: { id: returning.id } })).photoPath).toBeNull()
     })
 
     it('has nothing to ask somebody already on the roster', async () => {

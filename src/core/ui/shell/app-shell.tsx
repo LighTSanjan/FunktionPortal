@@ -13,9 +13,10 @@ interface AppShellProps {
   orgName: string
   userName: string
   userEmail: string
+  userPhoto?: string | null
   navGroups: NavGroup[]
   navEntries: NavEntry[]
-  canManageSettings?: boolean
+  showSettings?: boolean
   notifications?: PortalNotification[]
   children: React.ReactNode
 }
@@ -25,9 +26,10 @@ function AppShell({
   orgName,
   userName,
   userEmail,
+  userPhoto,
   navGroups,
   navEntries,
-  canManageSettings,
+  showSettings,
   notifications = [],
   children,
 }: AppShellProps) {
@@ -48,7 +50,7 @@ function AppShell({
           orgSlug={orgSlug}
           orgName={orgName}
           navGroups={navGroups}
-          canManageSettings={canManageSettings}
+          showSettings={showSettings}
         />
       </div>
 
@@ -57,6 +59,8 @@ function AppShell({
           <AppHeader
             userName={userName}
             userEmail={userEmail}
+            userPhoto={userPhoto}
+            profileHref={`/${orgSlug}/settings/profile`}
             onSignOut={handleSignOut}
             onCommandPalette={() => setCmdOpen(true)}
             notifications={notifications}
@@ -64,7 +68,7 @@ function AppShell({
         </div>
 
         <div className="md:hidden absolute top-3 left-3 z-40" data-print="hide">
-          <MobileNav orgSlug={orgSlug} orgName={orgName} navEntries={navEntries} canManageSettings={canManageSettings} />
+          <MobileNav orgSlug={orgSlug} orgName={orgName} navEntries={navEntries} showSettings={showSettings} />
         </div>
 
         <main className="flex-1 overflow-y-auto bg-paper p-4 md:p-6" data-print="page">

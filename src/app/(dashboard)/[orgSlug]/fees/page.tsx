@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { dbAs } from '@/core/db'
+import { dbAs, inTurn } from '@/core/db'
 import { verifySession, getOrgContext, requirePagePermission } from '@/core/auth/dal'
 import { getStanding } from '@/core/auth/standing'
 import { hasPermission } from '@/core/permissions'
@@ -89,7 +89,7 @@ export default async function FeesPage({
     getForm(userId, org.id, term.id),
     getOwnResponse(userId, org.id, term.id),
     dbAs(userId, async (tx) => {
-      const [user, member] = await Promise.all([
+      const [user, member] = await inTurn([
         tx.user.findUnique({ where: { id: userId }, select: { email: true, name: true, claimedStudentId: true } }),
         tx.member.findFirst({
           where: { orgId: org.id, userId },
@@ -102,7 +102,7 @@ export default async function FeesPage({
           ? await tx.termCloseCharge.findUnique({ where: key, select: { tier: true, amountCents: true } })
           : null
       const [payment, arrangement] = key
-        ? await Promise.all([
+        ? await inTurn([
             tx.feePayment.findUnique({
               where: key,
               select: { status: true, tier: true, amountCents: true, rejectedReason: true, confirmedAt: true },
@@ -143,14 +143,15 @@ export default async function FeesPage({
   } else if (asMember) {
     const roster = resolveFee({ payment: null, arrangement: null, rosterLabel: asMember.rosterLabel, isActive: asMember.isActive, rates })
     fee = roster.charged
-      ? { amountCents: roster.amountCents, label: TIER_LABEL[roster.tier], note: null }
+      ? {
+          amountCents: roster.amountCents,
+          label: TIER_LABEL[roster.tier],
+          note: roster.tier === 'FULL' ? fullFeeNote(roster.amountCents) : null,
+        }
       : { amountCents: 0, label: 'Not taking part this term', note: 'If that’s wrong, tell the treasurer before you pay.' }
   } else {
-    fee = {
-      amountCents: amountForTier('FULL', rates),
-      label: TIER_LABEL.FULL,
-      note: 'Joining for less than a full term? Tell the treasurer before you pay, and they’ll set your fee.',
-    }
+    const amountCents = amountForTier('FULL', rates)
+    fee = { amountCents, label: TIER_LABEL.FULL, note: fullFeeNote(amountCents) }
   }
 
   const paymentState: MembershipFormProps['payment'] = preview && !asMember
@@ -462,4 +463,10 @@ function Hero({ title, line, intro }: { title: string; line: string; intro?: str
       </div>
     </section>
   )
+}
+
+/** Said under the full fee: anybody who finds it a stretch tells the treasurer, not the form. */
+function fullFeeNote(amountCents: number): string {
+  const amount = formatSgd(amountCents).replace(/\.00$/, '')
+  return `Not comfortable paying ${amount} towards club funds? PM the treasurer before you pay, so the treasurer and president can take note 🙏`
 }

@@ -15,6 +15,12 @@
 
 export const RETURN_PATH_COOKIE = 'funktion-return-to'
 
+/**
+ * Set while somebody is away connecting Google to the account they are
+ * signed in to: the profile page to come back to, failed or not.
+ */
+export const LINKING_COOKIE = 'funktion-linking'
+
 /** Long enough to find a code in an inbox; short enough not to surprise. */
 export const RETURN_PATH_MAX_AGE_SECONDS = 30 * 60
 

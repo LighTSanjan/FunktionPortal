@@ -1,3 +1,4 @@
+import { inTurn } from '@/core/db'
 import type { Prisma } from '@prisma/client'
 import type { ParsedSheet } from './parse'
 import { matchMembers, isDepartedLabel, normaliseStudentId } from './match'
@@ -56,10 +57,10 @@ export async function applyParsedSheet(
   tx: Prisma.TransactionClient,
   { orgId, actorId, importId, parsed, overrides }: ApplyArgs
 ): Promise<ApplyResult> {
-  const [existingMembers, instructors] = await Promise.all([
+  const [existingMembers, instructors] = await inTurn([
     tx.member.findMany({
       where: { orgId },
-      select: { id: true, fullName: true, studentId: true, email: true },
+      select: { id: true, fullName: true, studentId: true, email: true, overriddenFields: true },
     }),
     tx.instructor.findMany({
       where: { orgId },
@@ -70,12 +71,15 @@ export async function applyParsedSheet(
   const { matched, unmatched } = matchMembers(parsed.members, existingMembers)
   const memberIdByRow = new Map<number, string>()
 
+  const kept = new Map(existingMembers.map((member) => [member.id, member.overriddenFields]))
   for (const match of matched) {
     const row = match.row
     await tx.member.update({
       where: { id: match.memberId },
       data: {
-        fullName: row.fullName,
+        // A name somebody corrected in the portal — the member themselves,
+        // in Settings — is theirs; the sheet's hand-typed one doesn't undo it.
+        fullName: kept.get(match.memberId)?.includes('fullName') ? undefined : row.fullName,
         // `?? undefined` rather than `?? null`: a blank cell in this term's
         // sheet is not evidence that a phone number the club already has is
         // wrong, and overwriting it with null would lose it.

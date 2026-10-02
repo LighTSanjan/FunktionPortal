@@ -24,6 +24,10 @@ model User {
   signatureImagePath  String?   @map("signature_image_path")
   signatureUpdatedAt  DateTime? @map("signature_updated_at")
 
+  /// Object key of the photo they chose for themselves, in the private
+  /// bucket. Streamed back by /api/photo, never linked to directly.
+  photoPath String? @map("photo_path")
+
   /// The student ID this account says it belongs to, waiting for an exco
   /// member to confirm. Student IDs are unique, which makes them the right
   /// key; they are printed on every attendance sheet and run sequentially,
