@@ -209,7 +209,10 @@ export async function listResponses(userId: string, orgId: string, termId: strin
       submittedAt: row.submittedAt,
       updatedAt: row.updatedAt,
       matchedByName: row.matchedBy?.name ?? null,
-      joiningAs: row.user.joiningAs,
+      // Null when row-level security hides the respondent: the exco see only
+      // the accounts of people who share the club, and one response from
+      // somebody outside it must not take the whole list down.
+      joiningAs: row.user?.joiningAs ?? null,
       graduationYear: row.graduationYear,
       candidates,
       idTakenBy,

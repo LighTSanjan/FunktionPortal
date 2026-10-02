@@ -104,6 +104,12 @@ export default async function CollectionPage({
     listResponses(userId, org.id, term.id),
   ])
 
+  // Somebody who sent the form is matched from their response, which carries
+  // what they told the club; listing them here as well would offer the same
+  // person twice, once without any of it.
+  const responded = new Set(responses.map((response) => response.userId))
+  const unlinkedAccounts = unlinked.accounts.filter((account) => !responded.has(account.userId))
+
   const defaultTab: Tab = term.closed ? 'deposit' : form.state === 'DRAFT' ? 'form' : form.state === 'OPEN' ? 'responses' : 'payments'
   const tab: Tab = TABS.some((t) => t.key === tabParam) ? (tabParam as Tab) : defaultTab
   const show = showParam as Filter | undefined
@@ -314,13 +320,13 @@ export default async function CollectionPage({
             />
           </Panel>
 
-          {unlinked.accounts.length > 0 && unlinked.members.length > 0 && (
+          {unlinkedAccounts.length > 0 && unlinked.members.length > 0 && (
             <Panel
               title="Signed in, but not on the roster"
               description="People are matched automatically when they sign in with the email on the roster, or their student-ID address (1001234@mymail.sutd.edu.sg). These signed in another way and haven’t filled in the form. Where they gave a student ID, the row is already picked."
             >
               <ul className="space-y-3">
-                {unlinked.accounts.map((account) => (
+                {unlinkedAccounts.map((account) => (
                   <li key={account.userId}>
                     <LinkForm orgSlug={orgSlug} account={account} members={unlinked.members} />
                   </li>

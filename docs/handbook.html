@@ -301,7 +301,7 @@ footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line);
       <tr><td><code>src/core/db</code></td><td><code>dbAs</code> (RLS-scoped, for everything) and <code>dbAdmin</code> (bypasses RLS, core code only)</td></tr>
       <tr><td><code>src/core/…</code></td><td><code>audit</code>, <code>alerts</code>, <code>crypto</code> (field encryption), <code>storage</code>, <code>permissions</code>, <code>register</code>, <code>ui</code> (components and the app shell)</td></tr>
       <tr><td><code>src/modules/fees</code></td><td>Fee rules and money: <code>payment-actions</code>, <code>collection-actions</code>, <code>member-actions</code>, tiers, GST, proofs, QR, the deposit form, the term summary</td></tr>
-      <tr><td><code>src/modules/membership-form</code></td><td>A term's join-and-pay form: questions, responses, matching responses to roster rows</td></tr>
+      <tr><td><code>src/modules/membership-form</code></td><td>A term's join-and-pay form: <code>form-actions</code> (setting it up), <code>submit-actions</code> (a member sending it), <code>response-actions</code> (matching responses to roster rows), questions, queries</td></tr>
       <tr><td><code>src/modules/coach-claim</code></td><td>Classes, rates, the monthly run, invoices and attendance sheets (.docx, preview, print), snapshots</td></tr>
       <tr><td><code>src/modules/attendance</code></td><td>Reading the trimester CSV, matching members, mapping dates, applying</td></tr>
       <tr><td><code>src/modules/…</code></td><td><code>references</code> (numbering), <code>funds</code>, <code>register</code>, <code>signatures</code>, <code>workflow</code> (the job cards on the home screen), <code>branding</code></td></tr>

@@ -76,6 +76,11 @@ describe('the demo sign-in', () => {
     await settleDemoPersona(member.id, 'member')
     expect(await dbAdmin.organisationMembership.findFirst({ where: { userId: member.id } })).toMatchObject({ role: 'MEMBER' })
     expect((await dbAdmin.member.findUniqueOrThrow({ where: { id: ada.id } })).userId).toBe(member.id)
+
+    // A tester approved her for the exco; the next one still gets a member.
+    await dbAdmin.organisationMembership.updateMany({ where: { userId: member.id }, data: { role: 'EXCO', office: 'SECRETARY' } })
+    await settleDemoPersona(member.id, 'member')
+    expect(await dbAdmin.organisationMembership.findFirst({ where: { userId: member.id } })).toMatchObject({ role: 'MEMBER', office: null })
   })
 
   it('gives every newcomer an account of their own', async () => {

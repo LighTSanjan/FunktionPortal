@@ -26,7 +26,7 @@ function atMidnight(d: Date): number {
 }
 
 /** Return the latest rate starting on or before the date. */
-export function rateForDate(rates: RateSchedule[], on: Date, instructorName = 'this instructor'): number {
+export function rateForDate(rates: RateSchedule[], on: Date, instructorName = 'this coach'): number {
   const when = atMidnight(on)
 
   const applicable = rates

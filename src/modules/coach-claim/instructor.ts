@@ -12,7 +12,7 @@ const REQUIRED: Array<{ key: keyof InstructorDetails; label: string; because: st
 export class IncompleteInstructorError extends Error {
   constructor(readonly missing: string[], instructorName?: string) {
     super(
-      `Cannot raise an invoice for ${instructorName || 'this instructor'}: ` +
+      `Cannot raise an invoice for ${instructorName || 'this coach'}: ` +
         `missing ${missing.join(', ')}. ` +
         'A guest coach has no contract on file to recover these from, so they have to be entered.',
     )

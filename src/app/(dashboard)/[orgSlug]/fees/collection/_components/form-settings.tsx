@@ -1,7 +1,8 @@
 'use client'
 
 import { useActionState } from 'react'
-import { saveFormSettings, type FormActionState } from '@/modules/membership-form/actions'
+import { saveFormSettings } from '@/modules/membership-form/form-actions'
+import type { FormActionState } from '@/modules/membership-form/action-state'
 import { Button } from '@/core/ui/button'
 import { Textarea } from '@/core/ui/textarea'
 import { Label } from '@/core/ui/label'

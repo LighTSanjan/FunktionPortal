@@ -16,12 +16,13 @@ import { deflateSync } from 'node:zlib'
 import { createClient } from '@supabase/supabase-js'
 import { dbAdmin } from '../../src/core/db/admin'
 import { BUCKET } from '../../src/core/storage'
-import { addRosterMember, createOrganisation, resetDatabase } from '../../src/test/integration/harness'
+import { addRosterMember, createOrganisation, createUser, join, resetDatabase } from '../../src/test/integration/harness'
 
 const DAY = 86_400_000
-// The same two as core/auth/demo.ts, which cannot be imported outside Next.
+// The same as core/auth/demo.ts, which cannot be imported outside Next.
 const DEMO_ORG_SLUG = 'demo'
-const DEMO_MEMBER_EMAIL = 'ada@demo.funktion.test'
+const DEMO_DOMAIN = 'demo.funktion.test'
+const DEMO_MEMBER_EMAIL = `ada@${DEMO_DOMAIN}`
 
 const ROSTER: Array<{ fullName: string; label?: string; email?: string }> = [
   { fullName: 'Ada Lee', email: DEMO_MEMBER_EMAIL },
@@ -171,7 +172,9 @@ async function main() {
   })
 
   // A collection a week in: some paid and confirmed, some waiting for the
-  // exco to look, one sent back. Ada has not paid, so she can try it.
+  // exco to look, one sent back. Ada has not paid, so she can try it. Paying
+  // goes through the form, so everybody who paid has an account and a
+  // response.
   const fee = (label?: string) =>
     label === '1/2 term'
       ? { tier: 'HALF' as const, amountCents: 3500 }
@@ -182,6 +185,21 @@ async function main() {
   for (const [i, status] of plan.entries()) {
     const member = members[i + 1]
     const declaredAt = new Date(today - (6 - (i % 6)) * DAY + 13 * 3_600_000)
+    const user = await respondent(member.fullName)
+    await dbAdmin.member.update({ where: { id: member.id }, data: { userId: user.id } })
+    await dbAdmin.membershipResponse.create({
+      data: {
+        orgId: org.id,
+        termId: term.id,
+        userId: user.id,
+        memberId: member.id,
+        email: user.email,
+        fullName: member.fullName,
+        studentId: member.studentId,
+        submittedAt: declaredAt,
+        updatedAt: declaredAt,
+      },
+    })
     const proof = await put(`fee-proof/${term.id}/${member.id}/${randomUUID()}.png`, fakeScreenshot(i))
     await dbAdmin.feePayment.create({
       data: {
@@ -192,12 +210,41 @@ async function main() {
         status,
         source: 'DECLARATION',
         declaredAt,
+        declaredByUserId: user.id,
         paymentReference: `DEMO${String(4821 + i * 37).padStart(6, '0')}`,
         paymentProofPath: proof,
         confirmedAt: status === 'CONFIRMED' ? new Date(declaredAt.getTime() + DAY) : null,
         rejectedReason: status === 'REJECTED' ? 'The screenshot shows $35, and you are on the full-term rate.' : null,
       },
     })
+  }
+
+  // Somebody new who filled in the form and paid before the exco put them on
+  // the roster: their payment waits on the response until somebody does.
+  const heldAt = new Date(today - 2 * DAY + 12 * 3_600_000)
+  const stranger = await respondent('Priscilla Ho')
+  await dbAdmin.membershipResponse.create({
+    data: {
+      orgId: org.id,
+      termId: term.id,
+      userId: stranger.id,
+      email: stranger.email,
+      fullName: stranger.fullName,
+      studentId: '1009150',
+      submittedAt: heldAt,
+      updatedAt: heldAt,
+      heldReference: 'DEMO005321',
+      heldProofPath: await put(`fee-proof/${term.id}/unmatched-${stranger.id}/${randomUUID()}.png`, fakeScreenshot(10)),
+      heldAmountCents: 7000,
+      heldAt,
+    },
+  })
+
+  /** A made-up member's portal account, as if they had signed in once. */
+  async function respondent(fullName: string) {
+    const user = await createUser(fullName, `${fullName.toLowerCase().replace(/\W+/g, '.')}@${DEMO_DOMAIN}`)
+    await join(user, org, 'MEMBER')
+    return { ...user, fullName }
   }
 
   await dbAdmin.$disconnect()

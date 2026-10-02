@@ -10,7 +10,9 @@ import { saveWelcome } from '@/actions/welcome'
 import { requestAccess } from '@/actions/access'
 import { getStanding, requireFullMember } from '@/core/auth/standing'
 import { createTerm, updateTerm, uploadPaynowQr } from '@/modules/fees/collection-actions'
-import { matchResponse, setFormState, submitMembershipForm } from '@/modules/membership-form/actions'
+import { setFormState } from '@/modules/membership-form/form-actions'
+import { matchResponse } from '@/modules/membership-form/response-actions'
+import { submitMembershipForm } from '@/modules/membership-form/submit-actions'
 import { listResponses } from '@/modules/membership-form/queries'
 import {
   addRosterMember,

@@ -15,9 +15,9 @@ export function formatCents(cents: number): string {
   return `${negative ? '-' : ''}${dollars}.${remainder}`
 }
 
-/** 1530_00 -> "$1,530.00" */
+/** 1530_00 -> "$1,530.00", and -45_50 -> "-$45.50" */
 export function formatSgd(cents: number): string {
-  return `$${formatCents(cents)}`
+  return `${cents < 0 ? '-' : ''}$${formatCents(Math.abs(cents))}`
 }
 
 /**

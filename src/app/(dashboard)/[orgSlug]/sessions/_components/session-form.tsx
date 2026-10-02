@@ -30,10 +30,13 @@ export function SessionForm({
   )
 
   // The action returns rather than redirecting so the form can show its own
-  // errors; navigating on success is this component's job.
+  // errors; navigating on success is this component's job. A new class goes
+  // to its own page, where its attendance is marked, and which is found
+  // whichever month it was in.
   React.useEffect(() => {
-    if (state.ok && !state.error) router.push(returnTo)
-  }, [state.ok, state.error, router, returnTo])
+    if (!state.ok || state.error) return
+    router.push(state.createdId ? `/${orgSlug}/sessions/${state.createdId}` : returnTo)
+  }, [state.ok, state.error, state.createdId, router, orgSlug, returnTo])
 
   return (
     <form action={formAction} className="space-y-5">

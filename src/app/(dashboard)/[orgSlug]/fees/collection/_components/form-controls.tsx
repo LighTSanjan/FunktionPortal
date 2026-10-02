@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
-import { setFormState } from '@/modules/membership-form/actions'
+import { setFormState } from '@/modules/membership-form/form-actions'
 import { Button } from '@/core/ui/button'
 import { linkButtonClass } from '../../_components/ui'
 

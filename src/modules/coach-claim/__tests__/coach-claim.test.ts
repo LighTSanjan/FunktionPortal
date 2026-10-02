@@ -76,6 +76,7 @@ describe('money', () => {
     expect(formatCents(5)).toBe('0.05')
     expect(formatCents(153000)).toBe('1,530.00')
     expect(formatSgd(153000)).toBe('$1,530.00')
+    expect(formatSgd(-4550)).toBe('-$45.50')
   })
 
   it('charges a part hour without losing a cent', () => {

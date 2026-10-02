@@ -40,12 +40,12 @@ export function InstructorForm({
     { error: null }
   )
 
-  // A new instructor has no page of its own to return to, so the list is where
-  // "saved" is actually visible. Editing stays put: the rate panel sits below
-  // this form and bouncing away from it would make adding a rate a two-trip job.
+  // A new coach goes to their own page, where the rate panel is: a coach
+  // without a rate cannot be invoiced, so that is the next thing to do.
+  // Editing stays put, for the same reason.
   useEffect(() => {
-    if (state.ok && !values.id) router.push(`/${orgSlug}/instructors`)
-  }, [state.ok, values.id, orgSlug, router])
+    if (state.ok && state.createdId) router.push(`/${orgSlug}/instructors/${state.createdId}`)
+  }, [state.ok, state.createdId, orgSlug, router])
 
   return (
     <form action={formAction} className="space-y-6">
@@ -155,7 +155,7 @@ export function InstructorForm({
 
       <div className="flex items-center gap-3">
         <Button type="submit" loading={pending}>
-          {values.id ? 'Save changes' : 'Add instructor'}
+          {values.id ? 'Save changes' : 'Add coach'}
         </Button>
         {state.ok && values.id && (
           <span className="text-[13px] text-success" role="status">

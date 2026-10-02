@@ -48,10 +48,10 @@ export function proofFromProviderSignIn(
   if (!email) return null
 
   const latest = [...(user.identities ?? [])]
-    .filter((identity) => identity.last_sign_in_at)
-    .sort((a, b) => Date.parse(b.last_sign_in_at!) - Date.parse(a.last_sign_in_at!))[0]
+    .filter((identity) => signedInAt(identity) > 0)
+    .sort((a, b) => signedInAt(b) - signedInAt(a))[0]
   if (!latest) return null
-  if (now.getTime() - Date.parse(latest.last_sign_in_at!) > FRESH_MS) return null
+  if (now.getTime() - signedInAt(latest) > FRESH_MS) return null
 
   const data = (latest.identity_data ?? {}) as Record<string, unknown>
   if (String(data.email ?? '').toLowerCase() !== email) return null
@@ -63,6 +63,17 @@ export function proofFromProviderSignIn(
     return azureVouches(data) ? { method: 'azure' } : null
   }
   return null
+}
+
+/**
+ * When this identity last signed in. Supabase sets last_sign_in_at when the
+ * identity is created and never again; it is updated_at that moves, because
+ * every sign-in through a provider rewrites the identity's data. Going by
+ * last_sign_in_at alone, an account whose first provider sign-in did not
+ * prove it could never be proven by that provider again.
+ */
+function signedInAt(identity: { last_sign_in_at?: string; updated_at?: string }): number {
+  return Math.max(Date.parse(identity.last_sign_in_at ?? '') || 0, Date.parse(identity.updated_at ?? '') || 0)
 }
 
 function azureVouches(data: Record<string, unknown>): boolean {

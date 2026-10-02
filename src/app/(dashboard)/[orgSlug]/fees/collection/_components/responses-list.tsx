@@ -1,7 +1,8 @@
 'use client'
 
 import { useActionState, useMemo, useState, useTransition } from 'react'
-import { clearHeldPayment, matchResponse, removeResponse, type FormActionState } from '@/modules/membership-form/actions'
+import { clearHeldPayment, matchResponse, removeResponse } from '@/modules/membership-form/response-actions'
+import type { FormActionState } from '@/modules/membership-form/action-state'
 import { answerText, type Answer } from '@/modules/membership-form/questions'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { Badge } from '@/core/ui/badge'

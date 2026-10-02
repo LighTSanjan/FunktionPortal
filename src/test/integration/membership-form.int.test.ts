@@ -8,17 +8,9 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { createTerm, updateTerm, uploadPaynowQr, closeCollection } from '@/modules/fees/collection-actions'
 import { confirmPayment, recordPayment } from '@/modules/fees/payment-actions'
 import { listCollection } from '@/modules/fees/queries'
-import {
-  clearHeldPayment,
-  deleteQuestion,
-  matchResponse,
-  removeResponse,
-  saveAudience,
-  saveFormSettings,
-  saveQuestion,
-  setFormState,
-  submitMembershipForm,
-} from '@/modules/membership-form/actions'
+import { deleteQuestion, saveAudience, saveFormSettings, saveQuestion, setFormState } from '@/modules/membership-form/form-actions'
+import { clearHeldPayment, matchResponse, removeResponse } from '@/modules/membership-form/response-actions'
+import { submitMembershipForm } from '@/modules/membership-form/submit-actions'
 import { getForm, listResponses } from '@/modules/membership-form/queries'
 import {
   addRosterMember,
@@ -216,6 +208,17 @@ describe('the membership form', () => {
     await ok(() => submitMembershipForm(org.slug, blank, form({ termId, fullName: 'Ada Lee', studentId: '1000001', tier: 'FULL', [`q_${questionId}`]: '@ada' })))
     const answers = (await responseOf(ada))?.answers as { label: string; value: string }[]
     expect(answers.map((a) => [a.label, a.value])).toEqual([['Telegram handle', '@ada'], ['Shirt size', 'M']])
+  })
+
+  it('lists a response whose sender the exco cannot see', async () => {
+    // Row-level security shows the exco only accounts that share the club.
+    const outsider = await createUser('Oz Outside')
+    const response = await dbAdmin.membershipResponse.create({
+      data: { orgId: org.id, termId, userId: outsider.id, email: outsider.email, fullName: 'Oz Outside' },
+    })
+    const listed = (await listResponses(treasurer.id, org.id, termId)).find((r) => r.id === response.id)
+    expect(listed?.joiningAs).toBeNull()
+    await dbAdmin.membershipResponse.delete({ where: { id: response.id } })
   })
 
   describe('somebody not on the roster yet', () => {
