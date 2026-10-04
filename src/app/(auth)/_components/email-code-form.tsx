@@ -55,7 +55,7 @@ export function EmailCodeForm({ fixedEmail, localMailbox }: { fixedEmail?: strin
     <div className="space-y-4">
       <p className="text-[13.5px] leading-relaxed text-text-muted">
         If <span className="font-medium break-all text-text">{sentTo}</span> can use the portal, a code is on
-        its way from Supabase.
+        its way.
       </p>
 
       {localMailbox && (
@@ -144,7 +144,7 @@ function CodeHelp({ email, offerAlternatives }: { email: string; offerAlternativ
       <div className="space-y-2 px-3 pb-3">
         {gmail ? (
           <p>
-            Give it a minute, then check Spam and the Promotions tab for an email from Supabase.
+            Give it a minute, then check Spam and the Promotions tab for your FUNKtion sign-in code.
           </p>
         ) : (
           <>
@@ -165,7 +165,7 @@ function CodeHelp({ email, offerAlternatives }: { email: string; offerAlternativ
                 </a>{' '}
                 and sign in with your SUTD account.
               </li>
-              <li>Find the email from Supabase and select it.</li>
+              <li>Find the email with your sign-in code and select it.</li>
               <li>Choose Release, or Request release. It reaches your inbox in a minute or two.</li>
             </ol>
             {offerAlternatives && <p>Still nothing? Sign in with Google, or use a Gmail address.</p>}
