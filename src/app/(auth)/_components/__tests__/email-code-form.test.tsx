@@ -1,11 +1,15 @@
-import { describe, it, expect, vi } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 
+import type { CodeState } from '@/actions/auth'
+
+const sendResult = vi.hoisted(() => ({ next: null as null | ((email: string) => CodeState) }))
+
 vi.mock('@/actions/auth', () => ({
-  requestEmailCode: vi.fn(async (_state: unknown, data: FormData) => ({
-    error: null,
-    sentTo: String(data.get('email')),
-  })),
+  requestEmailCode: vi.fn(async (_state: unknown, data: FormData) => {
+    const email = String(data.get('email'))
+    return sendResult.next ? sendResult.next(email) : { error: null, sentTo: email }
+  }),
   verifyEmailCode: vi.fn(async () => ({ error: null })),
 }))
 
@@ -21,6 +25,37 @@ async function askForCode(email: string, props: Parameters<typeof EmailCodeForm>
   await screen.findByLabelText(/Code/)
   return screen.getByText('Don’t see the code?').closest('details')!
 }
+
+describe('EmailCodeForm, asking again', () => {
+  afterEach(() => {
+    sendResult.next = null
+  })
+
+  it('holds "Send a new code" until Supabase would send another', async () => {
+    sendResult.next = (email) => ({ error: null, sentTo: email, retryAt: Date.now() + 45_000 })
+    await askForCode('ada@mymail.sutd.edu.sg')
+    const resend = screen.getByRole('button', { name: /Send a new code in 4\ds/ })
+    expect(resend).toBeDisabled()
+  })
+
+  it('lets "Send a new code" go once the wait is over', async () => {
+    sendResult.next = (email) => ({ error: null, sentTo: email, retryAt: Date.now() - 1 })
+    await askForCode('ada@mymail.sutd.edu.sg')
+    expect(screen.getByRole('button', { name: 'Send a new code' })).toBeEnabled()
+  })
+
+  it('keeps the code box up when the hour’s codes are used, and says why instead of "on its way"', async () => {
+    sendResult.next = (email) => ({
+      error: 'That’s the most codes one address can ask for in an hour. Use the newest one you got, or ask again in 12 minutes.',
+      sentTo: email,
+      retryAt: Date.now() + 12 * 60_000,
+    })
+    await askForCode('ada@mymail.sutd.edu.sg')
+    expect(screen.getByRole('alert')).toHaveTextContent(/ask again in 12 minutes/)
+    expect(screen.queryByText(/a code is on/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Send a new code in 12 min' })).toBeDisabled()
+  })
+})
 
 describe('EmailCodeForm, when the code does not arrive', () => {
   it('starts closed, so the code box stays the first thing on the screen', async () => {
