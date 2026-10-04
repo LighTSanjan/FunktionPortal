@@ -139,16 +139,19 @@ async function main() {
     })
   }
 
-  // IV opens at 13. 0001-0002 went to the previous exco; the FY2026 register
+  // IV opens at 15. 0001-0002 went to the previous exco; the FY2026 register
   // records 0003-0004 against March, 0005-0006 against April and 0007-0008
   // against May. The register left June and July unnumbered; the Office of
   // Finance has since confirmed they took 0009-0012 (Neo Renyi June, Lim Kah
-  // Sing June, Neo Renyi July, Lim Kah Sing July). Opening any lower reissues
-  // numbers already sitting with Finance, which is what happened to the first
-  // two August invoices: they were issued 0010 and 0011 and had to be
-  // renumbered 0013 and 0014.
+  // Sing June, Neo Renyi July, Lim Kah Sing July). 0013 and 0014 are the two
+  // August invoices, first issued as 0010 and 0011 and renumbered when
+  // Finance pointed out the clash. Opening any lower reissues numbers already
+  // sitting with Finance.
+  //
+  // The upsert never moves an existing counter, so this only decides where a
+  // fresh database starts. A live one keeps whatever it has allocated since.
   const counters = [
-    { series: 'IV' as const, nextSequence: 13 },
+    { series: 'IV' as const, nextSequence: 15 },
     { series: 'SCF' as const, nextSequence: 1 },
     { series: 'PO' as const, nextSequence: 1 },
     { series: 'INC' as const, nextSequence: 1 },

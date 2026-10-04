@@ -87,6 +87,13 @@ async function main() {
       brandBandColors: ['F05820', 'F8A838', '58C0E8', '304890'],
     },
   })
+  // The harness opens every counter at 1. The real club's FY2026 invoices
+  // carry on from 0015 (see prisma/seed.ts), and the demo should number the
+  // same way so testers see what the exco will.
+  await dbAdmin.referenceCounter.update({
+    where: { orgId_series_financialYear: { orgId: org.id, series: 'IV', financialYear: 2026 } },
+    data: { nextSequence: 15 },
+  })
 
   const coaches = []
   for (const [i, coach] of [

@@ -533,7 +533,7 @@ footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line);
       <tr><td><code>PO</code></td><td>Purchase order</td><td><code>PO26-097-0001</code></td></tr>
     </tbody>
   </table></div>
-  <p>A number is allocated by one atomic <code>UPDATE … RETURNING</code> inside the transaction that writes the document, so two people can never get the same one. Issued numbers are never deleted: voiding marks the number void with a reason, so every gap in a series can be explained. FY2026's <code>IV</code> counter opens at 13, because 0001 to 0012 were issued before the portal. It first opened at 10, and the August invoices had to be renumbered from 0010 and 0011 to 0013 and 0014 when Finance pointed out that June and July had used 0009 to 0012.</p>
+  <p>A number is allocated by one atomic <code>UPDATE … RETURNING</code> inside the transaction that writes the document, so two people can never get the same one. Issued numbers are never deleted: voiding marks the number void with a reason, so every gap in a series can be explained. FY2026's <code>IV</code> counter opens at 15, because 0001 to 0012 were issued before the portal and 0013 and 0014 went to the August invoices. The counter first opened at 10, and those two invoices had to be renumbered from 0010 and 0011 when Finance pointed out that June and July had used 0009 to 0012.</p>
   <h3>GST</h3>
   <p>GST is derived, never typed. From a gross amount: net = gross × 10000 / (10000 + rate), and GST is the remainder, so net + GST always equals gross to the cent. The rate is a setting in basis points (900 for 9%).</p>
   <h3>Funds</h3>

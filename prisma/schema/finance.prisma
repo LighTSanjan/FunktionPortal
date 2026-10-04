@@ -24,9 +24,10 @@ model ReferenceCounter {
   /// concurrent generations can never receive the same number.
   ///
   /// Seeded from what has already been issued OUTSIDE the portal, not from 1.
-  /// FY2026 opens at 13 for IV: 0001-0002 went to the previous exco and
+  /// FY2026 opens at 15 for IV: 0001-0002 went to the previous exco,
   /// 0003-0012 covered March to July, the last four confirmed by the Office
-  /// of Finance rather than the register. The atomic allocation below cannot
+  /// of Finance rather than the register, and 0013-0014 are the two August
+  /// invoices, renumbered from 0010-0011. The atomic allocation below cannot
   /// protect against a collision that predates the portal, so the opening
   /// value is the one number here worth checking twice.
   nextSequence  Int       @default(1) @map("next_sequence")
