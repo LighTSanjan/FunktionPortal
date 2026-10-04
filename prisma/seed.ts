@@ -139,18 +139,16 @@ async function main() {
     })
   }
 
-  // IV opens at 10. 0001-0002 went to the previous exco; the FY2026 register
+  // IV opens at 13. 0001-0002 went to the previous exco; the FY2026 register
   // records 0003-0004 against March, 0005-0006 against April and 0007-0008
-  // against May. August ran no classes. Starting at 1 would reissue numbers
-  // already sitting with the Office of Finance.
-  //
-  // The register's four June and July coach rows carry no reference number at
-  // all, which leaves only 0009 to account for four submitted documents.
-  // Either three numbers were issued and never written back to the sheet, or
-  // three submissions went out unnumbered. Opening at 10 is safe under either
-  // reading; which one is true is a question for OSL, not for the seed.
+  // against May. The register left June and July unnumbered; the Office of
+  // Finance has since confirmed they took 0009-0012 (Neo Renyi June, Lim Kah
+  // Sing June, Neo Renyi July, Lim Kah Sing July). Opening any lower reissues
+  // numbers already sitting with Finance, which is what happened to the first
+  // two August invoices: they were issued 0010 and 0011 and had to be
+  // renumbered 0013 and 0014.
   const counters = [
-    { series: 'IV' as const, nextSequence: 10 },
+    { series: 'IV' as const, nextSequence: 13 },
     { series: 'SCF' as const, nextSequence: 1 },
     { series: 'PO' as const, nextSequence: 1 },
     { series: 'INC' as const, nextSequence: 1 },

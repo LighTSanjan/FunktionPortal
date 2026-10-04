@@ -30,14 +30,17 @@ export const SEED_FUND_ROWS: RegisterRow[] = [
   { reference: 'IV26-097-0005', description: 'Popping Instructor Fee April', documentDate: '2026-05-16', payeeName: 'Lim Kah Sing', withoutGstCents: 40_500, withGstCents: 40_500, incomeCents: null, submittedToOsl: '2026-05-16', bankedIn: null },
   { reference: 'IV26-097-0007', description: 'Locking Instructor Fee May', documentDate: '2026-06-17', payeeName: 'Neo Renyi', withoutGstCents: 13_500, withGstCents: 13_500, incomeCents: null, submittedToOsl: '2026-06-17', bankedIn: null },
   { reference: 'IV26-097-0008', description: 'Popping Instructor Fee May', documentDate: '2026-06-17', payeeName: 'Lim Kah Sing', withoutGstCents: 27_000, withGstCents: 27_000, incomeCents: null, submittedToOsl: '2026-06-17', bankedIn: null },
-  // The four below carry no reference number in the register and have their
-  // without-GST cell blank. Both omissions are real and both matter: the blank
-  // cells are why the register's own Seed Fund balance reads $1,520.00 instead
-  // of $305.00, since that formula subtracts the without-GST column.
-  { reference: null, description: 'Locking Instructor Fee June', documentDate: '2026-08-17', payeeName: 'Neo Renyi', withoutGstCents: null, withGstCents: 27_000, incomeCents: null, submittedToOsl: '2026-08-17', bankedIn: null, note: 'No reference number recorded; without-GST cell blank in the register' },
-  { reference: null, description: 'Popping Instructor Fee June', documentDate: '2026-08-17', payeeName: 'Lim Kah Sing', withoutGstCents: null, withGstCents: 40_500, incomeCents: null, submittedToOsl: '2026-08-17', bankedIn: null, note: 'No reference number recorded; without-GST cell blank in the register' },
-  { reference: null, description: 'Locking Instructor Fee July', documentDate: '2026-08-17', payeeName: 'Neo Renyi', withoutGstCents: null, withGstCents: 40_500, incomeCents: null, submittedToOsl: '2026-08-17', bankedIn: null, note: 'No reference number recorded; without-GST cell blank in the register' },
-  { reference: null, description: 'Popping Instructor Fee July', documentDate: '2026-08-17', payeeName: 'Lim Kah Sing', withoutGstCents: null, withGstCents: 13_500, incomeCents: null, submittedToOsl: '2026-08-17', bankedIn: null, note: 'No reference number recorded; without-GST cell blank in the register' },
+  // The register gives the four below no reference number and leaves their
+  // without-GST cell blank. The numbers came from the Office of Finance on
+  // 3 Oct 2026, when it asked for the August invoices to be renumbered 0013
+  // and 0014 because 0010 and 0011 were already taken by these. The blank
+  // without-GST cells still matter: they are why the register's own Seed Fund
+  // balance reads $1,520.00 instead of $305.00, since that formula subtracts
+  // the without-GST column.
+  { reference: 'IV26-097-0009', description: 'Locking Instructor Fee June', documentDate: '2026-08-17', payeeName: 'Neo Renyi', withoutGstCents: null, withGstCents: 27_000, incomeCents: null, submittedToOsl: '2026-08-17', bankedIn: null, note: 'Reference number from the Office of Finance, not the register; without-GST cell blank in the register' },
+  { reference: 'IV26-097-0010', description: 'Popping Instructor Fee June', documentDate: '2026-08-17', payeeName: 'Lim Kah Sing', withoutGstCents: null, withGstCents: 40_500, incomeCents: null, submittedToOsl: '2026-08-17', bankedIn: null, note: 'Reference number from the Office of Finance, not the register; without-GST cell blank in the register' },
+  { reference: 'IV26-097-0011', description: 'Locking Instructor Fee July', documentDate: '2026-08-17', payeeName: 'Neo Renyi', withoutGstCents: null, withGstCents: 40_500, incomeCents: null, submittedToOsl: '2026-08-17', bankedIn: null, note: 'Reference number from the Office of Finance, not the register; without-GST cell blank in the register' },
+  { reference: 'IV26-097-0012', description: 'Popping Instructor Fee July', documentDate: '2026-08-17', payeeName: 'Lim Kah Sing', withoutGstCents: null, withGstCents: 13_500, incomeCents: null, submittedToOsl: '2026-08-17', bankedIn: null, note: 'Reference number from the Office of Finance, not the register; without-GST cell blank in the register' },
 ]
 
 export const INCOME_ROWS: RegisterRow[] = [
