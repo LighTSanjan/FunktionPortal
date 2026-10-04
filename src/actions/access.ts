@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import { z } from 'zod'
 import { verifySession, getOrgContext, requirePermission } from '@/core/auth/dal'
 import { getStanding } from '@/core/auth/standing'
@@ -13,6 +14,7 @@ import {
   findRequest,
   settleRequest,
 } from '@/core/access'
+import { notifyAccessRequested } from '@/core/access/notify'
 
 export interface AccessActionState {
   error: string | null
@@ -79,6 +81,17 @@ export async function requestAccess(
     // The partial unique index on (org, user) WHERE status = 'PENDING'.
     return { error: 'You already have a request waiting. Withdraw it before raising another.' }
   }
+
+  // After the response: the person asking sees "sent" at once, and a slow
+  // mail server never holds their request up.
+  after(() =>
+    notifyAccessRequested({
+      org,
+      requesterId: userId,
+      requestedOffice: parsed.data.requestedOffice,
+      reason: parsed.data.reason,
+    })
+  )
 
   revalidatePath(`/${orgSlug}/access`)
   return { error: null, ok: true }
