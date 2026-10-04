@@ -48,6 +48,11 @@ export function MembershipForm(props: MembershipFormProps) {
   const { orgSlug, termId, questions, identity, fee, payment, previous, preview } = props
   const router = useRouter()
   const [screenshot, setScreenshot] = useState<string | null>(null)
+  // The QR and the payment fields stay folded until they choose to pay, so
+  // the page never asks for a reference to a payment they haven't made. The
+  // preview shows everything.
+  const [paying, setPaying] = useState(preview)
+  const paySectionRef = useRef<HTMLElement>(null)
   const [state, act, pending] = useActionState<FormActionState, FormData>(
     submitMembershipForm.bind(null, orgSlug),
     { error: null }
@@ -67,6 +72,16 @@ export function MembershipForm(props: MembershipFormProps) {
     first?.scrollIntoView({ block: 'center', behavior: 'smooth' })
     if (first instanceof HTMLInputElement || first instanceof HTMLSelectElement) first.focus({ preventScroll: true })
   }, [state])
+
+  useEffect(() => {
+    const open = () => {
+      setPaying(true)
+      // After the section has unfolded, so it lands at the top of the screen.
+      requestAnimationFrame(() => paySectionRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }))
+    }
+    window.addEventListener(PAY_EVENT, open)
+    return () => window.removeEventListener(PAY_EVENT, open)
+  }, [])
 
   const errors = state.fieldErrors ?? {}
   const amountCents = fee.amountCents
@@ -164,8 +179,16 @@ export function MembershipForm(props: MembershipFormProps) {
         </Section>
       )}
 
-      <Section n={++section} title="Pay">
-        {!asksForPayment ? (
+      <Section n={++section} title="Pay" id="pay" sectionRef={paySectionRef}>
+        {asksForPayment && !paying ? (
+          <div className="space-y-3">
+            <p className="text-[13.5px] leading-relaxed text-text-muted">
+              By PayNow. You&rsquo;ll get the QR, pay {amount} in your banking app, then send us the reference and a
+              screenshot.
+            </p>
+            <PayButton amount={amount} />
+          </div>
+        ) : !asksForPayment ? (
           <p className="text-[14px] leading-relaxed text-text">
             {amountCents === 0
               ? 'Nothing to pay for this term.'
@@ -252,7 +275,7 @@ export function MembershipForm(props: MembershipFormProps) {
         )}
       </Section>
 
-      <div className="flex flex-wrap items-center gap-3 pt-1">
+      <div className={cn('flex flex-wrap items-center gap-3 pt-1', asksForPayment && !paying && 'hidden')}>
         <Button type="submit" size="lg" loading={pending} disabled={preview}>
           {previous ? 'Save changes' : asksForPayment ? `Send, I’ve paid ${amount}` : 'Send'}
         </Button>
@@ -350,9 +373,36 @@ function ChoicePill({
   )
 }
 
-function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+const PAY_EVENT = 'funktion:pay'
+
+/**
+ * Opens the form's payment section and scrolls to it. Used inside the form
+ * and on the card above it, so paying is one obvious button rather than
+ * something found at the bottom of a long page.
+ */
+export function PayButton({ amount, size }: { amount: string; size?: 'sm' | 'lg' }) {
   return (
-    <section className="rounded-[var(--radius-md)] border border-border bg-surface p-5">
+    <Button type="button" size={size} onClick={() => window.dispatchEvent(new Event(PAY_EVENT))}>
+      Pay {amount}
+    </Button>
+  )
+}
+
+function Section({
+  n,
+  title,
+  id,
+  sectionRef,
+  children,
+}: {
+  n: number
+  title: string
+  id?: string
+  sectionRef?: React.Ref<HTMLElement>
+  children: React.ReactNode
+}) {
+  return (
+    <section ref={sectionRef} id={id} className="scroll-mt-20 rounded-[var(--radius-md)] border border-border bg-surface p-5">
       <h2 className="mb-4 flex items-center gap-2.5 text-[15px] font-semibold text-text">
         <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-ink text-[12px] font-semibold text-surface">
           {n}
