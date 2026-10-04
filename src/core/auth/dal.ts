@@ -80,34 +80,42 @@ export const verifySessionAllowingUnproven = cache(async (): Promise<VerifiedSes
   }
 })
 
+/**
+ * One membership row, read once per request: the layout, the page and every
+ * permission check on it all want the same row.
+ */
+const membershipOf = cache((userId: string, orgId: string) =>
+  retryWithBackoff(
+    () =>
+      dbAdmin.organisationMembership.findUnique({
+        where: { userId_orgId: { userId, orgId } },
+        select: { id: true, role: true, isActive: true },
+      }),
+    (result) => !result
+  )
+)
+
 /** Return an active membership, hiding inaccessible organisations as 404s. */
 export const getOrgContext = cache(
   async (slug: string): Promise<OrgContext> => {
-    const session = await verifySession()
-
-    const org = await retryWithBackoff(
-      () =>
-        dbAdmin.organisation.findUnique({
-          where: { slug },
-          select: { id: true, name: true, slug: true },
-        }),
-      (result) => !result
-    )
+    // Neither needs the other, so neither waits for the other.
+    const [session, org] = await Promise.all([
+      verifySession(),
+      retryWithBackoff(
+        () =>
+          dbAdmin.organisation.findUnique({
+            where: { slug },
+            select: { id: true, name: true, slug: true },
+          }),
+        (result) => !result
+      ),
+    ])
 
     if (!org) {
       notFound()
     }
 
-    const membership = await retryWithBackoff(
-      () =>
-        dbAdmin.organisationMembership.findUnique({
-          where: {
-            userId_orgId: { userId: session.userId, orgId: org.id },
-          },
-          select: { id: true, role: true, isActive: true },
-        }),
-      (result) => !result
-    )
+    const membership = await membershipOf(session.userId, org.id)
 
     if (!membership || !membership.isActive) {
       notFound()
@@ -123,17 +131,7 @@ export async function requirePermission(
   key: string
 ): Promise<{ userId: string; role: OrgRole }> {
   const session = await verifySession()
-
-  const membership = await retryWithBackoff(
-    () =>
-      dbAdmin.organisationMembership.findUnique({
-        where: {
-          userId_orgId: { userId: session.userId, orgId },
-        },
-        select: { role: true, isActive: true },
-      }),
-    (result) => !result
-  )
+  const membership = await membershipOf(session.userId, orgId)
 
   if (!membership || !membership.isActive) {
     throw new PermissionDeniedError(key)
