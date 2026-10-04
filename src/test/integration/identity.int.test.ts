@@ -115,6 +115,23 @@ describe('provisioning an account', () => {
     expect(await membershipOf(stranger.id)).toBeNull()
   })
 
+  it.each(['ada.personal@outlook.com', 'ada@hotmail.com', 'ada@icloud.com', 'ada@yahoo.com.sg', 'ada@gmail.com'])(
+    'lets a proven personal address (%s) join as a member, linked to nobody',
+    async (email) => {
+      const person = supabaseUser(email)
+      await provisionUser(person, CODE)
+      expect((await membershipOf(person.id))?.role).toBe('MEMBER')
+      // A personal address carries no student ID, so Ada's row waits for the exco.
+      expect((await adaRow()).userId).toBeNull()
+    }
+  )
+
+  it('keeps the personal list short: a smaller provider still needs an invitation', async () => {
+    const person = supabaseUser('ada@protonmail.com')
+    await provisionUser(person, CODE)
+    expect(await membershipOf(person.id)).toBeNull()
+  })
+
   it('lets an invited address join, as a member whatever the invitation says, once', async () => {
     const invitation = await dbAdmin.invitation.create({
       data: {

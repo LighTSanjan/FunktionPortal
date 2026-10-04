@@ -15,11 +15,28 @@ import 'server-only'
 import { dbAdmin } from '@/core/db/admin'
 import { listEnv } from './proof'
 
-// Gmail because SUTD's mail filter quarantines the sign-in code as phishing,
-// and a Google sign-in needs no email at all. An account from any of these is
-// a MEMBER that sees only the welcome screen and the join-and-pay form until
-// the exco link it to a roster row — see core/auth/standing.ts.
-const DEFAULT_DOMAINS = ['mymail.sutd.edu.sg', 'alumni.sutd.edu.sg', 'gmail.com']
+// The big personal providers because SUTD's mail filter quarantines the
+// sign-in code as phishing — by October 2026 so hard that codes vanished
+// before reaching even the user-visible quarantine — and a personal inbox is
+// far gentler. A short list, not any domain: every code is sent from the
+// club's mail account, and an open list would let anybody make it mail
+// anybody. An account from any of these is a MEMBER that sees only the
+// welcome screen and the join-and-pay form until the exco link it to a roster
+// row (core/auth/standing.ts); a personal address carries no student ID, so
+// that link is the exco confirming the ID the person claims.
+export const SUTD_DOMAINS = ['mymail.sutd.edu.sg', 'alumni.sutd.edu.sg']
+export const PERSONAL_DOMAINS = [
+  'gmail.com',
+  'googlemail.com',
+  'outlook.com',
+  'hotmail.com',
+  'live.com',
+  'icloud.com',
+  'me.com',
+  'yahoo.com',
+  'yahoo.com.sg',
+]
+const DEFAULT_DOMAINS = [...SUTD_DOMAINS, ...PERSONAL_DOMAINS]
 
 export function allowedDomains(): string[] {
   const configured = listEnv('ALLOWED_EMAIL_DOMAINS')

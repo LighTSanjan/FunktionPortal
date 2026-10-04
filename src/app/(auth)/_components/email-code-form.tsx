@@ -32,7 +32,12 @@ export function EmailCodeForm({ fixedEmail, localMailbox }: { fixedEmail?: strin
             </p>
           </>
         ) : (
-          <FormField label="Email" htmlFor="email" required>
+          <FormField
+            label="Email"
+            htmlFor="email"
+            hint="Your SUTD address, or a personal one: Gmail, Outlook, iCloud or Yahoo."
+            required
+          >
             <Input
               id="email"
               name="email"
@@ -170,6 +175,11 @@ export const OUTLOOK_QUARANTINE_URL = 'https://security.microsoft.com/quarantine
 
 const GMAIL_DOMAINS = ['gmail.com', 'googlemail.com']
 
+/** SUTD's mailboxes, behind the Microsoft 365 filter that quarantines the code. */
+function isSutd(domain: string): boolean {
+  return domain === 'sutd.edu.sg' || domain.endsWith('.sutd.edu.sg')
+}
+
 /**
  * What to do when the code does not arrive, for the mailbox it went to.
  *
@@ -181,6 +191,7 @@ const GMAIL_DOMAINS = ['gmail.com', 'googlemail.com']
 function CodeHelp({ email, offerAlternatives }: { email: string; offerAlternatives: boolean }) {
   const [open, setOpen] = useState(false)
   const domain = email.split('@')[1]?.toLowerCase() ?? ''
+  const sutd = isSutd(domain)
   const gmail = GMAIL_DOMAINS.includes(domain)
 
   return (
@@ -194,11 +205,7 @@ function CodeHelp({ email, offerAlternatives }: { email: string; offerAlternativ
         Don&rsquo;t see the code?
       </summary>
       <div className="space-y-2 px-3 pb-3">
-        {gmail ? (
-          <p>
-            Give it a minute, then check Spam and the Promotions tab for your FUNKtion sign-in code.
-          </p>
-        ) : (
+        {sutd ? (
           <>
             <p>
               SUTD&rsquo;s mail filter often holds it in quarantine, which Outlook doesn&rsquo;t show
@@ -220,8 +227,18 @@ function CodeHelp({ email, offerAlternatives }: { email: string; offerAlternativ
               <li>Find the email with your sign-in code and select it.</li>
               <li>Choose Release, or Request release. It reaches your inbox in a minute or two.</li>
             </ol>
-            {offerAlternatives && <p>Still nothing? Sign in with Google, or use a Gmail address.</p>}
+            {offerAlternatives && (
+              <p>
+                Not there either? SUTD sometimes blocks it outright. Use your personal email instead, or sign in
+                with Google.
+              </p>
+            )}
           </>
+        ) : (
+          <p>
+            Give it a minute, then check {gmail ? 'Spam and the Promotions tab' : 'your Junk or Spam folder'} for
+            your FUNKtion sign-in code.
+          </p>
         )}
       </div>
     </details>
