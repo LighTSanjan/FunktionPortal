@@ -332,7 +332,7 @@ describe('the membership form', () => {
   })
 
   describe('the exco filling it in themselves', () => {
-    it('pay like anybody else, and somebody else checks it', async () => {
+    it('pay like anybody else, and the treasurer can check their own', async () => {
       as(treasurer)
       await ok(() =>
         submitMembershipForm(org.slug, blank, form({
@@ -341,10 +341,6 @@ describe('the membership form', () => {
       )
       const tess = await collectionRow('Tess Treasurer')
       expect(tess?.status).toBe('DECLARED')
-      const own = await confirmPayment(org.slug, blank, form({ paymentId: tess!.id! }))
-      expect(own.error).toBeTruthy()
-
-      as(president)
       await ok(() => confirmPayment(org.slug, blank, form({ paymentId: tess!.id! })))
       expect((await collectionRow('Tess Treasurer'))?.status).toBe('CONFIRMED')
     })

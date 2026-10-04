@@ -60,11 +60,12 @@ export interface PaymentRow {
   arrangement: { tier: FeeTier; amountCents: number | null; note: string | null } | null
   /** The member has a portal account linked to their roster row. */
   hasAccount: boolean
-  /** This row is the person looking at the screen. Nobody records their own. */
+  /** This row is the person looking at the screen. Only the president and treasurer record their own. */
   isYou: boolean
   /**
    * Who declared it. The exco screen needs this to stop offering a button
-   * that the action will refuse: nobody decides their own payment.
+   * that the action will refuse: only the president and treasurer decide
+   * their own payment.
    */
   declaredByUserId: string | null
   declaredAt: Date | null

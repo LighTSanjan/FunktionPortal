@@ -169,7 +169,7 @@ export async function subscriptionWorkflow(
       // A collection cannot close with a payment undecided.
       complete: term.closed || (declared.length > 0 && decided.length >= declared.length),
       detail: declared.length > 0 ? count(decided.length, declared.length) : undefined,
-      note: toCheck.length > 0 ? 'Nobody decides their own.' : undefined,
+      note: toCheck.length > 0 ? 'Only the president and treasurer decide their own.' : undefined,
       href: tabHref('payments', 'check'),
       action:
         toCheck.length > 0

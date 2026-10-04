@@ -11,6 +11,7 @@ import { resolveFee } from './tiers'
 import { matchRosterRow } from '@/core/auth/roster-match'
 import { validateProof, putProof, discardProof, ProofRejected, MAX_PROOF_BYTES } from './proof'
 import { lockTermFees, writeDeclaration } from './declaration'
+import { decidesOwnFee } from './own-fee'
 import { type FeeState, isUniqueViolation } from './action-state'
 
 const declareSchema = z.object({
@@ -196,9 +197,9 @@ const decideSchema = z.object({
 /**
  * The exco confirming a declaration against the bank statement.
  *
- * Never your own. A member confirming their own payment is not a control, it
- * is a formality — the same reasoning as an access request nobody else
- * approves.
+ * Never your own, unless you are the president or treasurer (own-fee.ts). A
+ * member confirming their own payment is not a control, it is a formality —
+ * the same reasoning as an access request nobody else approves.
  */
 export async function confirmPayment(
   orgSlug: string,
@@ -216,6 +217,7 @@ export async function confirmPayment(
   if (!parsed.success) return { error: 'That payment could not be found' }
 
   const routeReason = parsed.data.reason?.trim() || null
+  const ownAllowed = await decidesOwnFee(org.id, userId)
   if (parsed.data.route === 'UNOFFICIAL' && !routeReason) {
     // Required by the guidelines and by the next treasurer: a figure sitting
     // outside the OSL accounts with no reason on it is one nobody can explain
@@ -243,7 +245,7 @@ export async function confirmPayment(
     if (!payment) return 'That payment no longer exists'
     if (payment.term.closedAt) return 'That collection is closed. Its payments are fixed.'
     if (payment.status === 'CONFIRMED') return null
-    if (payment.declaredByUserId === userId) {
+    if (payment.declaredByUserId === userId && !ownAllowed) {
       return 'Somebody else has to confirm your own payment.'
     }
     if (!payment.paymentProofPath) {
@@ -310,6 +312,7 @@ export async function rejectPayment(
     // treasurer in person, which is the work this screen exists to avoid.
     return { error: 'Say why, so they know what to fix.' }
   }
+  const ownAllowed = await decidesOwnFee(org.id, userId)
 
   const problem = await dbAs(userId, async (tx) => {
     const target = await tx.feePayment.findFirst({
@@ -323,7 +326,7 @@ export async function rejectPayment(
     })
     if (!payment) return 'That payment no longer exists'
     if (payment.term.closedAt) return 'That collection is closed.'
-    if (payment.declaredByUserId === userId) {
+    if (payment.declaredByUserId === userId && !ownAllowed) {
       return 'Somebody else has to decide your own payment.'
     }
 
@@ -374,8 +377,9 @@ const recordSchema = z.object({
  * paid. The bank statement is the evidence here, not a screenshot, which is
  * the same thing a declaration is checked against anyway.
  *
- * Never your own. That is the one control the collection rests on, and the
- * database refuses it as well.
+ * Never your own, unless you are the president or treasurer (own-fee.ts).
+ * That is the one control the collection rests on, and the database holds it
+ * as well.
  */
 export async function recordPayment(
   orgSlug: string,
@@ -395,6 +399,7 @@ export async function recordPayment(
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'That payment is not valid' }
   const { termId, memberId, reference, route } = parsed.data
   const routeReason = parsed.data.reason || null
+  const ownAllowed = await decidesOwnFee(org.id, userId)
   if (route === 'UNOFFICIAL' && !routeReason) {
     return { error: 'Say why this one is outside the OSL collection.' }
   }
@@ -419,12 +424,14 @@ export async function recordPayment(
       select: { id: true, fullName: true, userId: true, rosterLabel: true, isActive: true, email: true, studentId: true },
     })
     if (!member) return 'That person is not on the roster.'
-    if (member.userId === userId) return 'Somebody else has to record your own fee.'
-    // Not linked yet, but plainly theirs: the row would be linked to this
-    // account the next time it signs in, turning this into its own payment.
-    const actor = await tx.user.findUnique({ where: { id: userId }, select: { email: true } })
-    if (actor && matchRosterRow(actor.email, [member])) {
-      return 'That roster row looks like yours. Somebody else has to record your own fee.'
+    if (!ownAllowed) {
+      if (member.userId === userId) return 'Somebody else has to record your own fee.'
+      // Not linked yet, but plainly theirs: the row would be linked to this
+      // account the next time it signs in, turning this into its own payment.
+      const actor = await tx.user.findUnique({ where: { id: userId }, select: { email: true } })
+      if (actor && matchRosterRow(actor.email, [member])) {
+        return 'That roster row looks like yours. Somebody else has to record your own fee.'
+      }
     }
 
     const key = { termId_memberId: { termId: term.id, memberId: member.id } }
@@ -433,7 +440,7 @@ export async function recordPayment(
       select: { id: true, status: true, declaredByUserId: true, paymentReference: true },
     })
     if (existing?.status === 'CONFIRMED') return null
-    if (existing?.declaredByUserId === userId) return 'Somebody else has to decide your own payment.'
+    if (existing?.declaredByUserId === userId && !ownAllowed) return 'Somebody else has to decide your own payment.'
 
     const arrangement = await tx.feeArrangement.findUnique({
       where: key,
