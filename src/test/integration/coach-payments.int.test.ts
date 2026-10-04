@@ -354,7 +354,8 @@ describe('a month of coach payments', () => {
         params: Promise.resolve({ orgSlug: org.slug, invoiceId, document: 'invoice.docx' }),
       })
     )
-    expect(result.kind).toBe('denied')
+    expect(result.kind).toBe('returned')
+    if (result.kind === 'returned') expect((result.value as Response).status).toBe(403)
   })
 
   it('refuses to record payment before the month has been sent', async () => {

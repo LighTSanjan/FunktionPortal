@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getOrgContext, requirePermission, verifySession } from '@/core/auth/dal'
+import { getOrgContext, refuseDownloadWithout, verifySession } from '@/core/auth/dal'
 import { dbAs } from '@/core/db'
 import { loadMonthDocuments, withSignature, SignatureUnavailableError } from '@/modules/coach-claim/documents'
 import { MonthNotFrozenError } from '@/modules/coach-claim/snapshot'
@@ -27,7 +27,8 @@ export async function GET(
   }
 
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'claim.generate')
+  const refused = await refuseDownloadWithout(org.id, 'claim.generate')
+  if (refused) return refused
   const { userId } = await verifySession()
 
   const loaded = await dbAs(userId, (tx) =>

@@ -1,0 +1,5 @@
+# A private club portal: nothing here is for search results. Without this
+# file the request fell through to the [orgSlug] route and answered with a
+# sign-in redirect.
+User-Agent: *
+Disallow: /

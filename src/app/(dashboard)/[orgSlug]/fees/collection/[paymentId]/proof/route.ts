@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getOrgContext, requirePermission, verifySession } from '@/core/auth/dal'
+import { getOrgContext, refuseDownloadWithout, verifySession } from '@/core/auth/dal'
 import { proofKeyFor } from '@/modules/fees/queries'
 import { readProof } from '@/modules/fees/proof'
 
@@ -21,7 +21,8 @@ export async function GET(
 ) {
   const { orgSlug, paymentId } = await params
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'fee.manage')
+  const refused = await refuseDownloadWithout(org.id, 'fee.manage')
+  if (refused) return refused
   const { userId } = await verifySession()
 
   const key = await proofKeyFor(userId, org.id, paymentId)

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getOrgContext, requirePermission, verifySession } from '@/core/auth/dal'
+import { getOrgContext, refuseDownloadWithout, verifySession } from '@/core/auth/dal'
 import { buildTermSummary } from '@/modules/fees/summary'
 import { renderFeeSummary } from '@/modules/fees/summary-doc'
 
@@ -12,7 +12,8 @@ export async function GET(
 ) {
   const { orgSlug } = await params
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'fee.manage')
+  const refused = await refuseDownloadWithout(org.id, 'fee.manage')
+  if (refused) return refused
   const { userId } = await verifySession()
 
   const termId = new URL(request.url).searchParams.get('term')

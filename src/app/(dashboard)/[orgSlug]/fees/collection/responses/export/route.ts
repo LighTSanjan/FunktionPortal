@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getOrgContext, requirePermission, verifySession } from '@/core/auth/dal'
+import { getOrgContext, refuseDownloadWithout, verifySession } from '@/core/auth/dal'
 import { getTerm } from '@/modules/fees/queries'
 import { getForm, listResponses } from '@/modules/membership-form/queries'
 import { answerText } from '@/modules/membership-form/questions'
@@ -12,7 +12,8 @@ import { toCsv } from '@/modules/membership-form/csv'
 export async function GET(request: Request, { params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = await params
   const { org } = await getOrgContext(orgSlug)
-  await requirePermission(org.id, 'fee.manage')
+  const refused = await refuseDownloadWithout(org.id, 'fee.manage')
+  if (refused) return refused
   const { userId } = await verifySession()
 
   const termId = new URL(request.url).searchParams.get('term') ?? ''

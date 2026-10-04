@@ -249,7 +249,8 @@ describe('a term’s subscription collection', () => {
       const refused = await outcome(() =>
         proofRoute(new Request('http://test/'), { params: Promise.resolve({ orgSlug: org.slug, paymentId: payment.id }) })
       )
-      expect(refused.kind).toBe('denied')
+      expect(refused.kind).toBe('returned')
+      if (refused.kind === 'returned') expect((refused.value as Response).status).toBe(403)
     })
 
     it('asks the exco to check the declarations', async () => {

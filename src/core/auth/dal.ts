@@ -167,3 +167,26 @@ export async function requirePagePermission(
     throw error
   }
 }
+
+/**
+ * The same check, for a download route: a 403 to return, or null to carry on.
+ *
+ * Thrown from a route handler, PermissionDeniedError is an unhandled error —
+ * a 500, logged and alerted as a crash — when all that happened is a member
+ * opened an exco download link. A refusal is the right answer, and a plain
+ * one, because the response is a file the browser is about to save.
+ */
+export async function refuseDownloadWithout(orgId: string, key: string): Promise<Response | null> {
+  try {
+    await requirePermission(orgId, key)
+    return null
+  } catch (error) {
+    if (error instanceof PermissionDeniedError) {
+      return new Response('Only the exco can download this.', {
+        status: 403,
+        headers: { 'content-type': 'text/plain; charset=utf-8' },
+      })
+    }
+    throw error
+  }
+}
