@@ -58,7 +58,16 @@ export default async function DashboardPage({
   // coach and workflow queries first. The exco's figures stay together on
   // one RLS-scoped connection, in parallel with the workflows and the ledger
   // rather than ahead of them.
-  const excoData = async () =>
+  //
+  // Split in two connections, the balances and the counts, because one
+  // connection runs its queries one after another: together they were the
+  // longest wait on the screen.
+  const excoData = async () => {
+    const [balances, counts] = await Promise.all([excoBalances(), excoCounts()])
+    return { ...balances, ...counts }
+  }
+
+  const excoBalances = () =>
     dbAs(userId, async (tx) => {
       const openYears = await tx.fundAccount.findMany({
         where: { orgId: org.id, financialYear: { lte: currentYear } },
@@ -75,6 +84,12 @@ export default async function DashboardPage({
         // offers: this year's register, plus what the portal banked and raised
         // in this year only.
         funds: await fundBalances(tx, org.id, financialYear),
+      }
+    })
+
+  const excoCounts = () =>
+    dbAs(userId, async (tx) => {
+      return {
         overdueInvoices: await tx.invoice.count({
           where: {
             orgId: org.id,
