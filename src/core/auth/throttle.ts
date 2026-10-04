@@ -64,6 +64,39 @@ function limiterFor(max: number, windowSeconds: number): AtomicPrismaLimiter {
   return limiter
 }
 
+function storedKey(limit: Limit): string {
+  const hashed = createHash('sha256').update(limit.key).digest('base64url')
+  return limiterFor(limit.max, limit.windowSeconds).getKey(hashed)
+}
+
+/**
+ * Hand back an attempt that turned out to cost nothing — a code Supabase
+ * refused to send. Counting it anyway is how somebody pressing "send a new
+ * code" three times inside Supabase's own one-minute wait used up their hour.
+ */
+export async function giveBack(limits: Limit[]): Promise<void> {
+  for (const limit of limits) {
+    await dbAdmin.$executeRaw`
+      UPDATE rate_limits SET points = greatest(points - 1, 0)
+      WHERE key = ${storedKey(limit)} AND expire > now()
+    `
+  }
+}
+
+/** Seconds until every spent limit has room again; 0 if none is spent. */
+export async function secondsUntilAllowed(limits: Limit[]): Promise<number> {
+  let wait = 0
+  for (const limit of limits) {
+    const [row] = await dbAdmin.$queryRaw<Array<{ points: number; expire: Date | null }>>`
+      SELECT points, expire FROM rate_limits WHERE key = ${storedKey(limit)}
+    `
+    if (row && row.points >= limit.max && row.expire) {
+      wait = Math.max(wait, Math.ceil((row.expire.getTime() - Date.now()) / 1000))
+    }
+  }
+  return wait
+}
+
 /** Count one attempt against every limit; false if any is already spent. */
 export async function takeAttempt(limits: Limit[]): Promise<boolean> {
   let allowed = true

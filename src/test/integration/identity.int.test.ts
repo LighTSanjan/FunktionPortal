@@ -13,7 +13,7 @@ import { createClient, type User as SupabaseUser } from '@supabase/supabase-js'
 import { provisionUser } from '@/core/auth/provision'
 import { proofFromEmailCode, proofFromProviderSignIn } from '@/core/auth/proof'
 import { secureProvenAccount } from '@/core/auth/secure'
-import { takeAttempt } from '@/core/auth/throttle'
+import { giveBack, secondsUntilAllowed, takeAttempt } from '@/core/auth/throttle'
 import { linkRosterToAccounts } from '@/core/auth/roster-link'
 import { addRosterMember, createOrganisation, dbAdmin, resetDatabase, type TestOrg } from './harness'
 
@@ -325,5 +325,35 @@ describe('rate limits on codes', () => {
       Array.from({ length: 20 }, () => takeAttempt([{ key, max: 5, windowSeconds: 3600 }]))
     )
     expect(results.filter(Boolean)).toHaveLength(5)
+  })
+
+  it('gives back an attempt that sent nothing', async () => {
+    const limits = [{ key: `test:${randomUUID()}`, max: 5, windowSeconds: 3600 }]
+    for (let i = 0; i < 5; i++) await takeAttempt(limits)
+    await giveBack(limits)
+    expect(await takeAttempt(limits)).toBe(true)
+    expect(await takeAttempt(limits)).toBe(false)
+  })
+
+  it('never gives back below nothing', async () => {
+    const limits = [{ key: `test:${randomUUID()}`, max: 2, windowSeconds: 3600 }]
+    await takeAttempt(limits)
+    await giveBack(limits)
+    await giveBack(limits)
+    expect(await takeAttempt(limits)).toBe(true)
+    expect(await takeAttempt(limits)).toBe(true)
+    expect(await takeAttempt(limits)).toBe(false)
+  })
+
+  it('says how long until a spent limit has room, and nothing for one that is not spent', async () => {
+    const spent = [{ key: `test:${randomUUID()}`, max: 2, windowSeconds: 600 }]
+    const fresh = [{ key: `test:${randomUUID()}`, max: 2, windowSeconds: 600 }]
+    await takeAttempt(spent)
+    expect(await secondsUntilAllowed(spent)).toBe(0)
+    await takeAttempt(spent)
+    const wait = await secondsUntilAllowed(spent)
+    expect(wait).toBeGreaterThan(590)
+    expect(wait).toBeLessThanOrEqual(600)
+    expect(await secondsUntilAllowed(fresh)).toBe(0)
   })
 })

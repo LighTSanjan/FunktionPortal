@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { requestEmailCode, verifyEmailCode, type CodeState } from '@/actions/auth'
 import { Button } from '@/core/ui/button'
 import { Input } from '@/core/ui/input'
@@ -53,10 +53,14 @@ export function EmailCodeForm({ fixedEmail, localMailbox }: { fixedEmail?: strin
 
   return (
     <div className="space-y-4">
-      <p className="text-[13.5px] leading-relaxed text-text-muted">
-        If <span className="font-medium break-all text-text">{sentTo}</span> can use the portal, a code is on
-        its way.
-      </p>
+      {sendState.error ? (
+        <Alert>{sendState.error}</Alert>
+      ) : (
+        <p className="text-[13.5px] leading-relaxed text-text-muted">
+          If <span className="font-medium break-all text-text">{sentTo}</span> can use the portal, a code is on
+          its way.
+        </p>
+      )}
 
       {localMailbox && (
         <p className="rounded-[var(--radius-sm)] border border-warning/30 bg-warning/10 p-3 text-[13px] leading-relaxed text-text">
@@ -93,12 +97,7 @@ export function EmailCodeForm({ fixedEmail, localMailbox }: { fixedEmail?: strin
       <CodeHelp email={sentTo} offerAlternatives={!fixedEmail} />
 
       <div className="flex justify-between text-[12.5px]">
-        <form action={send}>
-          <input type="hidden" name="email" value={sentTo} />
-          <button type="submit" className="font-medium text-text-muted underline-offset-4 hover:text-accent-600 hover:underline" disabled={sending}>
-            {sending ? 'Sending…' : 'Send a new code'}
-          </button>
-        </form>
+        <ResendButton email={sentTo} send={send} sending={sending} retryAt={sendState.retryAt} />
         {!fixedEmail && (
           <button
             type="button"
@@ -110,6 +109,59 @@ export function EmailCodeForm({ fixedEmail, localMailbox }: { fixedEmail?: strin
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * "Send a new code", held back while asking again would only be refused.
+ *
+ * Supabase sends one address one code a minute and answers anything sooner
+ * with an error. People whose code is sitting in quarantine press this again
+ * and again; each press used to count against the hour's five, so a minute
+ * of pressing locked them out for the rest of it.
+ */
+function ResendButton({
+  email,
+  send,
+  sending,
+  retryAt,
+}: {
+  email: string
+  send: (data: FormData) => void
+  sending: boolean
+  retryAt?: number
+}) {
+  const [now, setNow] = useState(() => Date.now())
+  const waiting = retryAt !== undefined && retryAt > now
+
+  useEffect(() => {
+    if (retryAt === undefined) return
+    const tick = setInterval(() => {
+      const current = Date.now()
+      setNow(current)
+      if (current >= retryAt) clearInterval(tick)
+    }, 1000)
+    return () => clearInterval(tick)
+  }, [retryAt])
+
+  const seconds = waiting ? Math.ceil((retryAt - now) / 1000) : 0
+  const label = sending
+    ? 'Sending…'
+    : waiting
+      ? `Send a new code in ${seconds >= 60 ? `${Math.ceil(seconds / 60)} min` : `${seconds}s`}`
+      : 'Send a new code'
+
+  return (
+    <form action={send}>
+      <input type="hidden" name="email" value={email} />
+      <button
+        type="submit"
+        className="font-medium text-text-muted underline-offset-4 enabled:hover:text-accent-600 enabled:hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={sending || waiting}
+      >
+        {label}
+      </button>
+    </form>
   )
 }
 

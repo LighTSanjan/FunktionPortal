@@ -104,7 +104,7 @@ docs/handbook.html    The handbook
 | `npm run db:seed` | Seed the real club's FY2026 opening state |
 | `npm run demo:seed` | Reset the hosted demo's database (reads `.env.demo`) |
 | `npm run db:encrypt-fields` | Encrypt coach bank details already stored in plain text |
-| `scripts/db/backup.sh` | Download the live database to `~/Backups/FunktionPortal` (once a day; `--force` for another) |
+| `scripts/db/backup.sh` | Download the live database and its stored files to `~/Backups/FunktionPortal` (once a day; `--force` for another) |
 | `scripts/db/install-backup-agent.sh` | Run that backup at login and daily at 21:00 on this Mac (`--remove` to stop) |
 | `npx tsx scripts/db/import-attendance.ts <file> "<term>" [--apply]` | Import an attendance CSV from the command line |
 

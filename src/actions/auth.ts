@@ -6,7 +6,8 @@ import { createSupabaseServer } from '@/core/auth/supabase-server'
 import { afterSignIn } from '@/core/auth/after-sign-in'
 import { proofFromEmailCode } from '@/core/auth/proof'
 import { mayJoin, normaliseEmail } from '@/core/auth/eligibility'
-import { takeAttempt } from '@/core/auth/throttle'
+import { giveBack, secondsUntilAllowed, takeAttempt } from '@/core/auth/throttle'
+import { enabledProviders } from '@/core/auth/providers'
 import { appUrl } from '@/lib/app-url'
 import { alert } from '@/core/alerts'
 import { isDemo, isDemoDatabase, isDemoPersona, settleDemoPersona, signInDemoPersona } from '@/core/auth/demo'
@@ -26,7 +27,28 @@ export interface CodeState {
   error: string | null
   /** The code is on its way to this address; show the code box. */
   sentTo?: string
+  /** When asking again stops being refused (epoch ms); the resend button waits for it. */
+  retryAt?: number
 }
+
+/** "in 40 seconds", "in 12 minutes". */
+function inAbout(seconds: number): string {
+  if (seconds < 60) return `in ${Math.max(seconds, 1)} seconds`
+  const minutes = Math.ceil(seconds / 60)
+  return minutes === 1 ? 'in a minute' : `in ${minutes} minutes`
+}
+
+/** The other ways in that are actually switched on, for a refusal to offer. */
+async function otherWays(): Promise<string> {
+  const providers = await enabledProviders()
+  const ways = [providers.azure && 'Microsoft', providers.google && 'Google'].filter(Boolean)
+  return ways.length > 0 ? `, or sign in with ${ways.join(' or ')}` : ''
+}
+
+/** How long Supabase says to wait before it will send this address another code. */
+const SUPABASE_COOLDOWN = /after (\d+) seconds?/i
+/** Supabase's own wait between codes to one address, which the resend button mirrors. */
+const RESEND_AFTER_SECONDS = 60
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -51,13 +73,20 @@ export async function requestEmailCode(_prev: CodeState, formData: FormData): Pr
   if (!EMAIL.test(email)) return { error: 'That does not look like an email address.' }
 
   const ip = await clientIp()
-  const allowed = await takeAttempt([
+  const limits = [
     { key: `code-send:email:${email}`, max: 5, windowSeconds: 3600 },
     { key: `code-send:ip:${ip}`, max: 30, windowSeconds: 3600 },
-  ])
-  if (!allowed) {
+  ]
+  if (!(await takeAttempt(limits))) {
     await alert('throttle_tripped', { what: 'code requests', email, ip })
-    return { error: 'Too many codes asked for. Wait an hour, or use Microsoft or Google instead.' }
+    const wait = await secondsUntilAllowed(limits)
+    // Stay on the code box: one of the codes already sent may still be in
+    // quarantine, and it works until a newer one replaces it.
+    return {
+      error: `That’s the most codes one address can ask for in an hour. Use the newest one you got, or ask again ${inAbout(wait)}${await otherWays()}.`,
+      sentTo: email,
+      retryAt: Date.now() + wait * 1000,
+    }
   }
 
   // Only an address that would be let in may create an account. Anybody else
@@ -70,9 +99,19 @@ export async function requestEmailCode(_prev: CodeState, formData: FormData): Pr
 
   if (error) {
     if (error.status === 429 || /rate limit|security purposes/i.test(error.message)) {
+      // Nothing was sent, so it does not count against the hour.
+      await giveBack(limits)
+      const cooldown = SUPABASE_COOLDOWN.exec(error.message)
+      if (cooldown) {
+        const wait = Number(cooldown[1])
+        return {
+          error: `A code was sent a moment ago. Check for it, or ask for a new one ${inAbout(wait)}.`,
+          sentTo: email,
+          retryAt: Date.now() + wait * 1000,
+        }
+      }
       return {
-        error:
-          'The mail service is refusing to send more codes right now. Wait a minute and try again, or use Microsoft or Google.',
+        error: `The mail service is refusing to send more codes right now. Try again in a few minutes${await otherWays()}.`,
       }
     }
     // "Signups not allowed for otp": an address that is neither on the list
@@ -83,7 +122,7 @@ export async function requestEmailCode(_prev: CodeState, formData: FormData): Pr
     }
   }
 
-  return { error: null, sentTo: email }
+  return { error: null, sentTo: email, retryAt: Date.now() + RESEND_AFTER_SECONDS * 1000 }
 }
 
 export async function verifyEmailCode(_prev: CodeState, formData: FormData): Promise<CodeState> {
