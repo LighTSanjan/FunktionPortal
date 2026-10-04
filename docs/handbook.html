@@ -533,7 +533,7 @@ footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line);
       <tr><td><code>PO</code></td><td>Purchase order</td><td><code>PO26-097-0001</code></td></tr>
     </tbody>
   </table></div>
-  <p>A number is allocated by one atomic <code>UPDATE … RETURNING</code> inside the transaction that writes the document, so two people can never get the same one. Issued numbers are never deleted: voiding marks the number void with a reason, so every gap in a series can be explained. FY2026's <code>IV</code> counter opens at 10, because 0001 to 0009 were issued before the portal.</p>
+  <p>A number is allocated by one atomic <code>UPDATE … RETURNING</code> inside the transaction that writes the document, so two people can never get the same one. Issued numbers are never deleted: voiding marks the number void with a reason, so every gap in a series can be explained. FY2026's <code>IV</code> counter opens at 13, because 0001 to 0012 were issued before the portal. It first opened at 10, and the August invoices had to be renumbered from 0010 and 0011 to 0013 and 0014 when Finance pointed out that June and July had used 0009 to 0012.</p>
   <h3>GST</h3>
   <p>GST is derived, never typed. From a gross amount: net = gross × 10000 / (10000 + rate), and GST is the remainder, so net + GST always equals gross to the cent. The rate is a setting in basis points (900 for 9%).</p>
   <h3>Funds</h3>
@@ -655,7 +655,7 @@ npm run demo                # the portal with a made-up club at http://localhost
   <h3>Known discrepancies in the club's own records</h3>
   <ul>
     <li><code>IV24-097-0024</code> is missing from the FY2024 register; the series jumps from 0023 to 0025.</li>
-    <li>Four FY2026 coach payments (June and July) were never given reference numbers.</li>
+    <li>The register gives no reference numbers for the four FY2026 June and July coach payments. Finance confirmed them as <code>IV26-097-0009</code> to <code>0012</code>.</li>
     <li>The FY2026 register's Seed cell reads $1,520.00; the real balance is $305.00, because four rows fill only the incl-GST column.</li>
     <li>The register's INC references carry an extra hyphen (<code>INC-26-…</code>); the correct form is <code>INC26-…</code>.</li>
   </ul>
