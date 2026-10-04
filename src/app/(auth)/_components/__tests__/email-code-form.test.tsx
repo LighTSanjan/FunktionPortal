@@ -89,14 +89,20 @@ describe('EmailCodeForm, when the code does not arrive', () => {
     expect(screen.getByText(/check Spam and the Promotions tab/)).toBeInTheDocument()
   })
 
-  it('offers Google or Gmail on the sign-in page', async () => {
+  it('points an SUTD address at a personal email or Google, for codes SUTD blocks outright', async () => {
     await askForCode('ada@mymail.sutd.edu.sg')
-    expect(screen.getByText(/Sign in with Google, or use a Gmail address/)).toBeInTheDocument()
+    expect(screen.getByText(/SUTD sometimes blocks it outright/)).toHaveTextContent(/personal email instead, or sign in\s+with Google/)
+  })
+
+  it('tells a personal Outlook address to check Junk, not SUTD’s quarantine', async () => {
+    await askForCode('ada@outlook.com')
+    expect(screen.queryByRole('link', { name: 'Outlook’s quarantine' })).toBeNull()
+    expect(screen.getByText(/check your Junk or Spam folder/)).toBeInTheDocument()
   })
 
   it('does not offer another address to somebody proving the one on their account', async () => {
     await askForCode('', { fixedEmail: 'ada@mymail.sutd.edu.sg' })
     expect(screen.getByRole('link', { name: 'Outlook’s quarantine' })).toBeInTheDocument()
-    expect(screen.queryByText(/Sign in with Google/)).toBeNull()
+    expect(screen.queryByText(/sign in\s+with Google/i)).toBeNull()
   })
 })
