@@ -4,7 +4,7 @@
  * Members sign up with whatever address they like, say which student they are,
  * and an exco member confirms it. The treasurer opens a term, sets its dates,
  * puts the QR up. Members pay and declare with a screenshot. A second exco
- * member checks each one — nobody decides their own — refuses one, confirms
+ * member checks each one — only the president and treasurer decide their own — refuses one, confirms
  * the rest. The collection closes, the deposit form is built from what was
  * banked, and filed.
  */
@@ -305,18 +305,17 @@ describe('a term’s subscription collection', () => {
       expect((await dbAdmin.feePayment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe('DECLARED')
     })
 
-    it('does not let the treasurer confirm their own payment', async () => {
+    it('leaves an exco member’s own payment to somebody else, in the action and the database', async () => {
+      // As exco with any other post, the treasurer is refused their own.
+      await dbAdmin.organisationMembership.update({
+        where: { userId_orgId: { userId: treasurer.id, orgId: org.id } },
+        data: { office: 'SECRETARY' },
+      })
+      const own = await dbAdmin.feePayment.findFirstOrThrow({ where: { termId, paymentReference: 'PN-TESS-1' } })
       as(treasurer)
-      const own = await dbAdmin.feePayment.findFirstOrThrow({ where: { termId, paymentReference: 'PN-TESS-1' } })
-      const result = await confirmPayment(org.slug, { error: null }, form({ paymentId: own.id }))
-      expect(result.error).toBeTruthy()
-      expect((await dbAdmin.feePayment.findUniqueOrThrow({ where: { id: own.id } })).status).toBe('DECLARED')
-    })
-
-    it('holds that rule in the database, not just the app', async () => {
-      // The trigger is the control; the action's check is a courtesy. Going
-      // around the action and writing the row as the treasurer must fail.
-      const own = await dbAdmin.feePayment.findFirstOrThrow({ where: { termId, paymentReference: 'PN-TESS-1' } })
+      const refused = await confirmPayment(org.slug, { error: null }, form({ paymentId: own.id }))
+      expect(refused.error).toMatch(/your own/)
+      // The trigger is the control; the action's check is a courtesy.
       const { dbAs } = await import('@/core/db')
       await expect(
         dbAs(treasurer.id, (tx) =>
@@ -326,6 +325,20 @@ describe('a term’s subscription collection', () => {
           })
         )
       ).rejects.toThrow()
+      expect((await dbAdmin.feePayment.findUniqueOrThrow({ where: { id: own.id } })).status).toBe('DECLARED')
+    })
+
+    it('lets the treasurer confirm their own payment', async () => {
+      await dbAdmin.organisationMembership.update({
+        where: { userId_orgId: { userId: treasurer.id, orgId: org.id } },
+        data: { office: 'TREASURER' },
+      })
+      const own = await dbAdmin.feePayment.findFirstOrThrow({ where: { termId, paymentReference: 'PN-TESS-1' } })
+      as(treasurer)
+      await ok(() => confirmPayment(org.slug, { error: null }, form({ paymentId: own.id })))
+      const confirmed = await dbAdmin.feePayment.findUniqueOrThrow({ where: { id: own.id } })
+      expect(confirmed.status).toBe('CONFIRMED')
+      expect(confirmed.confirmedByUserId).toBe(treasurer.id)
     })
 
     it('refuses a refusal without a reason', async () => {

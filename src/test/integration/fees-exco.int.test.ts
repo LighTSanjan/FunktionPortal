@@ -3,7 +3,7 @@
  *
  * Most of the roster never signs in, so the treasurer sets what each person
  * pays — half a term, waived, a figure of their own — and records payments
- * straight off the bank statement. Nobody records their own, and the database
+ * straight off the bank statement. Only the president and treasurer record their own, and the database
  * holds that line as well as the action.
  */
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -167,7 +167,12 @@ describe('membership fees, run by the exco', () => {
     expect((await row('Ada Lee'))?.amountCents).toBe(3500)
   })
 
-  it('does not let the treasurer record their own fee, in the action or the database', async () => {
+  it('leaves an exco member’s own fee to somebody else, in the action and the database', async () => {
+    // As exco with no post, the treasurer is refused their own.
+    await dbAdmin.organisationMembership.update({
+      where: { userId_orgId: { userId: treasurer.id, orgId: org.id } },
+      data: { office: null },
+    })
     as(treasurer)
     const result = await recordPayment(org.slug, { error: null }, form({ termId, memberId: ids['Tess Treasurer'], reference: '', route: 'OFFICIAL', reason: '' }))
     expect(result.error).toMatch(/your own/)
@@ -190,10 +195,16 @@ describe('membership fees, run by the exco', () => {
         })
       )
     ).rejects.toThrow()
+  })
 
-    // Somebody else can.
-    as(president)
+  it('lets the treasurer record their own fee', async () => {
+    await dbAdmin.organisationMembership.update({
+      where: { userId_orgId: { userId: treasurer.id, orgId: org.id } },
+      data: { office: 'TREASURER' },
+    })
+    as(treasurer)
     await ok(() => recordPayment(org.slug, { error: null }, form({ termId, memberId: ids['Tess Treasurer'], reference: '', route: 'OFFICIAL', reason: '' })))
+    expect((await row('Tess Treasurer'))?.status).toBe('CONFIRMED')
   })
 
   it('needs a reason for money held outside OSL', async () => {

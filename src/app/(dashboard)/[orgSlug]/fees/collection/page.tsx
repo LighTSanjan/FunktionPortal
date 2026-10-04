@@ -16,6 +16,7 @@ import { formatSgd } from '@/modules/coach-claim/money'
 import { isoDate, longDate } from '@/modules/coach-claim/theme'
 import { fromDateColumn, singaporeDay } from '@/lib/date-only'
 import { getForm, listResponses } from '@/modules/membership-form/queries'
+import { decidesOwnFee } from '@/modules/fees/own-fee'
 import { TermForm } from './_components/term-form'
 import { QrForm } from './_components/qr-form'
 import { NewTermForm } from './_components/new-term-form'
@@ -90,7 +91,7 @@ export default async function CollectionPage({
   const fallback = await currentTerm(userId, org.id)
   const term = terms.find((row) => row.id === termParam) ?? fallback ?? terms[0]
 
-  const [{ rows, totals }, deposit, unlinked, settings, form, responses] = await Promise.all([
+  const [{ rows, totals }, deposit, unlinked, settings, form, responses, decidesOwn] = await Promise.all([
     listCollection(userId, org.id, term.id),
     getDeposit(userId, org.id, term.id),
     listUnlinked(userId, org.id),
@@ -102,6 +103,7 @@ export default async function CollectionPage({
     ),
     getForm(userId, org.id, term.id),
     listResponses(userId, org.id, term.id),
+    decidesOwnFee(org.id, userId),
   ])
 
   // Somebody who sent the form is matched from their response, which carries
@@ -115,7 +117,7 @@ export default async function CollectionPage({
   const show = showParam as Filter | undefined
 
   const split = splitGst(totals.bankableCents, settings?.gstBasisPoints ?? DEFAULT_GST_BASIS_POINTS)
-  const views = rows.map((row) => toView(row, userId))
+  const views = rows.map((row) => toView(row, userId, decidesOwn))
   // Everybody asked to pay something, plus anybody who paid and has since left.
   const charged = rows.filter((row) => row.status === 'CONFIRMED' || (row.onRoster && row.amountCents > 0))
   const paid = rows.filter((row) => row.status === 'CONFIRMED')
@@ -560,7 +562,7 @@ function FormTab({
           <Fixed title="Who they are" detail="Name and student ID are filled from the signed-in account or roster, and the member can correct them before sending." />
           <Fixed title="Their fee" detail="The term's full fee, or what you set for that person under Payments. Nobody picks their own." />
           <Fixed title="Paying" detail="The QR, the exact amount, the PayNow reference and a screenshot." />
-          <Fixed title="What happens next" detail="Their payment comes to Payments for someone else in the exco to check." />
+          <Fixed title="What happens next" detail="Their payment comes to Payments for the exco to check." />
         </ul>
       </Panel>
 
@@ -583,7 +585,7 @@ function FormTab({
   )
 }
 
-function toView(row: PaymentRow, userId: string): FeeRowView {
+function toView(row: PaymentRow, userId: string, decidesOwn: boolean): FeeRowView {
   const state: RowState =
     row.status === 'CONFIRMED'
       ? 'paid'
@@ -618,7 +620,8 @@ function toView(row: PaymentRow, userId: string): FeeRowView {
     rejectedReason: row.rejectedReason,
     hasAccount: row.hasAccount,
     isYou: row.isYou,
-    declaredByYou: row.declaredByUserId === userId,
+    // The president and treasurer decide their own; anybody else leaves it.
+    leaveToOthers: !decidesOwn && (row.isYou || row.declaredByUserId === userId),
   }
 }
 

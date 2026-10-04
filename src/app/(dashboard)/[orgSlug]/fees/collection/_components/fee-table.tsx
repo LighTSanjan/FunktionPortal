@@ -39,7 +39,8 @@ export interface FeeRowView {
   rejectedReason: string | null
   hasAccount: boolean
   isYou: boolean
-  declaredByYou: boolean
+  /** Their own fee, and not theirs to decide: somebody else checks it. */
+  leaveToOthers: boolean
 }
 
 export type Filter = 'all' | 'unpaid' | 'check' | 'paid' | 'waived' | 'attention'
@@ -381,7 +382,7 @@ export function FeeTable({
                               orgSlug={orgSlug}
                               paymentId={row.paymentId}
                               memberName={row.name}
-                              ownDeclaration={row.declaredByYou || row.isYou}
+                              ownDeclaration={row.leaveToOthers}
                             />
                           </div>
                         </div>
@@ -467,7 +468,7 @@ function RowAction({
   if (row.state === 'waived') return null
 
   if (row.state === 'check') {
-    return row.declaredByYou || row.isYou ? (
+    return row.leaveToOthers ? (
       <span className="text-[12px] text-text-subtle">Someone else checks yours</span>
     ) : (
       <Button type="button" size="sm" onClick={() => toggle('check')}>
@@ -484,7 +485,7 @@ function RowAction({
     )
   }
 
-  if (row.isYou) {
+  if (row.leaveToOthers) {
     return <span className="text-[12px] text-text-subtle">Someone else records yours</span>
   }
 
