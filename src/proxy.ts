@@ -136,9 +136,13 @@ async function updateSession(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Checked against the project's signing key here, not by asking the auth
+  // server: this only decides between the page and the sign-in screen, on
+  // every request and prefetch. The data access layer still asks the auth
+  // server before anything is shown (core/auth/dal.ts), which is what catches
+  // a session ended early, such as an impostor's.
+  const { data: claims } = await supabase.auth.getClaims()
+  const user = claims?.claims.sub ? { id: claims.claims.sub } : null
 
   if (matches(pathname, AUTH_FLOW_PATHS)) {
     return supabaseResponse

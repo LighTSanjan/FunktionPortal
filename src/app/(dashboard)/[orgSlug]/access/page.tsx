@@ -114,7 +114,7 @@ export default async function AccessPage({
               <div>
                 <p className="font-medium">Ask for exco access</p>
                 <p className="mt-1 text-[13.5px] text-text-muted">
-                  Another exco member approves it. Requests expire after {REQUEST_TTL_DAYS} days.
+                  The president and treasurer get an email, and an exco member approves it. Requests expire after {REQUEST_TTL_DAYS} days.
                 </p>
               </div>
               <RequestAccessForm orgSlug={orgSlug} />

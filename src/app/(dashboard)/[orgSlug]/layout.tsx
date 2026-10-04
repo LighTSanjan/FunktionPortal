@@ -23,22 +23,23 @@ export default async function OrgDashboardLayout({
   children: React.ReactNode
   params: Promise<{ orgSlug: string }>
 }) {
-  const session = await verifySession()
   const { orgSlug } = await params
-  const { org, membership } = await getOrgContext(orgSlug)
+  const [session, { org, membership }] = await Promise.all([verifySession(), getOrgContext(orgSlug)])
 
   // Not on the roster yet: the welcome screen and the join-and-pay form are
   // the only places they can go, so they are the only places offered.
-  const standing = await getStanding(orgSlug)
+  // Read alongside the notifications rather than before them.
+  const [standing, notifications] = await Promise.all([
+    getStanding(orgSlug),
+    loadPortalNotifications({
+      userId: session.userId,
+      orgId: org.id,
+      orgSlug: org.slug,
+      role: membership.role,
+    }),
+  ])
   const navGroups = standing === 'FULL' ? resolveNavGroups(membership.role) : JOINING_NAV
   const navEntries = navGroups.flatMap((group) => group.entries)
-
-  const notifications = await loadPortalNotifications({
-    userId: session.userId,
-    orgId: org.id,
-    orgSlug: org.slug,
-    role: membership.role,
-  })
 
   return (
     <AppShell

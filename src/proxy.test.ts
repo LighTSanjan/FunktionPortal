@@ -7,7 +7,7 @@ let mockUser: { id: string } | null = null
 vi.mock('@supabase/ssr', () => ({
   createServerClient: vi.fn(() => ({
     auth: {
-      getUser: vi.fn(async () => ({ data: { user: mockUser } })),
+      getClaims: vi.fn(async () => ({ data: mockUser ? { claims: { sub: mockUser.id } } : null })),
     },
   })),
 }))
