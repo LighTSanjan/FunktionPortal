@@ -54,8 +54,8 @@ export function EmailCodeForm({ fixedEmail, localMailbox }: { fixedEmail?: strin
   return (
     <div className="space-y-4">
       <p className="text-[13.5px] leading-relaxed text-text-muted">
-        If <span className="font-medium text-text">{sentTo}</span> can use the portal, a code is on
-        its way. It comes from Supabase, so check spam if it is not there in a minute.
+        If <span className="font-medium break-all text-text">{sentTo}</span> can use the portal, a code is on
+        its way from Supabase.
       </p>
 
       {localMailbox && (
@@ -90,6 +90,8 @@ export function EmailCodeForm({ fixedEmail, localMailbox }: { fixedEmail?: strin
         </Button>
       </form>
 
+      <CodeHelp email={sentTo} offerAlternatives={!fixedEmail} />
+
       <div className="flex justify-between text-[12.5px]">
         <form action={send}>
           <input type="hidden" name="email" value={sentTo} />
@@ -108,6 +110,69 @@ export function EmailCodeForm({ fixedEmail, localMailbox }: { fixedEmail?: strin
         )}
       </div>
     </div>
+  )
+}
+
+/** Where Microsoft 365 users find and release mail their filter held back. */
+export const OUTLOOK_QUARANTINE_URL = 'https://security.microsoft.com/quarantine'
+
+const GMAIL_DOMAINS = ['gmail.com', 'googlemail.com']
+
+/**
+ * What to do when the code does not arrive, for the mailbox it went to.
+ *
+ * SUTD's filter quarantines the sign-in email as phishing, and a quarantined
+ * message is not in Outlook at all, not even in Junk, so "check spam" sends
+ * people looking in the wrong place. Opens on hover as well as on a tap or
+ * click, and stays open once opened so the link can be reached.
+ */
+function CodeHelp({ email, offerAlternatives }: { email: string; offerAlternatives: boolean }) {
+  const [open, setOpen] = useState(false)
+  const domain = email.split('@')[1]?.toLowerCase() ?? ''
+  const gmail = GMAIL_DOMAINS.includes(domain)
+
+  return (
+    <details
+      open={open}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+      onMouseEnter={() => setOpen(true)}
+      className="rounded-[var(--radius-sm)] border border-border bg-surface text-[13px] leading-relaxed text-text-muted"
+    >
+      <summary className="cursor-pointer px-3 py-2.5 font-medium text-text marker:text-text-subtle">
+        Don&rsquo;t see the code?
+      </summary>
+      <div className="space-y-2 px-3 pb-3">
+        {gmail ? (
+          <p>
+            Give it a minute, then check Spam and the Promotions tab for an email from Supabase.
+          </p>
+        ) : (
+          <>
+            <p>
+              SUTD&rsquo;s mail filter often holds it in quarantine, which Outlook doesn&rsquo;t show
+              you, not even in Junk.
+            </p>
+            <ol className="list-decimal space-y-1 pl-5">
+              <li>
+                Open{' '}
+                <a
+                  href={OUTLOOK_QUARANTINE_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-accent-600 underline"
+                >
+                  Outlook&rsquo;s quarantine
+                </a>{' '}
+                and sign in with your SUTD account.
+              </li>
+              <li>Find the email from Supabase and select it.</li>
+              <li>Choose Release, or Request release. It reaches your inbox in a minute or two.</li>
+            </ol>
+            {offerAlternatives && <p>Still nothing? Sign in with Google, or use a Gmail address.</p>}
+          </>
+        )}
+      </div>
+    </details>
   )
 }
 
