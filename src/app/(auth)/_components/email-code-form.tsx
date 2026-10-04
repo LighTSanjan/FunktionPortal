@@ -35,7 +35,7 @@ export function EmailCodeForm({ fixedEmail, localMailbox }: { fixedEmail?: strin
           <FormField
             label="Email"
             htmlFor="email"
-            hint="Your SUTD address, or a personal one: Gmail, Outlook, iCloud or Yahoo."
+            hint="Your SUTD email or your personal one."
             required
           >
             <Input
