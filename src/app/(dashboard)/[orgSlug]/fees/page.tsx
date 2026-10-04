@@ -12,7 +12,7 @@ import { amountForTier, resolveFee, TIER_LABEL } from '@/modules/fees/tiers'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { formIsFor, getForm, getOwnResponse } from '@/modules/membership-form/queries'
 import { answerText } from '@/modules/membership-form/questions'
-import { MembershipForm, type MembershipFormProps } from './_components/membership-form'
+import { MembershipForm, PayButton, type MembershipFormProps } from './_components/membership-form'
 import { PayPanel } from './_components/pay-panel'
 import { Notice, linkButtonClass, pillClass } from './_components/ui'
 
@@ -178,6 +178,12 @@ export default async function FeesPage({
     preview,
   }
 
+  // The form's payment section, one tap from the top of the page.
+  const payAction =
+    fee.amountCents > 0 && (paymentState === 'NONE' || paymentState === 'REJECTED') ? (
+      <PayButton amount={formatSgd(fee.amountCents)} />
+    ) : null
+
   const heroLine = term.closed
     ? 'This term’s collection has closed.'
     : form.state === 'OPEN'
@@ -210,7 +216,7 @@ export default async function FeesPage({
           <span className="font-semibold">Preview.</span> This is the form{' '}
           {query.preview === 'new' ? 'as someone who isn’t on the roster sees it' : 'as you would see it'}. Nothing sends.
         </Notice>
-        <Hero title={`${term.name} membership`} line={heroLine} intro={form.intro} />
+        <Hero title={`${term.name} membership`} line={heroLine} intro={form.intro} action={payAction} />
         <MembershipForm {...formProps} />
       </Shell>
     )
@@ -233,7 +239,7 @@ export default async function FeesPage({
   if (formOpen && (!response || editing)) {
     return (
       <Shell header={header}>
-        <Hero title={`${term.name} membership`} line={heroLine} intro={form.intro} />
+        <Hero title={`${term.name} membership`} line={heroLine} intro={form.intro} action={payAction} />
         {editing && (
           <Notice
             action={
@@ -451,7 +457,17 @@ function Shell({ header, children }: { header: React.ReactNode; children: React.
 }
 
 /** The top of the form: the club, the term, and whether it is open. */
-function Hero({ title, line, intro }: { title: string; line: string; intro?: string | null }) {
+function Hero({
+  title,
+  line,
+  intro,
+  action,
+}: {
+  title: string
+  line: string
+  intro?: string | null
+  action?: React.ReactNode
+}) {
   return (
     <section className="overflow-hidden rounded-[var(--radius-md)] border border-brand-ink bg-surface">
       <div aria-hidden className="lapis-band h-1.5" />
@@ -460,6 +476,7 @@ function Hero({ title, line, intro }: { title: string; line: string; intro?: str
         <h2 className="text-[22px] font-bold leading-tight tracking-[-0.01em] text-text">{title}</h2>
         <p className="text-[13px] font-medium text-text-muted">{line}</p>
         {intro && <p className="whitespace-pre-wrap pt-1 text-[14px] leading-relaxed text-text">{intro}</p>}
+        {action && <div className="pt-2">{action}</div>}
       </div>
     </section>
   )

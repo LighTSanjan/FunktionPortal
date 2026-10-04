@@ -273,6 +273,12 @@ test('the invited member is found on the roster by her student ID, and pays', as
   await expect(page.getByLabel('Student ID')).toHaveValue(MEMBER.studentId)
   await expect(page.getByText(/Not comfortable paying \$70 towards club funds\? PM the treasurer/)).toBeVisible()
   await page.getByLabel(/Telegram handle/).fill('@ada')
+  // Nothing to send, and no payment fields, until they choose to pay.
+  await expect(page.getByRole('button', { name: /^Send/ })).toBeHidden()
+  await expect(page.getByLabel('PayNow reference')).toHaveCount(0)
+  // The button on the card at the top opens the payment section.
+  await page.getByRole('button', { name: 'Pay $70.00' }).first().click()
+  await expect(page.getByRole('img', { name: /PayNow QR for the Trimester 1/ })).toBeInViewport()
   await page.getByRole('button', { name: /^Send/ }).click()
   // Nothing typed is lost when something is missing.
   await expect(page.getByText('A few things need fixing')).toBeVisible()
@@ -323,6 +329,8 @@ test('somebody new says who they are, reaches nothing but joining and their prof
   await visit(page, `/${ORG}/fees`)
   await expect(page.getByLabel('Full name')).toHaveValue(NEWCOMER.name)
   await page.getByLabel(/Telegram handle/).fill('@nia')
+  // The one beside the payment section, this time.
+  await page.getByRole('button', { name: 'Pay $70.00' }).last().click()
   await page.getByLabel('PayNow reference').fill('PAYNOW NIA 0916')
   await page.locator('input[name="proof"]').setInputFiles({
     name: 'paid.png',
