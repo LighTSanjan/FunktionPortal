@@ -509,14 +509,18 @@ function FormTab({
 
       <Panel
         title="2. PayNow QR"
-        description="A new QR is made for each collection. It’s shown on the form, beside the amount to pay."
+        description="A new QR is made for each collection. It’s shown on the form, beside the amount to pay. You can fix the amount inside each QR in your banking app."
       >
         <QrForm
           orgSlug={orgSlug}
           termId={term.id}
           termName={term.name}
+          fullFee={formatSgd(term.fullFeeCents)}
+          halfFee={formatSgd(term.halfFeeCents)}
           hasQr={term.hasPaynowQr}
           uploadedAt={term.paynowQrUploadedAt}
+          hasHalfQr={term.hasHalfPaynowQr}
+          halfUploadedAt={term.paynowHalfQrUploadedAt}
           locked={term.closed}
         />
       </Panel>

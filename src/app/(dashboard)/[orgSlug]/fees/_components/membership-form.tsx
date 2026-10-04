@@ -24,7 +24,8 @@ export interface MembershipFormProps {
   fee: { amountCents: number; label: string; note: string | null }
   /** Where a payment already stands. Only NONE and REJECTED ask for one. */
   payment: 'NONE' | 'REJECTED' | 'DECLARED' | 'CONFIRMED' | 'HELD'
-  hasQr: boolean
+  /** The full- or half-term QR, whichever matches what they owe. */
+  qrSrc: string | null
   /** Their last response, when they are editing it. */
   previous: {
     fullName: string
@@ -180,11 +181,11 @@ export function MembershipForm(props: MembershipFormProps) {
               <Notice tone="danger">The exco couldn&rsquo;t match your last payment. Send it again below.</Notice>
             )}
             <div className="flex flex-wrap items-start gap-5">
-              {props.hasQr ? (
+              {props.qrSrc ? (
                 // Streamed by a route that re-checks membership, never cached.
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={`/${orgSlug}/fees/qr/${termId}`}
+                  src={props.qrSrc}
                   alt={`PayNow QR for the ${props.termName} membership fee`}
                   className="h-[180px] w-[180px] shrink-0 rounded-[var(--radius-sm)] border border-border bg-white object-contain p-2"
                 />

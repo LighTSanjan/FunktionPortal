@@ -10,23 +10,28 @@ import { dbAs } from '@/core/db'
  * organisation, and the term is read under RLS so a term id from another club
  * returns nothing rather than somebody else's code.
  *
+ * `?rate=half` asks for the optional half-term QR instead; there is no
+ * falling back to the full one, which would show a half-rate member a code
+ * with the full amount fixed in it.
+ *
  * Streamed rather than served from a signed URL: a short-lived link is a QR
  * that has expired by the time the member has opened their banking app, and a
  * long-lived one is a permanent public address for a code that stops being
  * the right one the moment the collection closes.
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ orgSlug: string; termId: string }> }
 ) {
   const { orgSlug, termId } = await params
   const { org } = await getOrgContext(orgSlug)
   const { userId } = await verifySession()
+  const half = new URL(request.url).searchParams.get('rate') === 'half'
 
   const term = await dbAs(userId, (tx) =>
     tx.term.findFirst({
       where: { id: termId, orgId: org.id },
-      select: { paynowQrPath: true, closedAt: true },
+      select: { paynowQrPath: true, paynowHalfQrPath: true, closedAt: true },
     })
   )
 
@@ -36,7 +41,7 @@ export async function GET(
   if (term?.closedAt) return new NextResponse('Not found', { status: 404 })
 
   const { readQr } = await import('@/modules/fees/qr')
-  const qr = await readQr(term?.paynowQrPath ?? null)
+  const qr = await readQr((half ? term?.paynowHalfQrPath : term?.paynowQrPath) ?? null)
   if (!qr) return new NextResponse('Not found', { status: 404 })
 
   return new NextResponse(new Uint8Array(qr.bytes), {

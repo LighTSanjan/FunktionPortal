@@ -176,9 +176,13 @@ test('the treasurer puts this term’s PayNow QR up', async () => {
   const page = await treasurer.newPage()
   await visit(page, `/${ORG}/fees/collection?tab=form`)
   const png = Buffer.from(makePng(400, 400))
-  await page.locator('input[name="qr"]').setInputFiles({ name: 'qr.png', mimeType: 'image/png', buffer: png })
-  await page.getByRole('button', { name: 'Put the QR up' }).click()
-  await expect(page.getByText('Saved. Members see it now.')).toBeVisible()
+  for (const rate of [/^Full term/, /^Half term/]) {
+    const slot = page.getByRole('group', { name: rate })
+    await slot.locator('input[name="qr"]').setInputFiles({ name: 'qr.png', mimeType: 'image/png', buffer: png })
+    await slot.getByRole('button', { name: 'Put the QR up' }).click()
+    await expect(slot.getByText('Saved. Members see it now.')).toBeVisible()
+  }
+  await expect(page.getByRole('img', { name: /^Half-term PayNow QR/ })).toBeVisible()
 })
 
 test('the treasurer adds a question of the club’s own and opens the form', async () => {

@@ -7,7 +7,7 @@ import { hasPermission } from '@/core/permissions'
 import { studentIdFromEmail } from '@/core/auth/roster-match'
 import { PageHeader } from '@/core/ui/page-header'
 import { Badge } from '@/core/ui/badge'
-import { currentTerm, getTerm, listOwnTerms, type OwnTerm } from '@/modules/fees/queries'
+import { currentTerm, getTerm, listOwnTerms, paynowQrSrc, type OwnTerm } from '@/modules/fees/queries'
 import { amountForTier, resolveFee, TIER_LABEL } from '@/modules/fees/tiers'
 import { formatSgd } from '@/modules/coach-claim/money'
 import { formIsFor, getForm, getOwnResponse } from '@/modules/membership-form/queries'
@@ -173,7 +173,7 @@ export default async function FeesPage({
     },
     fee,
     payment: paymentState,
-    hasQr: term.hasPaynowQr,
+    qrSrc: paynowQrSrc(orgSlug, term, fee.amountCents),
     previous: editing && response ? response : null,
     preview,
   }
@@ -282,7 +282,7 @@ export default async function FeesPage({
                 termId={term.id}
                 termName={term.name}
                 amount={formatSgd(payment.amountCents)}
-                hasQr={term.hasPaynowQr}
+                qrSrc={paynowQrSrc(orgSlug, term, payment.amountCents)}
                 redeclaring
               />
             </div>
@@ -372,7 +372,7 @@ export default async function FeesPage({
             termId={term.id}
             termName={term.name}
             amount={formatSgd(amountCents)}
-            hasQr={term.hasPaynowQr}
+            qrSrc={paynowQrSrc(orgSlug, term, amountCents)}
             redeclaring={status === 'REJECTED'}
           />
         </section>
