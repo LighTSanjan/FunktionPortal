@@ -212,7 +212,8 @@ function parseDate(value: string): Date | null {
 }
 
 /**
- * Put this collection's PayNow QR up.
+ * Put one of this collection's PayNow QRs up: the full-term one, which
+ * opening the form needs, or the optional half-term one (`rate=half`).
  *
  * Stored against the term, because a fresh QR is generated for each
  * collection. Held once on the club, the second term would show members the
@@ -234,6 +235,7 @@ export async function uploadPaynowQr(
 
   const termId = String(formData.get('termId') ?? '')
   if (!termId) return { error: 'No collection was named.' }
+  const half = formData.get('rate') === 'half'
 
   const file = formData.get('qr')
   if (!(file instanceof File) || file.size === 0) {
@@ -282,7 +284,9 @@ export async function uploadPaynowQr(
 
     await tx.term.update({
       where: { id: term.id },
-      data: { paynowQrPath: key, paynowQrUploadedAt: new Date() },
+      data: half
+        ? { paynowHalfQrPath: key, paynowHalfQrUploadedAt: new Date() }
+        : { paynowQrPath: key, paynowQrUploadedAt: new Date() },
     })
     await writeAudit(
       {
@@ -291,7 +295,7 @@ export async function uploadPaynowQr(
         action: 'fee.qr_uploaded',
         targetType: 'Term',
         targetId: term.id,
-        metadata: { termName: term.name },
+        metadata: { termName: term.name, rate: half ? 'half' : 'full' },
       },
       tx
     )
@@ -302,6 +306,49 @@ export async function uploadPaynowQr(
     return { error: 'Somebody closed that collection a moment ago. The QR was not changed.' }
   }
 
+  revalidatePath(`/${orgSlug}/fees/collection`)
+  revalidatePath(`/${orgSlug}/fees`)
+  return { error: null, ok: true }
+}
+
+/**
+ * Take the half-term QR down, so half-rate members are shown the full-term
+ * one again. The full-term QR has no counterpart: the form cannot run
+ * without it, and replacing it is the way to change it.
+ */
+export async function removeHalfPaynowQr(orgSlug: string, termId: string): Promise<FeeState> {
+  const { org } = await getOrgContext(orgSlug)
+  const { userId } = await requirePermission(org.id, 'fee.manage')
+
+  const problem = await dbAs(userId, async (tx) => {
+    await lockTermFees(tx, termId)
+    const term = await tx.term.findFirst({
+      where: { id: termId, orgId: org.id },
+      select: { id: true, name: true, closedAt: true, paynowHalfQrPath: true },
+    })
+    if (!term) return 'That collection no longer exists.'
+    if (term.closedAt) return 'That collection is closed. Its QR cannot be changed.'
+    if (!term.paynowHalfQrPath) return null
+
+    await tx.term.update({
+      where: { id: term.id },
+      data: { paynowHalfQrPath: null, paynowHalfQrUploadedAt: null },
+    })
+    await writeAudit(
+      {
+        orgId: org.id,
+        actorId: userId,
+        action: 'fee.qr_removed',
+        targetType: 'Term',
+        targetId: term.id,
+        metadata: { termName: term.name, rate: 'half' },
+      },
+      tx
+    )
+    return null
+  })
+
+  if (problem) return { error: problem }
   revalidatePath(`/${orgSlug}/fees/collection`)
   revalidatePath(`/${orgSlug}/fees`)
   return { error: null, ok: true }

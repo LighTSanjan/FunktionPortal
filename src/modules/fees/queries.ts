@@ -34,6 +34,9 @@ export interface TermRow {
    */
   hasPaynowQr: boolean
   paynowQrUploadedAt: Date | null
+  /** The optional half-term QR, for whoever owes exactly the half rate. */
+  hasHalfPaynowQr: boolean
+  paynowHalfQrUploadedAt: Date | null
 }
 
 export interface PaymentRow {
@@ -104,6 +107,8 @@ function toTermRow(row: {
   finalCollectionAt: Date | null
   paynowQrPath: string | null
   paynowQrUploadedAt: Date | null
+  paynowHalfQrPath: string | null
+  paynowHalfQrUploadedAt: Date | null
   closedAt: Date | null
   chargesRecordedAt: Date | null
   incomeDeposit: { id: string; submittedToOslAt: Date | null } | null
@@ -131,6 +136,8 @@ function toTermRow(row: {
     chargesRecorded: row.chargesRecordedAt !== null,
     hasPaynowQr: row.paynowQrPath !== null,
     paynowQrUploadedAt: row.paynowQrUploadedAt,
+    hasHalfPaynowQr: row.paynowHalfQrPath !== null,
+    paynowHalfQrUploadedAt: row.paynowHalfQrUploadedAt,
   }
 }
 
@@ -146,6 +153,8 @@ const TERM_SELECT = {
   finalCollectionAt: true,
   paynowQrPath: true,
   paynowQrUploadedAt: true,
+  paynowHalfQrPath: true,
+  paynowHalfQrUploadedAt: true,
   closedAt: true,
   chargesRecordedAt: true,
   incomeDeposit: { select: { id: true, submittedToOslAt: true } },
@@ -701,4 +710,17 @@ export async function listUnlinked(
       members: members.map(({ id, fullName, studentId }) => ({ id, fullName, studentId })),
     }
   })
+}
+
+/**
+ * The QR a member should scan for what they owe: the half-term one when they
+ * owe exactly the half rate and it is up, otherwise the full-term one. Each
+ * can have its amount fixed inside it, so the wrong one would charge the
+ * wrong figure. Null until the full-term QR, the required one, is up.
+ */
+export function paynowQrSrc(orgSlug: string, term: TermRow, amountCents: number): string | null {
+  if (!term.hasPaynowQr) return null
+  const half =
+    term.hasHalfPaynowQr && term.halfFeeCents !== term.fullFeeCents && amountCents === term.halfFeeCents
+  return `/${orgSlug}/fees/qr/${term.id}${half ? '?rate=half' : ''}`
 }

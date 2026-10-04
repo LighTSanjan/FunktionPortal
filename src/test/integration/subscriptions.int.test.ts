@@ -11,9 +11,9 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import JSZip from 'jszip'
 import { claimStudentId, linkMemberAccount } from '@/modules/fees/member-actions'
-import { closeCollection, createTerm, markDepositSubmitted, updateTerm, uploadPaynowQr } from '@/modules/fees/collection-actions'
+import { closeCollection, createTerm, markDepositSubmitted, removeHalfPaynowQr, updateTerm, uploadPaynowQr } from '@/modules/fees/collection-actions'
 import { confirmPayment, declarePayment, rejectPayment } from '@/modules/fees/payment-actions'
-import { getOwnFee, listCollection, listUnlinked } from '@/modules/fees/queries'
+import { getOwnFee, getTerm, listCollection, listUnlinked, paynowQrSrc } from '@/modules/fees/queries'
 import { subscriptionWorkflow } from '@/modules/workflow/subscription'
 import { GET as qrRoute } from '@/app/(dashboard)/[orgSlug]/fees/qr/[termId]/route'
 import { GET as proofRoute } from '@/app/(dashboard)/[orgSlug]/fees/collection/[paymentId]/proof/route'
@@ -193,6 +193,44 @@ describe('a term’s subscription collection', () => {
       })
       expect(response.status).toBe(200)
       expect(response.headers.get('cache-control')).toMatch(/no-store/)
+    })
+
+    it('shows half-rate members the half-term QR once there is one', async () => {
+      const qrFor = (rate?: 'half') =>
+        qrRoute(new Request(`http://test/${rate ? '?rate=half' : ''}`), {
+          params: Promise.resolve({ orgSlug: org.slug, termId }),
+        })
+
+      as(ben)
+      expect((await qrFor('half')).status).toBe(404)
+      let term = (await getTerm(ben.id, org.id, termId))!
+      expect(paynowQrSrc(org.slug, term, 3500)).toBe(`/${org.slug}/fees/qr/${termId}`)
+
+      as(treasurer)
+      await ok(() => uploadPaynowQr(org.slug, { error: null }, form({ termId, rate: 'half', qr: pngFile(400, 400) })))
+      const stored = await dbAdmin.term.findUniqueOrThrow({ where: { id: termId } })
+      expect(stored.paynowHalfQrPath).not.toBeNull()
+      expect(stored.paynowHalfQrPath).not.toBe(stored.paynowQrPath)
+
+      as(ben)
+      expect((await qrFor('half')).status).toBe(200)
+      term = (await getTerm(ben.id, org.id, termId))!
+      expect(paynowQrSrc(org.slug, term, 3500)).toBe(`/${org.slug}/fees/qr/${termId}?rate=half`)
+      expect(paynowQrSrc(org.slug, term, 7000)).toBe(`/${org.slug}/fees/qr/${termId}`)
+      // A rate the exco set by hand matches neither QR's fixed amount.
+      expect(paynowQrSrc(org.slug, term, 5000)).toBe(`/${org.slug}/fees/qr/${termId}`)
+
+      const denied = await outcome(() => removeHalfPaynowQr(org.slug, termId))
+      expect(denied.kind).toBe('denied')
+
+      as(treasurer)
+      await ok(() => removeHalfPaynowQr(org.slug, termId))
+      as(ben)
+      expect((await qrFor('half')).status).toBe(404)
+      expect((await qrFor()).status).toBe(200)
+
+      as(treasurer)
+      await ok(() => uploadPaynowQr(org.slug, { error: null }, form({ termId, rate: 'half', qr: pngFile(400, 400) })))
     })
 
     it('does not let a member put a QR up', async () => {

@@ -527,6 +527,11 @@ model Term {
 
   paynowQrPath       String?   @map("paynow_qr_path")
   paynowQrUploadedAt DateTime? @map("paynow_qr_uploaded_at")
+  /// Optional second QR with the half-term amount fixed in it, shown instead
+  /// of the full one to whoever owes exactly the half rate. Without it they
+  /// get the full-term QR, as before.
+  paynowHalfQrPath       String?   @map("paynow_half_qr_path")
+  paynowHalfQrUploadedAt DateTime? @map("paynow_half_qr_uploaded_at")
 
   /// OSL must be told at least 2 weeks before this date so they can create
   /// the DBS Max Wallet user account (§2.2).

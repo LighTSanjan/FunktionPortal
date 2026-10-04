@@ -435,7 +435,7 @@ footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line);
       <tr><td><code>InvoiceLine</code></td><td>One billed class, pointing at the session it bills</td></tr>
       <tr><td><code>AttendanceSheet</code></td><td>The month's sheet and its verification: who signed, in which office, with which specimen</td></tr>
       <tr><td><code>CoachMonthSettlement</code></td><td>A month paid outside the portal, with the real amount and fund</td></tr>
-      <tr><td rowspan="9">Fees</td><td><code>Term</code></td><td>Dates, full/half/exchange rates, PayNow QR, collection dates, when it closed</td></tr>
+      <tr><td rowspan="9">Fees</td><td><code>Term</code></td><td>Dates, full/half/exchange rates, PayNow QRs (full term, and an optional half term), collection dates, when it closed</td></tr>
       <tr><td><code>MembershipForm</code></td><td>The term's join-and-pay form: state, intro, audience</td></tr>
       <tr><td><code>MembershipQuestion</code>, <code>…Recipient</code></td><td>The club's own questions; who the form is for when not everyone</td></tr>
       <tr><td><code>MembershipResponse</code></td><td>One person's answers. A payment from somebody not yet matched to a roster row is held here.</td></tr>
@@ -484,7 +484,7 @@ footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line);
   <p>The member side lives at <code>/:org/fees</code>; the exco side at <code>/:org/fees/collection</code>. The one control the whole flow rests on is that the person who says they paid is never the person who confirms it.</p>
   <ol class="flow">
     <li><span class="who">Exco</span><p>Create the term with its dates and rates (full, half, exchange). Tell OSL at least two weeks before collection opens so they can set up the DBS Max wallet.</p></li>
-    <li><span class="who">Exco</span><p>Set up the membership form (intro, audience, any extra questions), upload this collection's PayNow QR, and open the form.</p></li>
+    <li><span class="who">Exco</span><p>Set up the membership form (intro, audience, any extra questions), upload this collection's PayNow QR (and, optionally, a second one with the half-term amount fixed in it, which half-rate members are shown instead), and open the form.</p></li>
     <li><span class="who">Member</span><p>Fill in the form, scan the QR, pay, then declare: the bank's reference plus a screenshot. The amount is worked out by the server. The payment is now <code>DECLARED</code>.</p></li>
     <li><span class="who">Portal</span><p>If the person is not matched to a roster row yet, the payment is <em>held</em> on their response. When an exco member matches the response to a row, it moves to a <code>FeePayment</code>.</p></li>
     <li><span class="who">Exco</span><p>Check each declaration against the bank statement and confirm or reject it with a reason. Cash or late payments can be recorded directly, and marked unofficial with a reason if they never went through OSL.</p></li>

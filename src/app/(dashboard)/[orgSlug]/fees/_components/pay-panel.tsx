@@ -15,14 +15,15 @@ export function PayPanel({
   termId,
   termName,
   amount,
-  hasQr,
+  qrSrc,
   redeclaring,
 }: {
   orgSlug: string
   termId: string
   termName: string
   amount: string
-  hasQr: boolean
+  /** The full- or half-term QR, whichever matches what they owe. */
+  qrSrc: string | null
   redeclaring: boolean
 }) {
   const [telling, setTelling] = useState(false)
@@ -30,12 +31,12 @@ export function PayPanel({
   return (
     <div className="space-y-5 border-t border-border pt-5">
       <div className="flex flex-wrap items-start gap-5">
-        {hasQr ? (
+        {qrSrc ? (
           // Streamed by a route that re-checks membership, never cached: a QR
           // replaced mid-collection must not keep resolving to the old code.
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={`/${orgSlug}/fees/qr/${termId}`}
+            src={qrSrc}
             alt={`PayNow QR for the ${termName} membership fee`}
             className="h-[180px] w-[180px] shrink-0 rounded-[var(--radius-sm)] border border-border bg-white object-contain p-2"
           />
