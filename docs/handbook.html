@@ -626,6 +626,7 @@ npm run demo                # the portal with a made-up club at http://localhost
   </ol>
   <h3>Backups and recovery</h3>
   <p>The targets are a 24-hour recovery point and a four-hour recovery time. Supabase Pro keeps seven days of daily database backups; the Free plan keeps none and pauses idle projects, so it is fit for the demo, not for live money. A database backup does not include Storage objects, so the private bucket needs its own encrypted copy. Rehearse a restore into a separate project before launch and every quarter.</p>
+  <p>Until the live project is on Pro, the treasurer's laptop keeps the copies. <code>scripts/db/backup.sh</code> saves the public schema with <code>pg_dump</code> into <code>~/Backups/FunktionPortal</code>, keeping thirty, and <code>scripts/db/install-backup-agent.sh</code> makes it run at login and every evening at 21:00. A copy restores with <code>pg_restore --no-owner --no-privileges</code> into a database that already has the <code>authenticated</code>, <code>anon</code>, <code>app_user</code> and <code>service_role</code> roles. It does not include the Supabase auth schema or the bucket's files.</p>
   <div class="cols">
     <div class="card"><h4>Something wrong in one record</h4><p>Void it in the portal with a reason, and restore it the same way. Never edit history.</p></div>
     <div class="card"><h4>A bulk mistake</h4><p>Restore the nearest backup beside production, find exactly what changed, and copy back only that, after a second person checks the plan.</p></div>
