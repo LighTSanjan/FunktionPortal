@@ -19,7 +19,7 @@ Every fact is entered once. Every document is a rendering of it.
 
 <img src="docs/assets/band.svg" alt="" width="100%" height="10">
 
-**[Try the hosted demo](https://funktion-portal-demo.vercel.app/) · [Open the live club portal](https://funktion-portal.vercel.app/) · [Read the handbook](docs/handbook.html)**
+**[Try the hosted demo](https://funktion-portal-demo.vercel.app/) · [Open the live club portal](https://funktion-portal.vercel.app/)**
 
 </div>
 
