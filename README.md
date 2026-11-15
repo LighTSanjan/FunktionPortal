@@ -6,6 +6,8 @@
 
 **The treasury and membership portal for FUNKtion - SUTD's Ultimate Popping & Locking Dance Club!**
 
+FUNKtion uses the portal in production to track attendance, membership fees, and coach payments, and to generate club finance documents.
+
 Every fact is entered once. Every document is a rendering of it.
 
 [![CI](https://github.com/DarKSanjan/FunktionPortal/actions/workflows/ci.yml/badge.svg)](https://github.com/DarKSanjan/FunktionPortal/actions/workflows/ci.yml)
@@ -17,7 +19,7 @@ Every fact is entered once. Every document is a rendering of it.
 
 <img src="docs/assets/band.svg" alt="" width="100%" height="10">
 
-**[Read the handbook →](docs/handbook.html)**
+**[Try the hosted demo](https://funktion-portal-demo.vercel.app/) · [Open the live club portal](https://funktion-portal.vercel.app/) · [Read the handbook](docs/handbook.html)**
 
 </div>
 
@@ -55,9 +57,11 @@ disagree, the code wins and the handbook needs fixing.
 
 ## Try it
 
-**Hosted demo.** A copy of the portal with a made-up club. The sign-in page lets you be the
+**[Hosted demo](https://funktion-portal-demo.vercel.app/).** A copy of the portal with a made-up club. The sign-in page lets you be the
 treasurer, the president, a member, or a newcomer with one click. Nothing there is real, nothing is
 emailed, and it is reset now and then with `npm run demo:seed`.
+
+**[Live club portal](https://funktion-portal.vercel.app/).** The production portal is for FUNKtion members and requires sign-in.
 
 **On your machine.** You need Node 24 and Docker.
 
