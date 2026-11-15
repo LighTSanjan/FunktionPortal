@@ -57,11 +57,11 @@ disagree, the code wins and the handbook needs fixing.
 
 ## Try it
 
-**[Hosted demo](https://funktion-portal-demo.vercel.app/).** A copy of the portal with a made-up club. The sign-in page lets you be the
+**Hosted demo.** A copy of the portal with a made-up club. The sign-in page lets you be the
 treasurer, the president, a member, or a newcomer with one click. Nothing there is real, nothing is
 emailed, and it is reset now and then with `npm run demo:seed`.
 
-**[Live club portal](https://funktion-portal.vercel.app/).** The production portal is for FUNKtion members and requires sign-in.
+**Live club portal.** The production portal is for FUNKtion members and requires sign-in.
 
 **On your machine.** You need Node 24 and Docker.
 
