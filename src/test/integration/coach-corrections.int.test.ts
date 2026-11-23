@@ -182,12 +182,31 @@ describe('correcting a coach’s month', () => {
       )
     })
 
-    it('raises it again under the next number, for the corrected amount', async () => {
+    it('raises it again under the voided number, so the series has no gap', async () => {
       as(treasurer)
       const second = await raise(coach.jin, last.period)
       expect(second.id).not.toBe(first.id)
-      expect(second.referenceNumber?.sequence).toBeGreaterThan(first.referenceNumber!.sequence)
+      expect(second.referenceNumber?.sequence).toBe(first.referenceNumber!.sequence)
+      expect(second.referenceNumber?.formatted).toBe(first.referenceNumber!.formatted)
       expect(second.totalCents).toBe(9_000)
+    })
+
+    it('leaves the voided document with its own record of that number and why', async () => {
+      const voided = await dbAdmin.invoice.findUniqueOrThrow({ where: { id: first.id }, include: { referenceNumber: true } })
+      expect(voided.referenceNumber?.formatted).toBe(first.referenceNumber!.formatted)
+      expect(voided.referenceNumber?.voidedAt).not.toBeNull()
+      expect(voided.referenceNumber?.voidReason).toMatch(/60 minutes/)
+    })
+
+    it('holds one live row per reference number in the database', async () => {
+      const live = await dbAdmin.referenceNumber.findFirstOrThrow({
+        where: { orgId: org.id, formatted: first.referenceNumber!.formatted, voidedAt: null },
+      })
+      await expect(
+        dbAdmin.referenceNumber.create({
+          data: { orgId: org.id, series: live.series, financialYear: live.financialYear, sequence: live.sequence, formatted: live.formatted },
+        })
+      ).rejects.toThrow()
     })
 
     it('holds one live document per coach-month in the database', async () => {
