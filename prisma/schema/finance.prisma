@@ -39,9 +39,15 @@ model ReferenceCounter {
   @@map("reference_counters")
 }
 
-/// Every number ever issued, retained even if the document is voided — a
-/// gap in the series is answerable ("0009 was voided on 3 Oct"), a reused
-/// number is not.
+/// Every number ever issued, retained even if the document is voided. A voided
+/// row keeps its number and its reason, so the document that was voided can
+/// still say what it was called.
+///
+/// The Office of Finance wants the series without gaps, so a voided number is
+/// handed out again: allocation takes the lowest sequence that has a voided
+/// row and no live one, and writes a NEW row for it. Uniqueness is therefore
+/// "one LIVE row per sequence", a partial index in SQL that Prisma's schema
+/// language cannot state (see 20261123090000_reuse_voided_references).
 model ReferenceNumber {
   id            String    @id @default(cuid())
   orgId         String    @map("org_id")
@@ -58,8 +64,8 @@ model ReferenceNumber {
   invoice       Invoice?
   incomeDeposit IncomeDeposit?
 
-  @@unique([orgId, series, financialYear, sequence])
-  @@unique([orgId, formatted])
+  @@index([orgId, series, financialYear, sequence])
+  @@index([orgId, formatted])
   @@index([orgId, series, financialYear])
   @@map("reference_numbers")
 }

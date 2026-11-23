@@ -126,8 +126,9 @@ money records: the Free plan has no backups and pauses idle projects.
 - Money is integer cents. GST is derived from the gross, never typed.
 - The browser never posts a money figure. Fees come from the term's rates or an exco decision;
   claims come from classes × the rate in effect on each date.
-- Reference numbers are allocated atomically in the transaction that writes the document, and are
-  never reused.
+- Reference numbers are allocated atomically in the transaction that writes the document. The series
+  has no gaps: a voided number is issued again, lowest first, and the voided document keeps its own
+  record of the number and the reason.
 - Nothing financial is deleted. It is voided with a reason, and the audit log keeps before and after.
 - Every query runs through `dbAs()`, as the `app_user` role, under row-level security. `dbAdmin`
   bypasses it and stays inside `src/core`.
