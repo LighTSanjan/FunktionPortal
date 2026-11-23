@@ -31,7 +31,7 @@ jobs:
         run: npm run test:run
 
       - name: Production dependency audit
-        run: npm audit --omit=dev --audit-level=high
+        run: node scripts/ci/audit.mjs
 
   db-grants:
     runs-on: ubuntu-latest

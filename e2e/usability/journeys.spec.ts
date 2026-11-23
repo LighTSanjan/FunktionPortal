@@ -149,7 +149,7 @@ test('the treasurer raises last month from the home screen, reads it and signs i
   await expect(page.getByText(/Marked as sent on/)).toBeVisible()
 })
 
-test('the treasurer voids the month after spotting a mistake, and raises it again under the next number', async () => {
+test('the treasurer voids the month after spotting a mistake, and raises it again under the same number', async () => {
   const page = await treasurer.newPage()
   await visit(page, `/${ORG}/monthly-run`)
   const reference = (await page.locator('dd.font-mono').first().innerText()).trim()
@@ -169,7 +169,9 @@ test('the treasurer voids the month after spotting a mistake, and raises it agai
   await page.getByRole('button', { name: 'Raise the month' }).click()
   await expect(page.getByRole('link', { name: 'Read and sign', exact: true })).toBeVisible()
   const next = (await page.locator('dd.font-mono').first().innerText()).trim()
-  expect(next).not.toBe(reference)
+  // The Office of Finance reads a gap in the series as a missed number, so the
+  // voided number is issued again rather than skipped.
+  expect(next).toBe(reference)
 })
 
 test('the treasurer puts this term’s PayNow QR up', async () => {
